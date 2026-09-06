@@ -9,7 +9,11 @@
 从仓库根目录使用 Python 3.10 或更高版本运行评测命令：
 
 ```bash
-pip install -e '.[bench]'
+pip install 'foretoken[bench]'
+
+# 如果使用源码安装：
+# pip install -e .
+# pip install -e '.[bench]'
 ```
 
 评测 Foretoken 部署时，先安装平台，再评测 Kustomize 配置：

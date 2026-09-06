@@ -33,12 +33,15 @@ If you only need to serve a single model on one GPU, using an inference engine s
 
 This Quick Start requires Python 3.10 or later, a Kubernetes cluster, `kubectl`, Helm, and at least one available GPU. See the [k3d guide](docs/k3d-deployment.md) to prepare a single-machine test cluster.
 
-### 1. Install the CLI
+### 1. Install the command-line tool
 
-From the repository root:
+Install the published command-line tool package:
 
 ```bash
-pip install -e .
+pip install foretoken
+
+# For source installation from the repository:
+# pip install -e .
 ```
 
 ### 2. Install the Kubernetes platform
@@ -46,18 +49,14 @@ pip install -e .
 By default, installation uses the Foretoken images published on GHCR:
 
 ```bash
+# Release images:
 foretoken install
+
+# Source installation from the repository:
+# foretoken install -e .
 ```
 
-This installs the Foretoken CRDs and controller in the `foretoken-platform` namespace and waits for the controller to become ready. The default mode exposes the frontend through a `LoadBalancer` Service.
-
-If you changed the source in this repository, install from source instead:
-
-```bash
-foretoken install -e .
-```
-
-This rebuilds the images and updates the cluster. To deploy the current source to a remote cluster, see the [source deployment guide](docs/custom-deployment.md).
+This installs the Foretoken CRDs and controller in the `foretoken-platform` namespace and waits for the controller to become ready. The default mode exposes the frontend through a `LoadBalancer` Service. Source installation rebuilds the images and updates the cluster; to deploy the current source to a remote cluster, see the [source deployment guide](docs/custom-deployment.md).
 
 ### 3. Deploy the Quick Start
 
@@ -81,7 +80,11 @@ curl --fail-with-body --no-buffer \
 ### 5. Run a benchmark
 
 ```bash
-pip install -e '.[bench]'
+pip install 'foretoken[bench]'
+
+# For source installation from the repository:
+# pip install -e .
+# pip install -e '.[bench]'
 foretoken bench examples/quickstart
 ```
 
@@ -126,7 +129,7 @@ curl --fail-with-body --no-buffer \
   -d '{"model":"Qwen/Qwen3-0.6B","messages":[{"role":"user","content":"Hello"}],"stream":true}'
 ```
 
-See the [CLI guide](cli/README.md) to reuse a Gateway from another controller, select a listener, or configure TLS.
+See the [command-line tool guide](cli/README.md) to reuse a Gateway from another controller, select a listener, or configure TLS.
 
 ## Stop and Uninstall
 
@@ -138,7 +141,7 @@ foretoken delete examples/quickstart
 foretoken uninstall
 ```
 
-The uninstall command preserves Foretoken CRDs and reused cluster components. It removes the platform and the monitoring or Gateway resources managed by the CLI.
+The uninstall command preserves Foretoken CRDs and reused cluster components. It removes the platform and the monitoring or Gateway resources managed by the command-line tool.
 
 ## Related Projects
 
@@ -150,7 +153,7 @@ The uninstall command preserves Foretoken CRDs and reused cluster components. It
 
 ## Contributing
 
-Contributions to deployment baselines, hardware support, benchmarking, routing and autoscaling algorithms, tests, and documentation are welcome.
+Contributions of all kinds are welcome, including code, documentation, tests, design discussions, issue reports, and improvements to deployment, hardware, benchmarking, routing, and autoscaling.
 Performance-related changes should include the test setup, raw results, and reproducible commands.
 See [Contributing to Foretoken](CONTRIBUTING.md) for development principles, collaboration expectations, and the pull request workflow.
 

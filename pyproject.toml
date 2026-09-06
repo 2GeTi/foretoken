@@ -6,7 +6,7 @@ requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "foretoken-cli"
+name = "foretoken"
 version = "0.0.1"
 description = "Command-line tools for installing and operating Foretoken"
 readme = "cli/README.md"
@@ -36,13 +36,13 @@ dev = [
 ]
 
 [project.scripts]
-foretoken = "foretoken_cli.main:main"
+foretoken = "foretoken.main:main"
 
 [tool.setuptools]
 packages = [
-    "foretoken_cli",
-    "foretoken_cli.accelerators",
-    "foretoken_cli.platform",
+    "foretoken",
+    "foretoken.accelerators",
+    "foretoken.platform",
     "benchmarks",
     "benchmarks.client",
     "benchmarks.deployment",
@@ -54,4 +54,4 @@ packages = [
     "benchmarks.utils",
     "benchmarks.workload",
 ]
-package-dir = { foretoken_cli = "cli/foretoken_cli", benchmarks = "benchmarks" }
+package-dir = { foretoken = "cli/foretoken", benchmarks = "benchmarks" }

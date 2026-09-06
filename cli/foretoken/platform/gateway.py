@@ -7,12 +7,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from foretoken_cli.arguments import InstallCommand
-from foretoken_cli.kubernetes import Kubectl
-from foretoken_cli.manifest import DeploymentError
-from foretoken_cli.platform.helm import Helm
-from foretoken_cli.platform.types import PlatformGatewayConfig, ReleaseRef
-from foretoken_cli.platform.gateway_resources import (
+from foretoken.arguments import InstallCommand
+from foretoken.kubernetes import Kubectl
+from foretoken.manifest import DeploymentError
+from foretoken.platform.helm import Helm
+from foretoken.platform.types import PlatformGatewayConfig, ReleaseRef
+from foretoken.platform.gateway_resources import (
     _gateway_classes_for_controller,
     _discover_gateway_class,
     _other_controller_gateway_classes,
@@ -69,9 +69,11 @@ class GatewayControllerLifecycle:
         self._helm = helm
         self._kubectl = kubectl
 
-    def _managed_release(self) -> ReleaseRef | None:
-        """Return the single CLI-managed Envoy Gateway release, when present."""
-        releases = self._helm.managed_envoy_gateway_releases()
+    def _managed_release(self, *, include_legacy: bool = False) -> ReleaseRef | None:
+        """Return one managed Envoy Gateway release, when present."""
+        releases = self._helm.managed_envoy_gateway_releases(
+            include_legacy=include_legacy
+        )
         if len(releases) > 1:
             names = ", ".join(release.display_name for release in releases)
             raise DeploymentError(
@@ -287,7 +289,7 @@ class GatewayControllerLifecycle:
         kubectl = self._kubectl
         release = helm.envoy_gateway_release()
         release_exists = helm.release_exists(release)
-        managed_release = self._managed_release()
+        managed_release = self._managed_release(include_legacy=True)
         controller_name = helm.envoy_gateway_controller
         config = (
             helm.platform_gateway_config(platform)

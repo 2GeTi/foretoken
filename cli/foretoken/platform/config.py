@@ -6,12 +6,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from importlib.metadata import version
 from pathlib import Path
 
 import yaml
 
-from foretoken_cli.manifest import DeploymentError
+from foretoken import package_version
+from foretoken.manifest import DeploymentError
 
 
 @dataclass(frozen=True)
@@ -29,6 +29,7 @@ class PlatformConfig:
 
     namespace: str
     management_label: tuple[str, str]
+    legacy_management_label: tuple[str, str]
     install_source_label: str
     platform: ManagedChart
     prometheus: ManagedChart
@@ -51,12 +52,13 @@ def default_platform_config() -> PlatformConfig:
     """Return the version-aligned configuration owned by the installed CLI."""
     return PlatformConfig(
         namespace="foretoken-platform",
-        management_label=("foretoken.io/managed-by", "foretoken-cli"),
+        management_label=("foretoken.io/managed-by", "foretoken"),
+        legacy_management_label=("foretoken.io/managed-by", "foretoken-cli"),
         install_source_label="foretoken.io/install-source",
         platform=ManagedChart(
             release_name="foretoken",
             source="oci://ghcr.io/shiweijiezero/foretoken/charts/foretoken",
-            version=version("foretoken-cli"),
+            version=package_version(),
         ),
         prometheus=ManagedChart(
             release_name="foretoken-prometheus",
