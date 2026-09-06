@@ -74,6 +74,11 @@ func main() {
 	var autoscalingTelemetryRequestTimeout time.Duration
 	var autoscalingTelemetryConcurrency int
 	var workloadImagePullSecretNames []string
+	var cacheClaimName string
+	var cacheMountPath string
+	var modelSourceEndpoint string
+	var modelSourceTokenSecretName string
+	var modelSourceTokenSecretKey string
 
 	// Metrics stay disabled until the chart exposes a secured endpoint.
 	flag.StringVar(&metricsAddress, "metrics-bind-address", "0", "Metrics endpoint bind address; 0 disables metrics.")
@@ -96,6 +101,11 @@ func main() {
 		workloadImagePullSecretNames = append(workloadImagePullSecretNames, value)
 		return nil
 	})
+	flag.StringVar(&cacheClaimName, "cache-claim", "", "Existing namespace-local PVC shared by runtime workloads.")
+	flag.StringVar(&cacheMountPath, "cache-mount-path", "/var/cache/foretoken", "Absolute runtime cache root mounted into workload Pods.")
+	flag.StringVar(&modelSourceEndpoint, "model-source-endpoint", "", "Optional model source endpoint interpreted by the runtime adapter.")
+	flag.StringVar(&modelSourceTokenSecretName, "model-source-token-secret-name", "", "Namespace-local Secret containing the model source credential.")
+	flag.StringVar(&modelSourceTokenSecretKey, "model-source-token-secret-key", "", "Key in the model source credential Secret.")
 	flag.StringVar(&inferenceEngineProfileRevision, "inference-engine-profile-revision", "default", "Opaque revision of the configured inference engine profile.")
 	flag.StringVar(&inferenceEngineImage, "inference-engine-image", "", "Inference engine image containing the Foretoken model-server adapter.")
 	flag.IntVar(&modelServerPort, "model-server-port", 9000, "Internal model-server HTTP port.")
@@ -129,9 +139,19 @@ func main() {
 	for index, name := range workloadImagePullSecretNames {
 		workloadImagePullSecrets[index] = corev1.LocalObjectReference{Name: name}
 	}
+	cacheProfile := controllers.RuntimeCacheProfile{ClaimName: cacheClaimName, MountPath: cacheMountPath}
+	sourceProfile := controllers.RuntimeSourceProfile{Endpoint: modelSourceEndpoint, TokenSecretName: modelSourceTokenSecretName, TokenSecretKey: modelSourceTokenSecretKey}
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&logOptions)))
 	if inferenceEngineImage == "" {
 		ctrl.Log.Error(errors.New("inference-engine-image must be nonempty"), "invalid inference engine profile")
+		os.Exit(1)
+	}
+	if err := cacheProfile.Validate(); err != nil {
+		ctrl.Log.Error(err, "invalid runtime cache profile")
+		os.Exit(1)
+	}
+	if err := sourceProfile.Validate(); err != nil {
+		ctrl.Log.Error(err, "invalid runtime source profile")
 		os.Exit(1)
 	}
 	if modelServerPort < 1 || modelServerPort > 65535 {
@@ -265,6 +285,7 @@ func main() {
 				Image:            frontendImage,
 				Port:             int32(frontendPort),
 				ImagePullSecrets: workloadImagePullSecrets,
+				RuntimeCache:     cacheProfile.RuntimeCache(),
 				Gateway:          gateway,
 			},
 		}
@@ -274,7 +295,9 @@ func main() {
 		}
 	}
 	if err := (&controllers.ModelServiceReconciler{
-		Client: manager.GetClient(),
+		Client:        manager.GetClient(),
+		CacheProfile:  cacheProfile,
+		SourceProfile: sourceProfile,
 		MetricsProvider: controllers.NewHTTPScalingMetricsProvider(manager.GetClient(), controllers.AutoscalingTelemetryOptions{
 			CollectionTimeout: autoscalingTelemetryCollectionTimeout,
 			RequestTimeout:    autoscalingTelemetryRequestTimeout,

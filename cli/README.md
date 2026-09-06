@@ -90,6 +90,10 @@ Registry login authorizes the local image push. Private registries also need `im
 
 Repeatable `--values` files provide platform image, runtime, and hardware settings. Release and source installs record their mode in Helm metadata and cannot switch silently. Releases originally installed directly with Helm remain under their existing Helm lifecycle and are not adopted automatically.
 
+### Persistent runtime cache
+
+To reuse model and compilation caches after Pod restarts, set `workload.cache.claimName` to an existing PVC. The PVC must be mountable from every eligible node; multi-node deployments normally need `ReadWriteMany`. Leave it empty to disable persistent caching. See [Persistent Runtime Cache](../docs/development/runtime-cache.md) for the configuration example.
+
 ## Deploy and operate model services
 
 Deploy one frontend and all models rendered by a Kustomize root:

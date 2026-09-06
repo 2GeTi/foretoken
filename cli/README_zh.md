@@ -88,7 +88,11 @@ foretoken install -e . --registry ghcr.io/example/foretoken
 
 ### 安装选项
 
-重复使用 `--values` 可提供平台镜像、runtime 和硬件配置。发布镜像安装与源码安装模式会记录在 Helm 元数据中，不能静默切换。原本通过 Helm 直接安装的发布实例继续使用原有 Helm 生命周期，命令行工具 不会自动接管。
+重复使用 `--values` 可提供平台镜像、runtime 和硬件配置。发布镜像安装与源码安装模式会记录在 Helm 元数据中，不能静默切换。原本通过 Helm 直接安装的发布实例继续使用原有 Helm 生命周期，命令行工具不会自动接管。
+
+### 持久化运行时缓存
+
+如需在 Pod 重启后复用模型和编译缓存，将 `workload.cache.claimName` 设置为已有 PVC。该 PVC 必须能被所有可能运行工作负载的节点挂载；多节点部署通常需要 `ReadWriteMany`。留空则关闭持久化缓存。配置示例见[持久化运行时缓存](../docs/development/runtime-cache_zh.md)。
 
 ## 部署和管理模型服务
 

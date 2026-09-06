@@ -48,6 +48,8 @@ type ScalingMetricsProvider interface {
 type ModelServiceReconciler struct {
 	client.Client
 	MetricsProvider ScalingMetricsProvider
+	CacheProfile    RuntimeCacheProfile
+	SourceProfile   RuntimeSourceProfile
 
 	recommendationHistoryOnce sync.Once
 	recommendationHistory     *core.RecommendationHistory
@@ -110,6 +112,12 @@ func (reconciler *ModelServiceReconciler) Reconcile(ctx context.Context, request
 			pools:    conditionState{metav1.ConditionFalse, "ScalingFailed", "ModelPool capacity was not resolved"},
 			ready:    conditionState{metav1.ConditionFalse, "ScalingFailed", "ModelService capacity is invalid"},
 		})
+	}
+	runtimeCache := reconciler.CacheProfile.RuntimeCache()
+	runtimeSource := reconciler.SourceProfile.RuntimeSource()
+	for index := range compiledPools {
+		compiledPools[index].Template.RuntimeCache = runtimeCache.DeepCopy()
+		compiledPools[index].Template.SourceAccess = runtimeSource.DeepCopy()
 	}
 
 	if err := reconciler.reconcilePools(ctx, service, compiledPools); err != nil {

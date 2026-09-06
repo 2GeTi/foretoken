@@ -96,7 +96,8 @@
     "workload": {
       "type": "object",
       "required": [
-        "imagePullSecrets"
+        "imagePullSecrets",
+        "cache"
       ],
       "properties": {
         "imagePullSecrets": {
@@ -114,6 +115,24 @@
             },
             "additionalProperties": false
           }
+        },
+        "cache": {
+          "type": "object",
+          "required": [
+            "claimName",
+            "mountPath"
+          ],
+          "properties": {
+            "claimName": {
+              "type": "string"
+            },
+            "mountPath": {
+              "type": "string",
+              "pattern": "^/",
+              "minLength": 2
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -216,7 +235,8 @@
             "image",
             "profileRevision",
             "modelServerPort",
-            "gpu"
+            "gpu",
+            "modelSource"
           ],
           "properties": {
             "image": {
@@ -509,6 +529,36 @@
                   }
                 }
               ]
+            },
+            "modelSource": {
+              "type": "object",
+              "required": [
+                "endpoint",
+                "tokenSecret"
+              ],
+              "properties": {
+                "endpoint": {
+                  "type": "string"
+                },
+                "tokenSecret": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "key"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
