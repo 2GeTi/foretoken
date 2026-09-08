@@ -31,5 +31,5 @@ pub use filter::{AllowAllFilter, RouteFilter};
 pub use picker::{MaxPicker, RoundRobinPicker, RoutePicker};
 pub use scorer::{
     KvCacheUtilizationScorer, KvLeastLoadedScorer, LeastLoadedScorer, QueueDepthScorer,
-    RouteScorer, UniformScorer,
+    RouteScorer, RunningRequestScorer, UniformScorer,
 };
