@@ -26,6 +26,11 @@ workload:
     claimName: ""
     mountPath: /var/cache/foretoken
 
+# Unused node-network IP addresses for services when the cluster assigns none.
+# Consumed by foretoken install, which then manages MetalLB in Layer 2 mode.
+loadBalancer:
+  managedAddresses: []
+
 # Local mode uses a LoadBalancer Service. Gateway mode attaches an HTTPRoute to a Gateway.
 frontend:
   enabled: false
