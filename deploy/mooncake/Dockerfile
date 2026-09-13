@@ -45,12 +45,22 @@ FROM ubuntu:24.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates libcurl4t64 libgflags2.2 libgoogle-glog0v6t64 \
     libibverbs1 libjsoncpp25 libnuma1 libstdc++6 liburing2 \
-    libxxhash0 libyaml-cpp0.8 libzstd1 \
+    libxxhash0 libyaml-cpp0.8 libzstd1 tini \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 65532 mooncake \
     && useradd --uid 65532 --gid 65532 --create-home --home-dir /home/mooncake mooncake
 
 COPY --from=build /out/ /usr/local/
+
+# Kubernetes command overrides must retain init-based signal forwarding and reaping.
+RUN mkdir -p /usr/local/libexec \
+    && for binary in mooncake_master mooncake_client; do \
+        mv "/usr/local/bin/$binary" "/usr/local/libexec/$binary"; \
+        printf '#!/bin/sh\nexec /usr/bin/tini -- /usr/local/libexec/%s "$@"\n' "$binary" \
+            > "/usr/local/bin/$binary"; \
+        chmod 755 "/usr/local/bin/$binary"; \
+    done
+
 COPY LICENSE /usr/local/share/licenses/foretoken/LICENSE
 COPY deploy/mooncake/NOTICE /usr/local/share/foretoken-mooncake/NOTICE
 COPY deploy/mooncake/patches/ /usr/local/share/foretoken-mooncake/patches/

@@ -62,18 +62,3 @@ index 04b3ef56..ced7609f 100644
      return {};
  }
  
-diff --git a/mooncake-store/src/real_client.cpp b/mooncake-store/src/real_client.cpp
-index 90632851..395de93b 100644
---- a/mooncake-store/src/real_client.cpp
-+++ b/mooncake-store/src/real_client.cpp
-@@ -553,7 +553,9 @@ void ResourceTracker::startSignalThread() {
-                 }
-                 raise(sig);
- 
--                break;  // Should not reach due to process termination
-+                // PID 1 never receives a default-action signal, so a container
-+                // entrypoint must exit explicitly once cleanup is done.
-+                _exit(128 + sig);
-             }
-         });
-         ready_future.wait();  // Ensure thread is ready
