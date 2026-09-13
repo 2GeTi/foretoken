@@ -15,8 +15,6 @@ from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
-from foretoken import platform_version
-
 SOURCE_PROBE_BUDGET_SECONDS = 4.0
 _PROBE_READ_BYTES = 64 * 1024
 _FASTER_RATIO = 0.7
@@ -196,12 +194,12 @@ def select_source_build_sources(
                     lambda: _measure_oci_manifest(
                         "ghcr.io",
                         "shiweijiezero/foretoken/model-server",
-                        platform_version(),
+                        "latest",
                     ),
                     lambda: _measure_oci_manifest(
                         "m.daocloud.io",
                         "ghcr.io/shiweijiezero/foretoken/model-server",
-                        platform_version(),
+                        "latest",
                     ),
                     "m.daocloud.io/ghcr.io",
                 ),
