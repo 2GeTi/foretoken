@@ -48,9 +48,9 @@ type ScalingMetricsProvider interface {
 // ModelServiceReconciler compiles ModelService intent and owns ModelPool specs.
 type ModelServiceReconciler struct {
 	client.Client
-	MetricsProvider ScalingMetricsProvider
-	CacheProfile    RuntimeCacheProfile
-	SourceProfile   RuntimeSourceProfile
+	MetricsProvider          ScalingMetricsProvider
+	CacheProfile             RuntimeCacheProfile
+	HuggingFaceAccessProfile HuggingFaceAccessProfile
 
 	recommendationHistoryOnce sync.Once
 	recommendationHistory     *core.RecommendationHistory
@@ -139,10 +139,12 @@ func (reconciler *ModelServiceReconciler) Reconcile(ctx context.Context, request
 		})
 		return ctrl.Result{}, errors.Join(readinessErr, statusErr)
 	}
-	runtimeSource := reconciler.SourceProfile.RuntimeSource()
+	huggingFaceAccess := reconciler.HuggingFaceAccessProfile.Access()
 	for index := range compiledPools {
 		compiledPools[index].Template.RuntimeCache = runtimeCache.DeepCopy()
-		compiledPools[index].Template.SourceAccess = runtimeSource.DeepCopy()
+		if compiledPools[index].Template.Source == inferencev1alpha1.ModelSourceHF {
+			compiledPools[index].Template.HuggingFaceAccess = huggingFaceAccess.DeepCopy()
+		}
 	}
 
 	if err := reconciler.reconcilePools(ctx, service, compiledPools); err != nil {
