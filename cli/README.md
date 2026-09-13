@@ -46,6 +46,8 @@ The default uses release images and local access through a `LoadBalancer` Servic
 foretoken install
 ```
 
+Installation selects the NVIDIA or MetaX runtime from the cluster's GPU resources. Explicit runtime settings in `--values` take precedence; in a mixed-GPU cluster, select a resource with `runtime.vllm.gpu.resourceName` or restrict the nodes with `runtime.vllm.gpu.nodeSelector`.
+
 Installation also sets up monitoring, reusing a Prometheus and GPU metrics exporter already in the cluster when they exist. See [Observability](../observability/README.md).
 
 ### Gateway mode

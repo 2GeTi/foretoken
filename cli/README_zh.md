@@ -46,6 +46,8 @@ uv pip install foretoken
 foretoken install
 ```
 
+安装会根据集群的 GPU 资源自动选择 NVIDIA 或沐曦运行时，`--values` 中显式指定的运行时配置优先。混合 GPU 集群通过 `runtime.vllm.gpu.resourceName` 选择资源，或通过 `runtime.vllm.gpu.nodeSelector` 限定节点范围。
+
 安装同时会配置监控；集群里已有 Prometheus 和 GPU 指标 exporter 时直接复用。详见[可观测性](../observability/README_zh.md)。
 
 ### 网关模式

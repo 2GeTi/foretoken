@@ -9,7 +9,7 @@ import logging
 import time
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import httpx
@@ -24,6 +24,7 @@ from foretoken.kubernetes import (
     wait_for_resources,
 )
 from foretoken.manifest import DeploymentError, ForetokenDeployment
+from foretoken.storage import DirectoryVolumes
 
 logger = logging.getLogger(__name__)
 
@@ -205,21 +206,23 @@ def _missing_objects(
     return tuple(created)
 
 
-def _delete_objects(
-    kubectl: Kubectl,
+def _created_deployment(
+    deployment: ForetokenDeployment,
     objects: tuple[dict[str, Any], ...],
-    timeout: str,
-) -> None:
-    """Delete namespaced objects first, then delete the Namespace created for this benchmark."""
-    namespaced = tuple(
-        document for document in objects if document.get("kind") != "Namespace"
+) -> ForetokenDeployment:
+    """Describe only the objects and directory caches this benchmark created."""
+    identities = {_object_identity(document) for document in objects}
+    runtime_caches = tuple(
+        cache
+        for cache in deployment.runtime_caches
+        if ("RuntimeCache", cache.name, cache.namespace) in identities
     )
-    namespaces = tuple(
-        document for document in objects if document.get("kind") == "Namespace"
+    return replace(
+        deployment,
+        rendered=yaml.safe_dump_all(objects, sort_keys=False),
+        runtime_caches=runtime_caches,
+        objects=objects,
     )
-    for group in (namespaced, namespaces):
-        if group:
-            kubectl.delete(yaml.safe_dump_all(group), timeout)
 
 
 @contextmanager
@@ -252,19 +255,18 @@ def resolve_model_service(source: ModelServiceSource) -> Iterator[ModelService]:
             "Apply or delete it, then rerun the benchmark"
         )
 
-    created: tuple[dict[str, Any], ...] = ()
-    if not any(presence):
-        created = _missing_objects(deployment, kubectl)
-        logger.info("Deploying Foretoken service from %s", deployment.path)
-        try:
-            kubectl.apply(yaml.safe_dump_all(created))
-        except Exception:
-            _delete_objects(kubectl, created, source.wait_timeout)
-            raise
-
+    volumes = DirectoryVolumes(kubectl)
+    created: ForetokenDeployment | None = None
     try:
+        if not any(presence):
+            created = _created_deployment(
+                deployment,
+                _missing_objects(deployment, kubectl),
+            )
+            logger.info("Deploying Foretoken service from %s", deployment.path)
+            volumes.apply(created, source.wait_timeout)
         yield _discover_model_service(deployment, kubectl, source)
     finally:
-        if created:
+        if created is not None:
             logger.info("Cleaning up Foretoken service from %s", deployment.path)
-            _delete_objects(kubectl, created, source.wait_timeout)
+            volumes.delete(created, source.wait_timeout)
