@@ -6,12 +6,10 @@
 package controllers
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"net/http"
 	"net/url"
@@ -40,14 +38,10 @@ const (
 	kvGroupDiskRetentionAnnotation = "inference.foretoken.io/disk-retention"
 	conditionClientPodReady        = "ClientPodReady"
 	conditionStorageRegistered     = "StorageRegistered"
-	conditionStorageDrained        = "StorageDrained"
 	storageRegistrationPath        = "/registration"
-	storageDrainQuiescePath        = "/cache-loss/quiesce"
-	storageDrainStatusPath         = "/cache-loss/status"
 	masterRegistrationPath         = "/api/v1/clients/registration"
-	masterCacheLossPath            = "/api/v1/clients/cache_loss"
 	storageRegistrationRequeue     = 10 * time.Second
-	storageDrainPoll               = 5 * time.Second
+	kvGroupDeletionRequeue         = 5 * time.Second
 )
 
 type kvGroupCondition struct {
@@ -57,30 +51,9 @@ type kvGroupCondition struct {
 }
 
 type kvClientRegistrationResponse struct {
-	ClientID           string   `json:"client_id"`
-	MemorySegmentIDs   []string `json:"memory_segment_ids"`
-	SSDEnabled         bool     `json:"ssd_enabled"`
-	CacheLossSupported bool     `json:"cache_loss_supported"`
-}
-
-// kvClientCacheLossStatus is the client's view of its exit: after quiesce it admits no new
-// SSD reads and its memory segments are leaving through Master's graceful unmount, while
-// the counters show work that readers or background tasks still hold.
-type kvClientCacheLossStatus struct {
-	ClientID                 string `json:"client_id"`
-	Quiesced                 bool   `json:"quiesced"`
-	HeartbeatInFlight        bool   `json:"heartbeat_in_flight"`
-	MetadataRescanInFlight   bool   `json:"metadata_rescan_in_flight"`
-	ActiveBatchGets          uint64 `json:"active_batch_gets"`
-	AllocatedBatches         uint64 `json:"allocated_batches"`
-	MemorySegmentsMounted    uint64 `json:"memory_segments_mounted"`
-	MemorySegmentsUnmounting uint64 `json:"memory_segments_unmounting"`
-	FenceToken               string `json:"fence_token"`
-}
-
-type kvMasterCacheLossRequest struct {
-	ClientID   string `json:"client_id"`
-	FenceToken string `json:"fence_token"`
+	ClientID         string   `json:"client_id"`
+	MemorySegmentIDs []string `json:"memory_segment_ids"`
+	SSDEnabled       bool     `json:"ssd_enabled"`
 }
 
 type kvMasterRegistrationResponse struct {
@@ -337,29 +310,46 @@ func (reconciler *KVGroupReconciler) applyOwned(ctx context.Context, group *infe
 	return reconciler.Update(ctx, desired)
 }
 
-// reconcileDelete attempts provider cleanup before removing client infrastructure.
-// Phase Terminating persists the outcome so cleanup can continue after management
-// endpoints disappear. Unsupported providers and expired drain budgets use bounded
-// process termination; the outcome does not guarantee completion of direct-memory reads.
+// reconcileDelete stops the client before removing its network resources and disk.
+// Mooncake expires departed clients through its heartbeat lifecycle; Pod termination
+// does not assert that remote readers completed or that cached values were migrated.
 func (reconciler *KVGroupReconciler) reconcileDelete(ctx context.Context, group *inferencev1alpha1.KVGroup) (ctrl.Result, error) {
 	if !controllerutil.ContainsFinalizer(group, kvGroupFinalizer) {
 		return ctrl.Result{}, nil
 	}
-	if group.Status.Phase != inferencev1alpha1.KVGroupPhaseTerminating {
-		var drained *kvGroupCondition
-		if storageRegistrationEnabled(group) {
-			condition, done := reconciler.drainStorage(ctx, group)
-			drained = &condition
-			if !done {
-				return ctrl.Result{RequeueAfter: storageDrainPoll}, reconciler.updateDeletionStatus(ctx, group, inferencev1alpha1.KVGroupPhaseDraining, drained)
+	if err := reconciler.updateDeletionStatus(ctx, group); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// Foreground deletion keeps the workload until its ReplicaSets and Pods are gone.
+	// Also observe Pods explicitly when resuming an earlier background deletion.
+	deployment := new(appsv1.Deployment)
+	key := client.ObjectKey{Namespace: group.Namespace, Name: kvGroupWorkloadName(group)}
+	if err := reconciler.Get(ctx, key, deployment); err == nil {
+		if !metav1.IsControlledBy(deployment, group) {
+			return ctrl.Result{}, fmt.Errorf("Deployment %q is not controlled by KVGroup", deployment.Name)
+		}
+		if deployment.DeletionTimestamp.IsZero() {
+			if err := reconciler.Delete(ctx, deployment, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil && !apierrors.IsNotFound(err) {
+				return ctrl.Result{}, err
 			}
 		}
-		if err := reconciler.updateDeletionStatus(ctx, group, inferencev1alpha1.KVGroupPhaseTerminating, drained); err != nil {
-			return ctrl.Result{}, err
-		}
+		return ctrl.Result{RequeueAfter: kvGroupDeletionRequeue}, nil
+	} else if !apierrors.IsNotFound(err) {
+		return ctrl.Result{}, err
+	}
+	pods := new(corev1.PodList)
+	if err := reconciler.List(ctx, pods, client.InNamespace(group.Namespace), client.MatchingLabels{
+		kvGroupLabel:   kvLabelValue(group.Name),
+		kvServiceLabel: kvLabelValue(group.Spec.KVPoolRef.Name),
+	}); err != nil {
+		return ctrl.Result{}, err
+	}
+	if len(pods.Items) > 0 {
+		return ctrl.Result{RequeueAfter: kvGroupDeletionRequeue}, nil
 	}
 	pending := false
-	for _, object := range []client.Object{&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: kvGroupWorkloadName(group), Namespace: group.Namespace}}, &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: kvGroupWorkloadName(group), Namespace: group.Namespace}}, &networkingv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{Name: kvGroupWorkloadName(group), Namespace: group.Namespace}}} {
+	for _, object := range []client.Object{&corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: kvGroupWorkloadName(group), Namespace: group.Namespace}}, &networkingv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{Name: kvGroupWorkloadName(group), Namespace: group.Namespace}}} {
 		present, err := reconciler.deleteIfPresent(ctx, object)
 		if err != nil {
 			return ctrl.Result{}, err
@@ -419,78 +409,12 @@ func (reconciler *KVGroupReconciler) releaseDiskPVC(ctx context.Context, group *
 	return reconciler.Patch(ctx, pvc, client.MergeFrom(base))
 }
 
-// drainStorage runs one idempotent pass of the client's cache-loss exit and reports whether
-// it is settled. Every pass repeats each call, so nothing is persisted before the outcome is
-// final. The drain budget starts at the deletion timestamp; once it elapses, deletion
-// proceeds and the condition states what was still pending.
-func (reconciler *KVGroupReconciler) drainStorage(ctx context.Context, group *inferencev1alpha1.KVGroup) (kvGroupCondition, bool) {
-	// The timeout was validated when the workload was materialized.
-	drain, _ := time.ParseDuration(string(group.Spec.Timeouts.Drain))
-	expired := time.Now().After(group.DeletionTimestamp.Add(drain))
-	pending := func(condition kvGroupCondition) (kvGroupCondition, bool) {
-		if expired {
-			return kvGroupCondition{reason: "DrainTimedOut", message: "Drain timeout elapsed; deleting with cache loss: " + condition.message}, true
-		}
-		return condition, false
-	}
-	if group.Spec.MasterAdminPort == 0 {
-		return kvGroupCondition{reason: "Unsupported", message: "Master admin port is not resolved for storage drain"}, true
-	}
-	clientBase := fmt.Sprintf("http://%s.%s.svc:%d", kvGroupWorkloadName(group), group.Namespace, storageManagementPort(group))
-	var registration kvClientRegistrationResponse
-	if err := reconciler.providerJSON(ctx, http.MethodGet, clientBase+storageRegistrationPath, nil, &registration); err != nil {
-		condition := storageRegistrationCondition(err)
-		if condition.reason == "Unsupported" {
-			return condition, true
-		}
-		return pending(condition)
-	}
-	if !registration.CacheLossSupported {
-		return kvGroupCondition{reason: "Unsupported", message: "Store client image has no cache-loss drain protocol; Master keeps its metadata until the client expires"}, true
-	}
-	registeredClientID, valid := mooncakeID(registration.ClientID)
-	if !valid {
-		return pending(kvGroupCondition{reason: "InvalidResponse", message: "Store registration returned an invalid client identity"})
-	}
-	var quiesce kvClientCacheLossStatus
-	if err := reconciler.providerJSON(ctx, http.MethodPost, clientBase+storageDrainQuiescePath, nil, &quiesce); err != nil {
-		return pending(storageRegistrationCondition(err))
-	}
-	clientID, valid := mooncakeID(quiesce.ClientID)
-	if !valid || quiesce.FenceToken == "" {
-		return pending(kvGroupCondition{reason: "InvalidResponse", message: "Cache-loss quiesce returned an invalid client identity or fence"})
-	}
-	if clientID != registeredClientID {
-		return pending(kvGroupCondition{reason: "ClientRestarted", message: "Store client changed during drain; retrying with its current identity"})
-	}
-	masterURL := fmt.Sprintf("http://%s:%d%s", group.Spec.MasterServiceDNS, group.Spec.MasterAdminPort, masterCacheLossPath)
-	if err := reconciler.providerJSON(ctx, http.MethodPost, masterURL, kvMasterCacheLossRequest{ClientID: clientID, FenceToken: quiesce.FenceToken}, nil); err != nil {
-		// Master answers 404 both for a missing SSD membership and for an image without the
-		// endpoint; the next pass re-fences through the client, and the budget bounds the rest.
-		return pending(kvGroupCondition{reason: "Unavailable", message: "Master did not drop the client's SSD metadata: " + err.Error()})
-	}
-	var status kvClientCacheLossStatus
-	if err := reconciler.providerJSON(ctx, http.MethodGet, clientBase+storageDrainStatusPath, nil, &status); err != nil {
-		return pending(storageRegistrationCondition(err))
-	}
-	statusClientID, valid := mooncakeID(status.ClientID)
-	if !valid || statusClientID != clientID || !status.Quiesced || status.FenceToken != quiesce.FenceToken {
-		return pending(kvGroupCondition{reason: "Draining", message: "Store client identity or fence changed during drain; quiesce is repeated"})
-	}
-	if status.ActiveBatchGets > 0 || status.AllocatedBatches > 0 || status.HeartbeatInFlight || status.MetadataRescanInFlight || status.MemorySegmentsMounted > 0 || status.MemorySegmentsUnmounting > 0 {
-		return pending(kvGroupCondition{reason: "Draining", message: fmt.Sprintf("SSD metadata dropped; waiting for %d SSD reads, %d retained SSD buffers, %d memory segments, heartbeat %t, metadata rescan %t", status.ActiveBatchGets, status.AllocatedBatches, status.MemorySegmentsMounted+status.MemorySegmentsUnmounting, status.HeartbeatInFlight, status.MetadataRescanInFlight)})
-	}
-	return kvGroupCondition{ready: true, reason: "Drained", message: "SSD metadata removed, tracked SSD readers released, and memory unmount bookkeeping completed"}, true
-}
-
-// updateDeletionStatus publishes drain progress and outcome while the KVGroup is deleting.
-func (reconciler *KVGroupReconciler) updateDeletionStatus(ctx context.Context, group *inferencev1alpha1.KVGroup, phase inferencev1alpha1.KVGroupPhase, drained *kvGroupCondition) error {
+// updateDeletionStatus marks the client unavailable while Kubernetes terminates it.
+func (reconciler *KVGroupReconciler) updateDeletionStatus(ctx context.Context, group *inferencev1alpha1.KVGroup) error {
 	base := group.DeepCopy()
-	group.Status.Phase = phase
+	group.Status.Phase = inferencev1alpha1.KVGroupPhaseTerminating
 	meta.SetStatusCondition(&group.Status.Conditions, metav1.Condition{Type: conditionReady, Status: metav1.ConditionFalse, Reason: "Deleting", Message: "KVGroup is being deleted", ObservedGeneration: group.Generation})
-	if drained != nil {
-		meta.SetStatusCondition(&group.Status.Conditions, metav1.Condition{Type: conditionStorageDrained, Status: conditionStatus(drained.ready), Reason: drained.reason, Message: drained.message, ObservedGeneration: group.Generation})
-	}
+	meta.RemoveStatusCondition(&group.Status.Conditions, "StorageDrained")
 	if reflect.DeepEqual(base.Status, group.Status) {
 		return nil
 	}
@@ -501,7 +425,7 @@ func storageRegistrationEnabled(group *inferencev1alpha1.KVGroup) bool {
 	return group.Spec.Client.StorageRegistration != nil && group.Spec.Client.StorageRegistration.Enabled
 }
 
-// storageManagementPort is the client HTTP port for registration and drain calls.
+// storageManagementPort resolves the client HTTP port used by registration checks.
 func storageManagementPort(group *inferencev1alpha1.KVGroup) int32 {
 	if port := group.Spec.Client.StorageRegistration.Port; port != 0 {
 		return port
@@ -544,7 +468,7 @@ func (reconciler *KVGroupReconciler) checkStorageRegistration(ctx context.Contex
 	}
 	clientURL := fmt.Sprintf("http://%s.%s.svc:%d%s", kvGroupWorkloadName(group), group.Namespace, storageManagementPort(group), storageRegistrationPath)
 	var clientResponse kvClientRegistrationResponse
-	if err := reconciler.providerJSON(ctx, http.MethodGet, clientURL, nil, &clientResponse); err != nil {
+	if err := reconciler.readProviderJSON(ctx, clientURL, &clientResponse); err != nil {
 		return false, storageRegistrationCondition(err)
 	}
 	clientID, valid := mooncakeID(clientResponse.ClientID)
@@ -577,7 +501,7 @@ func (reconciler *KVGroupReconciler) checkStorageRegistration(ctx context.Contex
 	}
 	masterURL := fmt.Sprintf("http://%s:%d%s?client_id=%s", group.Spec.MasterServiceDNS, group.Spec.MasterAdminPort, masterRegistrationPath, url.QueryEscape(clientID))
 	var masterResponse kvMasterRegistrationResponse
-	if err := reconciler.providerJSON(ctx, http.MethodGet, masterURL, nil, &masterResponse); err != nil {
+	if err := reconciler.readProviderJSON(ctx, masterURL, &masterResponse); err != nil {
 		return false, storageRegistrationCondition(err)
 	}
 	masterID, valid := mooncakeID(masterResponse.ClientID)
@@ -586,7 +510,7 @@ func (reconciler *KVGroupReconciler) checkStorageRegistration(ctx context.Contex
 	}
 	segmentsURL := fmt.Sprintf("http://%s:%d/get_segments_detail", group.Spec.MasterServiceDNS, group.Spec.MasterAdminPort)
 	var segmentsResponse kvSegmentsDetailResponse
-	if err := reconciler.providerJSON(ctx, http.MethodGet, segmentsURL, nil, &segmentsResponse); err != nil {
+	if err := reconciler.readProviderJSON(ctx, segmentsURL, &segmentsResponse); err != nil {
 		return false, storageRegistrationCondition(err)
 	}
 	segmentDetails := make(map[string]kvSegmentDetail, len(segmentsResponse.Segments))
@@ -606,26 +530,14 @@ func (reconciler *KVGroupReconciler) checkStorageRegistration(ctx context.Contex
 	return true, kvGroupCondition{ready: true, reason: "Registered", message: "Mooncake client registration and memory segments match Master"}
 }
 
-// providerJSON performs one bounded management call against the Store client or Master.
-// A nil body sends no payload; a nil target discards the response body.
-func (reconciler *KVGroupReconciler) providerJSON(ctx context.Context, method, endpoint string, body, target any) error {
+// readProviderJSON reads registration state from a bounded client or Master request.
+func (reconciler *KVGroupReconciler) readProviderJSON(ctx context.Context, endpoint string, target any) error {
 	if reconciler.HTTPClient == nil {
 		return errors.New("storage management HTTP client is not configured")
 	}
-	var payload io.Reader
-	if body != nil {
-		encoded, err := json.Marshal(body)
-		if err != nil {
-			return err
-		}
-		payload = bytes.NewReader(encoded)
-	}
-	request, err := http.NewRequestWithContext(ctx, method, endpoint, payload)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return err
-	}
-	if body != nil {
-		request.Header.Set("Content-Type", "application/json")
 	}
 	response, err := reconciler.HTTPClient.Do(request)
 	if err != nil {
@@ -634,9 +546,6 @@ func (reconciler *KVGroupReconciler) providerJSON(ctx context.Context, method, e
 	defer response.Body.Close()
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return &managementHTTPError{status: response.StatusCode}
-	}
-	if target == nil {
-		return nil
 	}
 	if err := json.NewDecoder(response.Body).Decode(target); err != nil {
 		return fmt.Errorf("decode management response: %w", err)

@@ -169,9 +169,7 @@ type KVStoragePoolTemplate struct {
 // KVTimeouts defines lifecycle budgets for Store clients.
 type KVTimeouts struct {
 	Startup Duration `json:"startup"`
-	// Drain bounds a leaving client's exit: the wait for its memory segments to leave
-	// Master and for in-flight SSD readers after its SSD metadata is dropped, and the
-	// process termination grace period.
+	// Drain is the Kubernetes termination grace period for a leaving Store client.
 	Drain Duration `json:"drain"`
 }
 

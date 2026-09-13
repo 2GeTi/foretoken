@@ -264,10 +264,8 @@ spec:
                 description: KVTimeouts defines lifecycle budgets for Store clients.
                 properties:
                   drain:
-                    description: |-
-                      Drain bounds a leaving client's exit: the wait for its memory segments to leave
-                      Master and for in-flight SSD readers after its SSD metadata is dropped, and the
-                      process termination grace period.
+                    description: Drain is the Kubernetes termination grace period
+                      for a leaving Store client.
                     minLength: 2
                     pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                     type: string
@@ -300,9 +298,8 @@ spec:
               rule: self == oldSelf
           status:
             description: |-
-              KVGroupStatus reports requested capacity, Kubernetes infrastructure, and, when
-              storageRegistration is enabled, provider registration plus the drain outcome of a
-              deleting Group.
+              KVGroupStatus reports requested capacity, Kubernetes infrastructure, and optional
+              provider registration.
             properties:
               conditions:
                 items:
@@ -372,7 +369,6 @@ spec:
                 - Provisioning
                 - Ready
                 - Degraded
-                - Draining
                 - Terminating
                 type: string
               requestedDiskCapacityBytes:

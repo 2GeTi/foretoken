@@ -67,14 +67,12 @@ image-benchmark:
 mooncake-source:
 	git submodule update --init third_party/mooncake
 	git -C third_party/mooncake submodule update --init extern/pybind11 extern/yalantinglibs
-	@if ! git -C third_party/mooncake apply --reverse --check \
-		"../../deploy/mooncake/patches/cache-loss.patch" >/dev/null 2>&1; then \
+	@for patch in provider-registration client-lifecycle; do \
 		if ! git -C third_party/mooncake apply --reverse --check \
-			"../../deploy/mooncake/patches/provider-registration.patch" >/dev/null 2>&1; then \
-			git -C third_party/mooncake apply "../../deploy/mooncake/patches/provider-registration.patch"; \
+			"../../deploy/mooncake/patches/$$patch.patch" >/dev/null 2>&1; then \
+			git -C third_party/mooncake apply "../../deploy/mooncake/patches/$$patch.patch" || exit $$?; \
 		fi; \
-		git -C third_party/mooncake apply "../../deploy/mooncake/patches/cache-loss.patch"; \
-	fi
+	done
 
 image-mooncake: mooncake-source
 	docker build $(if $(BUILD_JOBS),--build-arg BUILD_JOBS=$(BUILD_JOBS),) \

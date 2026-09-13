@@ -70,7 +70,7 @@ type KVGroupSpec struct {
 }
 
 // +enum
-// +kubebuilder:validation:Enum=Pending;Provisioning;Ready;Degraded;Draining;Terminating
+// +kubebuilder:validation:Enum=Pending;Provisioning;Ready;Degraded;Terminating
 type KVGroupPhase string
 
 const (
@@ -78,13 +78,11 @@ const (
 	KVGroupPhaseProvisioning KVGroupPhase = "Provisioning"
 	KVGroupPhaseReady        KVGroupPhase = "Ready"
 	KVGroupPhaseDegraded     KVGroupPhase = "Degraded"
-	KVGroupPhaseDraining     KVGroupPhase = "Draining"
 	KVGroupPhaseTerminating  KVGroupPhase = "Terminating"
 )
 
-// KVGroupStatus reports requested capacity, Kubernetes infrastructure, and, when
-// storageRegistration is enabled, provider registration plus the drain outcome of a
-// deleting Group.
+// KVGroupStatus reports requested capacity, Kubernetes infrastructure, and optional
+// provider registration.
 type KVGroupStatus struct {
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
