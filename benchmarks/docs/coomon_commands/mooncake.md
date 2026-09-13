@@ -7,7 +7,7 @@ Mooncake records request lengths and shared prefix blocks, not the original text
 ```bash
 foretoken bench examples/quickstart \
   --trace valeriol29/mooncake-traces:conversation \
-  --trace-start 2620 --trace-duration 30 \
+  --trace-start 57 --trace-duration 5 \
   --dataset random --tokenizer-path Qwen/Qwen3-0.6B \
   --random-seed 0 --trace-synthetic-prefix-reuse \
   --trace-max-concurrency 16 --max-tokens 64 \
@@ -17,3 +17,5 @@ foretoken bench examples/quickstart \
 Inputs reuse the trace's 512-token blocks. Server-side tokenization may change those boundaries; inspect service metrics for actual cache hits. Do not combine this mode with `--prefix-length`.
 
 Omit `--trace-synthetic-prefix-reuse` to generate random inputs from the recorded lengths without shared-block reconstruction. General trace-window and concurrency rules are described in [StudyChat replay](studychat.md).
+
+![Random inputs and reconstructed prefixes in the same W&B group](../imgs/mooncake-wandb.png)
