@@ -3,20 +3,48 @@
 
 # KV Prefix Index
 
-The KV prefix index helps the Router reuse work from earlier requests. It combines observations of each target's local accelerator cache with live shared-prefix queries through Mooncake Store connectors. Cache storage, eviction, and transfers remain with the inference backend.
+English | [中文](README_zh.md)
 
-Shared queries support single-DP, plain-token requests. Compatible targets using the same managed Store share one query per routing request. Store memory and SSD hits are reported as shared external cache.
+Provides KV prefix matches to Router filters and scorers:
 
-With the [`kv_least_loaded` routing scorer](../router/README.md), lookup results affect selection as follows:
+- Local accelerator cache: `Device/Local`.
+- Mooncake shared memory and SSD cache: `External/Remote`, for single-DP text requests.
 
-- **Match:** prefer longer cached prefixes; for equal lengths, prefer the local accelerator cache over shared storage, then compare load.
-- **Miss:** no reusable prefix was found for that target, so it receives no cache preference.
-- **`Unavailable`:** the index cannot give a reliable answer. This is not a miss; the target receives no cache preference, but remains eligible for ordinary routing.
+## Calling from a routing algorithm
 
-Targets must still be healthy and compatible with the request. A match makes reuse more likely, but the backend may evict the cache before execution begins.
+A `RouteFilter` or `RouteScorer` that uses shared KV matches declares:
 
-## Operations
+```rust
+fn needs_kv_prefix(&self) -> bool {
+    true
+}
+```
 
-Use the frontend's `/statusz` endpoint to inspect KV-index health and any degradation reason, and `/metrics` for Prometheus monitoring. If the index remains degraded, use the reported reason to investigate model-server cache updates. See [frontend endpoint access](../../README.md#endpoint-access).
+`PipelineRouter::start` calls `KvPrefixIndexer::prepare` asynchronously before selection. The algorithm then uses the supplied reader synchronously in `filter` or `score`:
 
-Protocol details and backend integration are covered in [KV index maintenance](MAINTAINER.md).
+```rust
+use foretoken_kv_indexer::{KvPrefixIndexer, KvPrefixQueryResult};
+use foretoken_router::{RouteCandidate, RouterRequest};
+
+fn candidate_prefix(
+    request: &RouterRequest,
+    candidate: &RouteCandidate,
+    indexer: &dyn KvPrefixIndexer,
+) -> KvPrefixQueryResult {
+    match request.kv_prefix_lookup(
+        &candidate.route_target_id,
+        candidate.data_parallel_rank,
+    ) {
+        Ok(lookup) => indexer.prefix_matches(lookup),
+        Err(reason) => KvPrefixQueryResult::Unavailable(reason),
+    }
+}
+```
+
+Each match provides `placement` and `matched_tokens`. An empty `Matches` means no matching prefix was found; `Unavailable` means the result is unknown. Keep unavailable candidates eligible for ordinary routing.
+
+The built-in [KvLeastLoadedScorer](../router/src/algorithm/scorer/kv_least_loaded_scorer.rs) prefers longer matches, then faster cache tiers and lower load. See [PipelineRouter](../router/src/selection/pipeline_router.rs) for batched query preparation.
+
+## Observe
+
+Use the frontend's `/statusz` for index health and `/metrics` for monitoring. See [frontend endpoint access](../../README.md#endpoint-access).
