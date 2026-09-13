@@ -478,14 +478,17 @@ async fn wait_cache_server(server: &mut Option<tokio::task::JoinHandle<io::Resul
     }
 }
 
-/// Select request and output layouts using the same cache environment as the managed engine.
+/// Select protocol layouts from installed package metadata without loading engine plugins.
 async fn detect_engine_protocol(
     python: &str,
     environment: &[(String, String)],
 ) -> Result<EngineCoreProtocol, Box<dyn std::error::Error>> {
     let output = tokio::process::Command::new(python)
         .envs(environment.iter().cloned())
-        .args(["-c", "import vllm; print(vllm.__version__)"])
+        .args([
+            "-c",
+            "from importlib.metadata import version; print(version('vllm'))",
+        ])
         .output()
         .await?;
     if !output.status.success() {
