@@ -245,7 +245,11 @@ def select_source_build_sources(
                     "https://github.com/shiweijiezero/foretoken/"
                     "archive/refs/heads/main.tar.gz"
                 ),
-                None,
+                lambda: _measure_url(
+                    "https://ghproxy.net/https://github.com/shiweijiezero/"
+                    "foretoken/archive/refs/heads/main.tar.gz"
+                ),
+                "https://ghproxy.net/https://github.com",
             ),
         )
     )

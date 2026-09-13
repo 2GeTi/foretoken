@@ -60,8 +60,9 @@ The automatic candidates are:
 | PyPI packages installed inside images | Tsinghua TUNA |
 | Go modules | GOPROXY.CN |
 | crates.io packages | RSProxy |
+| GitHub archives and public Git sources | ghproxy.net |
 
-GitHub source archives, Git dependencies, and Helm OCI charts stay on their official sources because no compatible public candidate is enabled for those artifacts. Configure them explicitly when necessary.
+Helm OCI charts stay on their official sources because no compatible public candidate is enabled for those artifacts. Configure an OCI registry explicitly when necessary.
 
 Selected mirrors and measured times are printed before the build. If both the official source and candidate are unavailable during the bounded probe, the normal build can still use an existing local cache; a failed build reports which sources were unavailable during selection.
 
@@ -85,6 +86,21 @@ export CARGO_NET_GIT_FETCH_WITH_CLI=true
 These values contain endpoints, not credentials. Host tools keep their native credential configuration. Source builds forward endpoints but not host credential files, so authenticated build-container access must come from network policy or secret mounts managed by the build system. Anonymous probes use direct HTTPS requests without proxy, registry, package, or source credentials.
 
 `--registry` remains the explicit destination for images built from source; it is separate from the registries used to obtain build inputs.
+
+## Download Hugging Face models
+
+`source: hf` keeps the model, tokenizer, configuration, and chat-template lifecycle introduced by the model-source API. Foretoken keeps the official Hub unless a platform endpoint is configured. The public mirror candidate tested for automatic selection served model metadata, configuration, tokenizer files, and weight bytes, but failed the complete ETag-based download contract used by the frontend client, so it is not enabled as an automatic source.
+
+Configure a Hugging Face-compatible endpoint that has been verified with the deployed frontend and inference engine:
+
+```yaml
+runtime:
+  vllm:
+    modelSource:
+      endpoint: https://hub.example.com
+```
+
+Use the existing `tokenSecret` configuration together with an explicit endpoint for authenticated repositories. Foretoken does not send that credential to anonymous source probes. `source: local` and `source: modelscope` remain independent and never fall back to Hugging Face.
 
 ## Offline Kubernetes nodes
 

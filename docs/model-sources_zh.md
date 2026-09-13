@@ -15,7 +15,9 @@ spec:
 
 使用 `source: modelscope` 时，相同模型标识会从 ModelScope 加载。同一个 frontend 后面的不同模型服务可以选择不同来源。
 
-使用 Hugging Face 兼容地址时，在平台 values 中设置访问地址并用该文件安装：
+Foretoken 不会自动替换 Hugging Face endpoint。本次核对的公共镜像可以访问仓库 API 和文件，但没有提供 frontend Hugging Face 客户端所需的完整下载元数据。ModelScope 仍是独立来源，不会成为隐式回退。
+
+使用经过验证的 Hugging Face 兼容地址时，在平台 values 中设置访问地址并用该文件安装：
 
 ```yaml
 runtime:

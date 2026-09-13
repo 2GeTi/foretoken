@@ -60,8 +60,9 @@ editable 构建开始前，Foretoken 会并行读取真实包、源码归档或 
 | 镜像内部安装的 PyPI 包 | 清华 TUNA |
 | Go module | GOPROXY.CN |
 | crates.io 包 | RSProxy |
+| GitHub 归档和公开 Git 源码 | ghproxy.net |
 
-GitHub 源码归档、Git 依赖和 Helm OCI Chart 继续使用官方源，因为当前没有启用与这些制品兼容的公共候选。需要时应显式配置。
+Helm OCI Chart 继续使用官方源，因为当前没有启用与这些制品兼容的公共候选。需要时应显式配置 OCI registry。
 
 构建前会打印被选中的镜像及测量耗时。如果官方源和候选在探测预算内均不可用，正常构建仍可复用已有本地缓存；构建最终失败时，错误会列出来源选择阶段不可用的服务。
 
@@ -85,6 +86,21 @@ export CARGO_NET_GIT_FETCH_WITH_CLI=true
 这些值只包含服务地址，不包含凭据。主机工具继续使用各自的原生凭据配置。源码构建只传递服务地址，不复制主机凭据文件；构建容器的认证访问应由网络策略或构建系统的 secret mount 提供。匿名探测使用直连 HTTPS，不携带 proxy、registry、包源或源码凭据。
 
 `--registry` 仍用于显式指定源码构建镜像的分发位置，与获取构建输入的 registry 相互独立。
+
+## 下载 Hugging Face 模型
+
+`source: hf` 继续使用模型来源 API 已有的模型、tokenizer、配置和对话模板生命周期。未配置平台 endpoint 时，Foretoken 保持使用官方 Hub。本次核对的公共镜像可以访问模型元数据、配置、tokenizer 文件和权重内容，但没有通过 frontend 客户端所需的完整 ETag 下载契约，因此不会进入自动来源。
+
+应配置已经通过实际 frontend 和推理引擎验证的 Hugging Face 兼容 endpoint：
+
+```yaml
+runtime:
+  vllm:
+    modelSource:
+      endpoint: https://hub.example.com
+```
+
+受认证仓库使用已有的 `tokenSecret` 并显式设置 endpoint。Foretoken 不会把该凭据发送给匿名来源探测。`source: local` 和 `source: modelscope` 保持独立，不会回退到 Hugging Face。
 
 ## Kubernetes 节点完全离线
 
