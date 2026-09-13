@@ -44,6 +44,7 @@ RUN --mount=from=uv,source=/uv,target=/usr/local/bin/uv \
 LABEL org.opencontainers.image.source="https://github.com/shiweijiezero/foretoken"
 
 COPY --from=builder /out/foretoken-model-server /usr/local/bin/foretoken-model-server
+COPY data-plane/model-server/python/ /opt/foretoken/python/
 
 # Preserve the inference engine image's runtime user and environment. The workload owns its
 # security context, cache environment, and writable volume mounts.

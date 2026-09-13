@@ -15,6 +15,7 @@ use foretoken_model_server::config::RuntimeConfig;
 use foretoken_model_server::kv_event_adapter::KvEventAdapter;
 use foretoken_model_server::runtime_cache;
 use foretoken_model_server::runtime_transport::LOOPBACK_HOST;
+use foretoken_model_server::shared_kv;
 use tokio::net::TcpListener;
 use tokio::sync::Notify;
 use tracing::{error, info, warn};
@@ -180,6 +181,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(kv_events) = kv_events {
         app_state = app_state.with_kv_events(kv_events);
     }
+    if config.launch.kv.shared_prefix_lookup() {
+        app_state = app_state.with_shared_kv(shared_kv::SharedKvLookup::new(
+            required_env(MODEL_GROUP_UID_ENV)?,
+            required_env(KV_SCOPE_ENV)?,
+        ));
+    }
     if let Some(cache_config) = cache_config {
         app_state = app_state.with_runtime_cache(cache_config);
     }
@@ -327,7 +334,7 @@ async fn start_engine_attempt(
     startup_deadline: Instant,
     cache_server: &mut Option<tokio::task::JoinHandle<io::Result<()>>>,
 ) -> Result<(ManagedEngineHandle, EngineCoreClient), EngineStartupFailure> {
-    let environment = if let Some(cache) = cache {
+    let mut environment = if let Some(cache) = cache {
         cache.set_mode(mode);
         cache
             .prepare(mode)
@@ -336,6 +343,22 @@ async fn start_engine_attempt(
     } else {
         Vec::new()
     };
+    if config.launch.kv.shared_prefix_lookup() {
+        let mut python_paths = vec![std::path::PathBuf::from(shared_kv::PYTHON_MODULE_PATH)];
+        if let Some(existing) = std::env::var_os("PYTHONPATH") {
+            python_paths.extend(std::env::split_paths(&existing));
+        }
+        let python_path = std::env::join_paths(python_paths)
+            .map_err(|error| EngineStartupFailure::Other(io::Error::other(error)))?;
+        environment.push((
+            "PYTHONPATH".into(),
+            python_path.to_string_lossy().into_owned(),
+        ));
+        environment.push((
+            shared_kv::LOOKUP_ENDPOINT_ENV.into(),
+            shared_kv::LOOKUP_ENDPOINT.into(),
+        ));
+    }
     let handshake_port = allocate_handshake_port(LOOPBACK_HOST)
         .map_err(|error| EngineStartupFailure::Other(io::Error::other(error)))?;
     let mut managed_engine = config

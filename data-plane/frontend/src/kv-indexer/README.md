@@ -3,12 +3,14 @@
 
 # KV Prefix Index
 
-When several requests start with the same long system prompt, a model instance may still hold the KV cache from processing that prefix. The KV prefix index tells the Router where that prefix was observed, helping it choose an instance that can reuse the work. The cache itself stays with the inference backend; routing currently considers cache on the target's local accelerator.
+The KV prefix index helps the Router reuse work from earlier requests. It combines observations of each target's local accelerator cache with live shared-prefix queries through Mooncake Store connectors. Cache storage, eviction, and transfers remain with the inference backend.
+
+Shared queries support single-DP, plain-token requests. Compatible targets using the same managed Store share one query per routing request. Store memory and SSD hits are reported as shared external cache.
 
 With the [`kv_least_loaded` routing scorer](../router/README.md), lookup results affect selection as follows:
 
-- **Match:** prefer longer cached prefixes, then lower load.
-- **Miss:** no reusable prefix was found in the index for that target, so it receives no cache preference.
+- **Match:** prefer longer cached prefixes; for equal lengths, prefer the local accelerator cache over shared storage, then compare load.
+- **Miss:** no reusable prefix was found for that target, so it receives no cache preference.
 - **`Unavailable`:** the index cannot give a reliable answer. This is not a miss; the target receives no cache preference, but remains eligible for ordinary routing.
 
 Targets must still be healthy and compatible with the request. A match makes reuse more likely, but the backend may evict the cache before execution begins.

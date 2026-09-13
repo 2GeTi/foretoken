@@ -48,6 +48,7 @@ type servingSnapshotGroup struct {
 	Capabilities      []string `json:"capabilities,omitempty"`
 	Endpoint          string   `json:"endpoint"`
 	KVScopeID         string   `json:"kv_scope_id"`
+	KVLookupScope     string   `json:"kv_lookup_scope,omitempty"`
 	DataParallelSize  int32    `json:"data_parallel_size"`
 }
 
@@ -72,6 +73,7 @@ type servingSnapshotPDComponent struct {
 	Endpoint                 string   `json:"endpoint"`
 	PrefillBootstrapEndpoint string   `json:"prefill_bootstrap_endpoint,omitempty"`
 	KVScopeID                string   `json:"kv_scope_id"`
+	KVLookupScope            string   `json:"kv_lookup_scope,omitempty"`
 	DataParallelSize         int32    `json:"data_parallel_size"`
 }
 
@@ -97,6 +99,7 @@ type servingSnapshotEPDComponent struct {
 	Endpoint                 string   `json:"endpoint"`
 	PrefillBootstrapEndpoint string   `json:"prefill_bootstrap_endpoint,omitempty"`
 	KVScopeID                string   `json:"kv_scope_id"`
+	KVLookupScope            string   `json:"kv_lookup_scope,omitempty"`
 	DataParallelSize         int32    `json:"data_parallel_size"`
 }
 
