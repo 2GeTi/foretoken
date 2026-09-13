@@ -4,6 +4,12 @@
 
 mirrored_image() {
   local image=$1 registry=${FORETOKEN_OCI_REGISTRY:-}
+  local source_registry=${image%%/*}
+  case "$source_registry" in
+    docker.io) registry=${FORETOKEN_DOCKER_IO_REGISTRY:-$registry} ;;
+    gcr.io) registry=${FORETOKEN_GCR_REGISTRY:-$registry} ;;
+    ghcr.io) registry=${FORETOKEN_GHCR_REGISTRY:-$registry} ;;
+  esac
   if [[ -z "$registry" ]]; then
     printf '%s\n' "$image"
     return
@@ -23,7 +29,7 @@ build_dev_images() {
   done
   for name in \
     FORETOKEN_GITHUB_MIRROR \
-    CARGO_REGISTRIES_CRATES_IO_INDEX \
+    FORETOKEN_CARGO_REGISTRY \
     CARGO_NET_GIT_FETCH_WITH_CLI; do
     value=${!name:-}
     [[ -z "$value" ]] || cargo_args+=(--build-arg "$name=$value")
@@ -33,19 +39,26 @@ build_dev_images() {
   fi
 
   local -a control_plane_image_args=() data_plane_image_args=() model_image_args=()
-  if [[ -n "${FORETOKEN_OCI_REGISTRY:-}" ]]; then
-    control_plane_image_args=(
-      --build-arg "GO_IMAGE_REGISTRY=${FORETOKEN_OCI_REGISTRY%/}"
-      --build-arg "DISTROLESS_IMAGE_REGISTRY=${FORETOKEN_OCI_REGISTRY%/}"
+  local docker_registry=${FORETOKEN_DOCKER_IO_REGISTRY:-${FORETOKEN_OCI_REGISTRY:-}}
+  local gcr_registry=${FORETOKEN_GCR_REGISTRY:-${FORETOKEN_OCI_REGISTRY:-}}
+  local ghcr_registry=${FORETOKEN_GHCR_REGISTRY:-${FORETOKEN_OCI_REGISTRY:-}}
+  if [[ -n "$docker_registry" ]]; then
+    control_plane_image_args+=(
+      --build-arg "GO_IMAGE_REGISTRY=${docker_registry%/}"
     )
-    data_plane_image_args=(
-      --build-arg "BASE_IMAGE_REGISTRY=${FORETOKEN_OCI_REGISTRY%/}"
+    data_plane_image_args+=(
+      --build-arg "BASE_IMAGE_REGISTRY=${docker_registry%/}"
     )
-    if [[ -z "${UV_IMAGE:-}" ]]; then
-      model_image_args=(
-        --build-arg "UV_IMAGE_REGISTRY=${FORETOKEN_OCI_REGISTRY%/}"
-      )
-    fi
+  fi
+  if [[ -n "$gcr_registry" ]]; then
+    control_plane_image_args+=(
+      --build-arg "DISTROLESS_IMAGE_REGISTRY=${gcr_registry%/}"
+    )
+  fi
+  if [[ -n "$ghcr_registry" && -z "${UV_IMAGE:-}" ]]; then
+    model_image_args+=(
+      --build-arg "UV_IMAGE_REGISTRY=${ghcr_registry%/}"
+    )
   fi
   if [[ -n "${UV_IMAGE:-}" ]]; then
     model_image_args=(--build-arg "UV_IMAGE=$UV_IMAGE")

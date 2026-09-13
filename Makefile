@@ -44,7 +44,7 @@ image-frontend: vllm-source
 	docker build \
 		$(if $(OCI_REGISTRY),--build-arg BASE_IMAGE_REGISTRY="$(OCI_REGISTRY)",) \
 		--build-arg FORETOKEN_GITHUB_MIRROR \
-		--build-arg CARGO_REGISTRIES_CRATES_IO_INDEX \
+		--build-arg FORETOKEN_CARGO_REGISTRY \
 		--build-arg CARGO_NET_GIT_FETCH_WITH_CLI \
 		-f data-plane/frontend/Dockerfile -t foretoken-frontend:dev .
 
@@ -71,7 +71,7 @@ image-model-server: vllm-source
 		$(if $(UV_IMAGE),--build-arg UV_IMAGE="$(UV_IMAGE)",) \
 		--build-arg FORETOKEN_VLLM_PYTHON \
 		--build-arg FORETOKEN_GITHUB_MIRROR \
-		--build-arg CARGO_REGISTRIES_CRATES_IO_INDEX \
+		--build-arg FORETOKEN_CARGO_REGISTRY \
 		--build-arg CARGO_NET_GIT_FETCH_WITH_CLI \
 		--build-arg UV_DEFAULT_INDEX \
 		-f data-plane/model-server/Dockerfile -t foretoken-model-server:dev .

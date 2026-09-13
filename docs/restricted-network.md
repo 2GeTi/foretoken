@@ -5,44 +5,25 @@
 
 [中文](restricted-network_zh.md)
 
-Foretoken keeps network selection with the tool that owns each download. One OCI registry option covers release images and CLI-managed Helm charts. pip, uv, Git, Go, and Cargo continue using their native configuration, which the source build forwards into its containers.
-
-## Configure the build host once
-
-Save the endpoints provided by the network or registry administrator in a shell file, then source it before installing or building Foretoken:
-
-```bash
-export FORETOKEN_OCI_REGISTRY=registry.example.com/mirror
-export FORETOKEN_GITHUB_MIRROR=https://source.example.com/github.com
-export PIP_INDEX_URL=https://python.example.com/simple
-export UV_DEFAULT_INDEX=https://python.example.com/simple
-# Set UV_EXTRA_INDEX_URL when a hardware-specific build needs another package index.
-export GOPROXY=https://go.example.com
-export GOSUMDB=sum.example.com
-export CARGO_REGISTRIES_CRATES_IO_INDEX=sparse+https://cargo.example.com/index/
-export CARGO_NET_GIT_FETCH_WITH_CLI=true
-```
-
-These values are endpoints, not credentials. Use each tool's native credential configuration on the host, and keep tokens out of repository files and endpoint URLs. Source builds forward the endpoints but not host credential files, so build-container access must come from the network or secret mounts managed by the build system.
-
-Without these settings, every command continues to use its public upstream source. When a mirror is set, Foretoken uses it directly and does not probe or fall back to a public source.
+Foretoken uses public upstream sources by default. Source builds can select a faster anonymous mirror automatically, while explicit registry and package settings always take precedence.
 
 ## Install a release
 
-Install the Python package through the configured pip or uv index, then install the platform normally:
+Install the Python package and Kubernetes platform normally when PyPI and GHCR are reachable:
 
 ```bash
 python -m pip install foretoken
 foretoken install
 ```
 
-`FORETOKEN_OCI_REGISTRY` replaces the registry host for release images. CLI-managed OCI charts are read from the same registry prefix with their original source host retained in the chart path. For example, the Foretoken chart is read from:
+The CLI package must be downloaded before Foretoken can perform source selection. Configure `PIP_INDEX_URL` or the corresponding uv setting when the build host cannot reach PyPI.
 
-```text
-oci://registry.example.com/mirror/ghcr.io/shiweijiezero/foretoken/charts/foretoken
+There is no verified public mirror that carries every Foretoken release image and CLI-managed Helm OCI chart. If GHCR is unavailable, mirror the release artifacts into an OCI registry and configure it once:
+
+```bash
+export FORETOKEN_OCI_REGISTRY=registry.example.com/mirror
+foretoken install
 ```
-
-The same rule covers the Prometheus, Envoy Gateway, MetalLB, and DCGM Exporter charts selected by `foretoken install`. Their images use the configured registry prefix while retaining each image repository. Mirror the charts and images before installation, sign in with `helm registry login` and `docker login` when required, and create Kubernetes `imagePullSecrets` for private runtime images.
 
 A command-line value overrides the environment for one installation:
 
@@ -50,31 +31,63 @@ A command-line value overrides the environment for one installation:
 foretoken install --oci-registry registry.example.com/mirror
 ```
 
-A missing mirrored chart fails through Helm. A missing runtime image remains visible as the Kubernetes image-pull error; Foretoken does not silently switch registries.
+The registry keeps each OCI chart under its original source host. For example, the Foretoken chart is read from:
+
+```text
+oci://registry.example.com/mirror/ghcr.io/shiweijiezero/foretoken/charts/foretoken
+```
+
+Release image registry hosts are replaced with the configured prefix. The same configuration covers the Prometheus, Envoy Gateway, MetalLB, and DCGM Exporter charts and their images. Mirror these artifacts before installation. Private registries use `helm registry login`, `docker login`, and Kubernetes `imagePullSecrets`; Foretoken does not probe an explicitly configured registry or fall back to a public source.
 
 ## Build from source
 
-A GitHub-compatible archive mirror can provide the Foretoken checkout before the CLI is installed:
+Get the source, install the CLI, and build the platform images through the existing installation command:
 
 ```bash
-curl --fail --location \
-  --output foretoken.tar.gz \
-  "$FORETOKEN_GITHUB_MIRROR/shiweijiezero/foretoken/archive/refs/heads/main.tar.gz"
-mkdir foretoken
-
-tar --extract --gzip --strip-components=1 \
-  --file foretoken.tar.gz --directory foretoken
+git clone https://github.com/shiweijiezero/foretoken.git
 cd foretoken
 python -m pip install -e .
 foretoken install -e .
 ```
 
-`foretoken install -e .` uses the OCI mirror for default builder and runtime images. It also forwards the configured GitHub mirror, uv index, Go proxy and checksum database, and Cargo registry and Git settings to the owning build tools. `--registry` remains the explicit destination used to distribute the images built from source.
+Before an editable build starts, Foretoken concurrently reads up to 64 KiB from real package, archive, or OCI manifest resources. Each probe has a four-second connection, response, and transfer budget, and the complete group runs in parallel. The official source remains selected unless it is unavailable or an anonymous candidate is both at least 30% faster and 250 ms faster. Probes are not retried.
 
-`FORETOKEN_GITHUB_MIRROR` replaces `https://github.com` for Foretoken submodules, Cargo Git dependencies, and maintained source-archive builds. The mirror must preserve the remaining owner, repository, and archive path.
+The automatic candidates are:
+
+| Source | Anonymous candidate |
+| --- | --- |
+| Docker Hub, GCR, and GHCR build images | DaoCloud public image mirror |
+| PyPI packages installed inside images | Tsinghua TUNA |
+| Go modules | GOPROXY.CN |
+| crates.io packages | RSProxy |
+
+GitHub source archives, Git dependencies, and Helm OCI charts stay on their official sources because no compatible public candidate is enabled for those artifacts. Configure them explicitly when necessary.
+
+Selected mirrors and measured times are printed before the build. If both the official source and candidate are unavailable during the bounded probe, the normal build can still use an existing local cache; a failed build reports which sources were unavailable during selection.
+
+## Configure explicit build sources
+
+Save only the endpoints required by the network, then source the file before building:
+
+```bash
+export FORETOKEN_OCI_REGISTRY=registry.example.com/mirror
+export FORETOKEN_GITHUB_MIRROR=https://source.example.com/github.com
+export PIP_INDEX_URL=https://python.example.com/simple
+export UV_DEFAULT_INDEX=https://python.example.com/simple
+export GOPROXY=https://go.example.com
+export GOSUMDB=sum.example.com
+export FORETOKEN_CARGO_REGISTRY=sparse+https://cargo.example.com/index/
+export CARGO_NET_GIT_FETCH_WITH_CLI=true
+```
+
+`FORETOKEN_GITHUB_MIRROR` replaces `https://github.com` for Foretoken submodules, Cargo Git dependencies, and maintained source-archive builds. The mirror must preserve the remaining owner, repository, and archive path. Set `UV_EXTRA_INDEX_URL` only when a hardware-specific build requires another package index.
+
+These values contain endpoints, not credentials. Host tools keep their native credential configuration. Source builds forward endpoints but not host credential files, so authenticated build-container access must come from network policy or secret mounts managed by the build system. Anonymous probes use direct HTTPS requests without proxy, registry, package, or source credentials.
+
+`--registry` remains the explicit destination for images built from source; it is separate from the registries used to obtain build inputs.
 
 ## Offline Kubernetes nodes
 
 If the nodes cannot reach any registry, build the three Foretoken images on a connected host and import them into every eligible node. Use the existing [manual image import workflow](development/source-image-lifecycle.md#import-local-images-directly); the CLI's kind and k3d source workflow uses the same local image-import path.
 
-This guide does not configure a host-wide Docker or containerd mirror, install k3s, or replace operating-system package repositories used inside base images. Those remain responsibilities of the host, Kubernetes distribution, or base image administrator.
+Foretoken does not configure a host-wide Docker or containerd mirror, install k3s, or replace operating-system package repositories inside base images. Those remain responsibilities of the host, Kubernetes distribution, or base image administrator.

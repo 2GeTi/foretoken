@@ -7,7 +7,7 @@
 
 本指南介绍如何从源码构建 Foretoken 镜像、配置 Kubernetes 平台使用这些镜像，以及修改源码后如何重新部署。模型服务仍通过 `foretoken deploy` 单独部署。
 
-准备好 Python 3.11+、Git、启用 BuildKit 的 Docker、Make、kubectl、Helm 和由 rustup 管理的 Rust 工具链。构建机无法直接访问公共网络时，先按[受限网络与镜像源](restricted-network_zh.md)配置包、源码、镜像和 Chart 来源。获取当前源码，并从仓库根目录执行命令：
+准备好 Python 3.11+、Git、启用 BuildKit 的 Docker、Make、kubectl、Helm 和由 rustup 管理的 Rust 工具链。editable 构建会自动选择受支持的匿名包源和构建镜像源；显式来源与离线节点配置见[受限网络与镜像源](restricted-network_zh.md)。获取当前源码，并从仓库根目录执行命令：
 
 ```bash
 git clone https://github.com/shiweijiezero/foretoken.git

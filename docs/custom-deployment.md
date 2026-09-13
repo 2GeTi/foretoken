@@ -7,7 +7,7 @@
 
 This guide explains how to build Foretoken images from source, configure the Kubernetes platform to use them, and redeploy source changes. Model services remain separate and are deployed with `foretoken deploy`.
 
-Prepare Python 3.11+, Git, Docker with BuildKit, Make, kubectl, Helm, and a Rust toolchain managed by rustup. Configure package, source, image, and Chart mirrors first when the build host has restricted network access; see [Use Foretoken on a restricted network](restricted-network.md). Get the current source and run commands from its root:
+Prepare Python 3.11+, Git, Docker with BuildKit, Make, kubectl, Helm, and a Rust toolchain managed by rustup. Editable builds automatically select supported anonymous package and build-image mirrors; see [Use Foretoken on a restricted network](restricted-network.md) for explicit sources and offline nodes. Get the current source and run commands from its root:
 
 ```bash
 git clone https://github.com/shiweijiezero/foretoken.git

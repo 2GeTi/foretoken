@@ -14,7 +14,7 @@ FROM ${RUST_BUILDER_IMAGE} AS builder
 WORKDIR /workspace
 
 ARG FORETOKEN_GITHUB_MIRROR
-ARG CARGO_REGISTRIES_CRATES_IO_INDEX
+ARG FORETOKEN_CARGO_REGISTRY
 ARG CARGO_NET_GIT_FETCH_WITH_CLI
 
 RUN apt-get update \
@@ -29,8 +29,10 @@ RUN --mount=type=cache,id=foretoken-cargo-registry,target=/usr/local/cargo/regis
     if [ -n "${FORETOKEN_GITHUB_MIRROR}" ]; then \
       git config --global url."${FORETOKEN_GITHUB_MIRROR%/}/".insteadOf https://github.com/; \
     fi \
-    && if [ -n "${CARGO_REGISTRIES_CRATES_IO_INDEX}" ]; then \
-      export CARGO_REGISTRIES_CRATES_IO_INDEX; \
+    && if [ -n "${FORETOKEN_CARGO_REGISTRY}" ]; then \
+      mkdir -p /workspace/.cargo; \
+      printf '[source.crates-io]\nreplace-with = "foretoken-mirror"\n\n[source.foretoken-mirror]\nregistry = "%s"\n' \
+        "${FORETOKEN_CARGO_REGISTRY}" > /workspace/.cargo/config.toml; \
     fi \
     && if [ -n "${CARGO_NET_GIT_FETCH_WITH_CLI}" ]; then \
       export CARGO_NET_GIT_FETCH_WITH_CLI; \
