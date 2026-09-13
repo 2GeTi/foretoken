@@ -34,6 +34,7 @@ class SourceImages:
 def prepare_source_images(
     source_path: str,
     registry: str | None,
+    oci_registry: str | None,
     namespace: str,
     timeout: str,
     inference_engine_image: str | None = None,
@@ -76,6 +77,7 @@ def prepare_source_images(
                 "DEV_IMAGE_OUTPUT": str(output_path),
                 "FORETOKEN_CLI_SOURCE": "true",
                 "REGISTRY": normalized_registry,
+                "FORETOKEN_OCI_REGISTRY": oci_registry or "",
                 "PLATFORM_NAMESPACE": namespace,
                 "DEV_TIMEOUT": timeout,
             }
