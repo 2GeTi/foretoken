@@ -66,7 +66,6 @@ def prepare_source_images(
             "FORETOKEN_VLLM_PYTHON",
             "LOCAL_IMAGE_PREFIX",
             "K3D_CONFIG",
-            "TAG",
             "DEPLOY_TAG",
             "DEV_IMAGE_OUTPUT",
         ):

@@ -470,7 +470,9 @@ class Helm(HelmClient):
 
 
 def _image_repository_tag(reference: str) -> tuple[str, str]:
-    """Split one tagged image reference produced by the source workflow."""
+    """Split a source image reference, using Docker's implicit latest tag when omitted."""
+    if ":" not in reference.rsplit("/", 1)[-1]:
+        return reference, "latest"
     repository, separator, tag = reference.rpartition(":")
     if not separator or not repository or not tag:
         raise DeploymentError(f"source image must include a tag: {reference}")
