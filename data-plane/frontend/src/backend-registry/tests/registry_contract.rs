@@ -50,6 +50,7 @@ fn pd_component(id: &str, role: ModelServerRole) -> SnapshotPdComponent {
         prefill_bootstrap_endpoint: (role == ModelServerRole::Prefill)
             .then(|| "http://127.0.0.1:29001".into()),
         kv_scope_id: "scope".into(),
+        kv_lookup_scope: None,
         data_parallel_size: 1,
     }
 }
@@ -114,6 +115,7 @@ fn epd_component(id: &str, role: ModelServerRole) -> SnapshotEpdComponent {
         prefill_bootstrap_endpoint: (role == ModelServerRole::Prefill)
             .then(|| "http://127.0.0.1:29001".into()),
         kv_scope_id: "scope".into(),
+        kv_lookup_scope: None,
         data_parallel_size: 1,
     }
 }
@@ -287,6 +289,7 @@ fn aggregate_snapshot(endpoint: String) -> ServingSnapshot {
             max_input_tokens: None,
             endpoint,
             kv_scope_id: "scope".into(),
+            kv_lookup_scope: None,
             data_parallel_size: 1,
         }],
         pd_components: vec![],

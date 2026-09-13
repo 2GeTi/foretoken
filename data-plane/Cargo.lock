@@ -1224,6 +1224,7 @@ dependencies = [
 name = "foretoken-kv-indexer"
 version = "0.0.1"
 dependencies = [
+ "async-trait",
  "axum",
  "base64 0.22.1",
  "blake3",
@@ -1320,6 +1321,7 @@ dependencies = [
 name = "foretoken-router"
 version = "0.0.1"
 dependencies = [
+ "async-trait",
  "foretoken-engine-core-client",
  "foretoken-kv-indexer",
  "foretoken-model-protocol",
@@ -1328,6 +1330,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.20",
+ "tokio",
  "vllm-llm",
 ]
 

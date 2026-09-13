@@ -483,7 +483,24 @@ func routingEPDComponent(service *inferencev1alpha1.ModelService, group *inferen
 	if group.Spec.Role == inferencev1alpha1.ModelRolePrefill || group.Spec.Role == inferencev1alpha1.ModelRoleDecode {
 		features.Multimodal = nil
 	}
-	component := servingSnapshotEPDComponent{RouteTargetID: string(group.UID), ServiceUID: string(service.UID), PoolUID: group.Spec.ModelPoolRef.UID, PoolName: poolName, Role: string(group.Spec.Role), Model: group.Spec.Artifacts.Model, Source: group.Spec.Artifacts.Source, Revision: group.Spec.Artifacts.ModelRevision, Tokenizer: group.Spec.Artifacts.Tokenizer, TokenizerRevision: group.Spec.Artifacts.TokenizerRevision, MaxInputTokens: copyOptionalInt32(group.Spec.MaxInputTokens), Capabilities: routingCapabilities(features), Endpoint: modelGroupEndpoint(group, group.Spec.Runtime.Port), KVScopeID: kvScopeID(group), DataParallelSize: group.Spec.Parallelism.DP}
+	component := servingSnapshotEPDComponent{
+		RouteTargetID:     string(group.UID),
+		ServiceUID:        string(service.UID),
+		PoolUID:           group.Spec.ModelPoolRef.UID,
+		PoolName:          poolName,
+		Role:              string(group.Spec.Role),
+		Model:             group.Spec.Artifacts.Model,
+		Source:            group.Spec.Artifacts.Source,
+		Revision:          group.Spec.Artifacts.ModelRevision,
+		Tokenizer:         group.Spec.Artifacts.Tokenizer,
+		TokenizerRevision: group.Spec.Artifacts.TokenizerRevision,
+		MaxInputTokens:    copyOptionalInt32(group.Spec.MaxInputTokens),
+		Capabilities:      routingCapabilities(features),
+		Endpoint:          modelGroupEndpoint(group, group.Spec.Runtime.Port),
+		KVScopeID:         kvScopeID(group),
+		KVLookupScope:     sharedKVLookupScope(group),
+		DataParallelSize:  group.Spec.Parallelism.DP,
+	}
 	if group.Spec.Role == inferencev1alpha1.ModelRolePrefill {
 		component.PrefillBootstrapEndpoint = modelGroupEndpoint(group, group.Spec.PDRuntime.BootstrapPort)
 	}
@@ -541,7 +558,20 @@ func (err *splitRoutingProjectionError) Error() string {
 }
 
 func routingGroup(group *inferencev1alpha1.ModelGroup) servingSnapshotGroup {
-	return servingSnapshotGroup{RouteTargetID: string(group.UID), Model: group.Spec.Artifacts.Model, Source: group.Spec.Artifacts.Source, Revision: group.Spec.Artifacts.ModelRevision, Tokenizer: group.Spec.Artifacts.Tokenizer, TokenizerRevision: group.Spec.Artifacts.TokenizerRevision, MaxInputTokens: copyOptionalInt32(group.Spec.MaxInputTokens), Capabilities: routingCapabilities(group.Spec.Features), Endpoint: modelGroupEndpoint(group, group.Spec.Runtime.Port), KVScopeID: kvScopeID(group), DataParallelSize: group.Spec.Parallelism.DP}
+	return servingSnapshotGroup{
+		RouteTargetID:     string(group.UID),
+		Model:             group.Spec.Artifacts.Model,
+		Source:            group.Spec.Artifacts.Source,
+		Revision:          group.Spec.Artifacts.ModelRevision,
+		Tokenizer:         group.Spec.Artifacts.Tokenizer,
+		TokenizerRevision: group.Spec.Artifacts.TokenizerRevision,
+		MaxInputTokens:    copyOptionalInt32(group.Spec.MaxInputTokens),
+		Capabilities:      routingCapabilities(group.Spec.Features),
+		Endpoint:          modelGroupEndpoint(group, group.Spec.Runtime.Port),
+		KVScopeID:         kvScopeID(group),
+		KVLookupScope:     sharedKVLookupScope(group),
+		DataParallelSize:  group.Spec.Parallelism.DP,
+	}
 }
 func routingGroupForService(service *inferencev1alpha1.ModelService, pool *inferencev1alpha1.ModelPool, group *inferencev1alpha1.ModelGroup) servingSnapshotGroup {
 	route := routingGroup(group)
@@ -599,7 +629,29 @@ func routingPDComponent(service *inferencev1alpha1.ModelService, group *inferenc
 	// No P/D runtime profile currently verifies multimodal support. Never publish
 	// it from P/D routes, including objects created before API validation existed.
 	features.Multimodal = nil
-	component := servingSnapshotPDComponent{RouteTargetID: string(group.UID), ServiceUID: string(service.UID), PoolUID: group.Spec.ModelPoolRef.UID, PoolName: poolName, Role: string(group.Spec.Role), PipelineScopeID: pipelineScopeID, Model: group.Spec.Artifacts.Model, Source: group.Spec.Artifacts.Source, Revision: group.Spec.Artifacts.ModelRevision, Tokenizer: group.Spec.Artifacts.Tokenizer, TokenizerRevision: group.Spec.Artifacts.TokenizerRevision, MaxInputTokens: copyOptionalInt32(group.Spec.MaxInputTokens), ProfileName: pd.ProfileName, ProfileRevision: pd.ProfileRevision, Connector: pd.Connector, Protocol: pd.Protocol, Capabilities: routingCapabilities(features), Endpoint: modelGroupEndpoint(group, group.Spec.Runtime.Port), KVScopeID: kvScopeID(group), DataParallelSize: group.Spec.Parallelism.DP}
+	component := servingSnapshotPDComponent{
+		RouteTargetID:     string(group.UID),
+		ServiceUID:        string(service.UID),
+		PoolUID:           group.Spec.ModelPoolRef.UID,
+		PoolName:          poolName,
+		Role:              string(group.Spec.Role),
+		PipelineScopeID:   pipelineScopeID,
+		Model:             group.Spec.Artifacts.Model,
+		Source:            group.Spec.Artifacts.Source,
+		Revision:          group.Spec.Artifacts.ModelRevision,
+		Tokenizer:         group.Spec.Artifacts.Tokenizer,
+		TokenizerRevision: group.Spec.Artifacts.TokenizerRevision,
+		MaxInputTokens:    copyOptionalInt32(group.Spec.MaxInputTokens),
+		ProfileName:       pd.ProfileName,
+		ProfileRevision:   pd.ProfileRevision,
+		Connector:         pd.Connector,
+		Protocol:          pd.Protocol,
+		Capabilities:      routingCapabilities(features),
+		Endpoint:          modelGroupEndpoint(group, group.Spec.Runtime.Port),
+		KVScopeID:         kvScopeID(group),
+		KVLookupScope:     sharedKVLookupScope(group),
+		DataParallelSize:  group.Spec.Parallelism.DP,
+	}
 	if group.Spec.Role == inferencev1alpha1.ModelRolePrefill {
 		component.PrefillBootstrapEndpoint = modelGroupEndpoint(group, pd.BootstrapPort)
 	}
@@ -658,10 +710,20 @@ func equalScalingModel(left, right servingSnapshotModel) bool {
 }
 
 func equalRoutingGroup(left, right servingSnapshotGroup) bool {
-	return left.RouteTargetID == right.RouteTargetID && left.ServiceUID == right.ServiceUID && left.PoolUID == right.PoolUID && left.PoolName == right.PoolName && matchingRoutingArtifacts(left, right) && equalOptionalInt32(left.MaxInputTokens, right.MaxInputTokens) && left.Endpoint == right.Endpoint && left.KVScopeID == right.KVScopeID && left.DataParallelSize == right.DataParallelSize && slices.Equal(left.Capabilities, right.Capabilities)
+	return left.RouteTargetID == right.RouteTargetID && left.ServiceUID == right.ServiceUID && left.PoolUID == right.PoolUID && left.PoolName == right.PoolName && matchingRoutingArtifacts(left, right) && equalOptionalInt32(left.MaxInputTokens, right.MaxInputTokens) && left.Endpoint == right.Endpoint && left.KVScopeID == right.KVScopeID && left.KVLookupScope == right.KVLookupScope && left.DataParallelSize == right.DataParallelSize && slices.Equal(left.Capabilities, right.Capabilities)
 }
 func equalRoutingPDComponent(left, right servingSnapshotPDComponent) bool {
-	return left.RouteTargetID == right.RouteTargetID && left.ServiceUID == right.ServiceUID && left.PoolUID == right.PoolUID && left.PoolName == right.PoolName && left.Role == right.Role && left.PipelineScopeID == right.PipelineScopeID && left.Model == right.Model && left.Source == right.Source && left.Revision == right.Revision && left.Tokenizer == right.Tokenizer && left.TokenizerRevision == right.TokenizerRevision && equalOptionalInt32(left.MaxInputTokens, right.MaxInputTokens) && left.ProfileName == right.ProfileName && left.ProfileRevision == right.ProfileRevision && left.Connector == right.Connector && left.Protocol == right.Protocol && left.Endpoint == right.Endpoint && left.PrefillBootstrapEndpoint == right.PrefillBootstrapEndpoint && left.KVScopeID == right.KVScopeID && left.DataParallelSize == right.DataParallelSize && slices.Equal(left.Capabilities, right.Capabilities)
+	return left.RouteTargetID == right.RouteTargetID &&
+		left.ServiceUID == right.ServiceUID && left.PoolUID == right.PoolUID && left.PoolName == right.PoolName &&
+		left.Role == right.Role && left.PipelineScopeID == right.PipelineScopeID &&
+		left.Model == right.Model && left.Source == right.Source && left.Revision == right.Revision &&
+		left.Tokenizer == right.Tokenizer && left.TokenizerRevision == right.TokenizerRevision &&
+		equalOptionalInt32(left.MaxInputTokens, right.MaxInputTokens) &&
+		left.ProfileName == right.ProfileName && left.ProfileRevision == right.ProfileRevision &&
+		left.Connector == right.Connector && left.Protocol == right.Protocol &&
+		left.Endpoint == right.Endpoint && left.PrefillBootstrapEndpoint == right.PrefillBootstrapEndpoint &&
+		left.KVScopeID == right.KVScopeID && left.KVLookupScope == right.KVLookupScope &&
+		left.DataParallelSize == right.DataParallelSize && slices.Equal(left.Capabilities, right.Capabilities)
 }
 
 func copyOptionalInt32(value *int32) *int32 {
@@ -689,7 +751,14 @@ func compareRoutingPDPipelineScopes(left, right servingSnapshotPDPipelineScope) 
 }
 
 func equalRoutingEPDComponent(left, right servingSnapshotEPDComponent) bool {
-	return left.RouteTargetID == right.RouteTargetID && left.ServiceUID == right.ServiceUID && left.PoolUID == right.PoolUID && left.PoolName == right.PoolName && left.Role == right.Role && left.Model == right.Model && left.Source == right.Source && left.Revision == right.Revision && left.Tokenizer == right.Tokenizer && left.TokenizerRevision == right.TokenizerRevision && equalOptionalInt32(left.MaxInputTokens, right.MaxInputTokens) && slices.Equal(left.Capabilities, right.Capabilities) && left.Endpoint == right.Endpoint && left.PrefillBootstrapEndpoint == right.PrefillBootstrapEndpoint && left.KVScopeID == right.KVScopeID && left.DataParallelSize == right.DataParallelSize
+	return left.RouteTargetID == right.RouteTargetID &&
+		left.ServiceUID == right.ServiceUID && left.PoolUID == right.PoolUID && left.PoolName == right.PoolName &&
+		left.Role == right.Role && left.Model == right.Model && left.Source == right.Source && left.Revision == right.Revision &&
+		left.Tokenizer == right.Tokenizer && left.TokenizerRevision == right.TokenizerRevision &&
+		equalOptionalInt32(left.MaxInputTokens, right.MaxInputTokens) && slices.Equal(left.Capabilities, right.Capabilities) &&
+		left.Endpoint == right.Endpoint && left.PrefillBootstrapEndpoint == right.PrefillBootstrapEndpoint &&
+		left.KVScopeID == right.KVScopeID && left.KVLookupScope == right.KVLookupScope &&
+		left.DataParallelSize == right.DataParallelSize
 }
 func equalRoutingEPDPipelineScope(left, right servingSnapshotEPDPipelineScope) bool {
 	return left.PipelineScopeID == right.PipelineScopeID && slices.Equal(left.EncoderRouteTargetIDs, right.EncoderRouteTargetIDs) && slices.Equal(left.PrefillRouteTargetIDs, right.PrefillRouteTargetIDs) && slices.Equal(left.DecodeRouteTargetIDs, right.DecodeRouteTargetIDs)
