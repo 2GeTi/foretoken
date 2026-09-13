@@ -59,6 +59,8 @@ pub struct SnapshotEpdComponent {
     #[serde(default)]
     pub prefill_bootstrap_endpoint: Option<String>,
     pub kv_scope_id: String,
+    #[serde(default)]
+    pub kv_lookup_scope: Option<String>,
     pub data_parallel_size: u32,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -96,6 +98,8 @@ pub struct SnapshotPdComponent {
     #[serde(default)]
     pub prefill_bootstrap_endpoint: Option<String>,
     pub kv_scope_id: String,
+    #[serde(default)]
+    pub kv_lookup_scope: Option<String>,
     pub data_parallel_size: u32,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -124,6 +128,8 @@ pub struct SnapshotGroup {
     pub max_input_tokens: Option<usize>,
     pub endpoint: String,
     pub kv_scope_id: String,
+    #[serde(default)]
+    pub kv_lookup_scope: Option<String>,
     pub data_parallel_size: u32,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]

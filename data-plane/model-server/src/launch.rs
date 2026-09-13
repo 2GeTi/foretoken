@@ -433,6 +433,14 @@ impl LaunchPlanV1 {
 }
 
 impl KvPlan {
+    /// Reports whether the active prompt-side Store connector can answer shared-prefix queries.
+    pub fn shared_prefix_lookup(&self) -> bool {
+        matches!(
+            self,
+            Self::MooncakeStore { events: true, .. } | Self::MultiConnector { events: true, .. }
+        )
+    }
+
     fn events(&self) -> bool {
         match self {
             Self::None { events }
@@ -447,6 +455,13 @@ impl KvPlan {
     // by argv construction, keeping controller plan fields separate from backend-specific JSON.
     fn transfer_config(&self) -> Option<serde_json::Value> {
         let pd = |role: KvRole, protocol: MooncakeProtocol, device_name: &str| json!({"kv_connector":"MooncakeConnector","kv_role":role.as_str(),"kv_connector_extra_config":{"mooncake_protocol":protocol.as_str(),"device_name":device_name}});
+        let store = |role: KvRole| {
+            let mut config = json!({"kv_connector":"MooncakeStoreConnector","kv_role":role.as_str(),"kv_load_failure_policy":"recompute"});
+            if self.shared_prefix_lookup() {
+                config["kv_connector_module_path"] = json!(crate::shared_kv::CONNECTOR_MODULE);
+            }
+            config
+        };
         match self {
             Self::None { .. } => None,
             Self::Pd {
@@ -465,9 +480,7 @@ impl KvPlan {
             } => Some(
                 json!({"kv_connector":"OffloadingConnector","kv_role":"kv_both","kv_connector_extra_config":{"cpu_bytes_to_use":cpu_bytes,"spec_name":"TieringOffloadingSpec","secondary_tiers":[{"type":"fs","root_dir":storage_path,"enable_kv_events":events}]}}),
             ),
-            Self::MooncakeStore { role, .. } => Some(
-                json!({"kv_connector":"MooncakeStoreConnector","kv_role":role.as_str(),"kv_load_failure_policy":"recompute"}),
-            ),
+            Self::MooncakeStore { role, .. } => Some(store(*role)),
             Self::MultiConnector {
                 role,
                 protocol,
@@ -480,7 +493,7 @@ impl KvPlan {
                     KvRole::KvBoth
                 };
                 Some(
-                    json!({"kv_connector":"MultiConnector","kv_role":role.as_str(),"kv_load_failure_policy":"recompute","kv_connector_extra_config":{"connectors":[pd(*role, *protocol, device_name), {"kv_connector":"MooncakeStoreConnector","kv_role":store_role.as_str()}]}}),
+                    json!({"kv_connector":"MultiConnector","kv_role":role.as_str(),"kv_load_failure_policy":"recompute","kv_connector_extra_config":{"connectors":[pd(*role, *protocol, device_name), store(store_role)]}}),
                 )
             }
         }
