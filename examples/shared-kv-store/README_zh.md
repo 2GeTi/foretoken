@@ -23,10 +23,10 @@
 ```bash
 make image-mooncake
 K3D_CLUSTER="$(kubectl config current-context)"
-k3d image import foretoken-mooncake:dev --cluster "${K3D_CLUSTER#k3d-}"
+k3d image import foretoken-mooncake --cluster "${K3D_CLUSTER#k3d-}"
 ```
 
-其他集群将 `REGISTRY` 替换为节点可访问的镜像仓库路径，执行 `make image-mooncake MOONCAKE_IMAGE=REGISTRY/mooncake:dev` 构建，再用 `docker push REGISTRY/mooncake:dev` 推送。将 `kvservice.yaml` 中 Master 和两个客户端的镜像都改为该地址。
+其他集群将 `REGISTRY` 替换为节点可访问的镜像仓库路径，执行 `make image-mooncake MOONCAKE_IMAGE=REGISTRY/mooncake` 构建，再用 `docker push REGISTRY/mooncake` 推送。将 `kvservice.yaml` 中 Master 和两个客户端的镜像都改为该地址。
 
 ```bash
 foretoken deploy examples/shared-kv-store --timeout 20m

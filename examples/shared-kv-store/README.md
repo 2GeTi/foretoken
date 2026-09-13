@@ -23,10 +23,10 @@ Build the Store image from the repository root. For a local k3d cluster, import 
 ```bash
 make image-mooncake
 K3D_CLUSTER="$(kubectl config current-context)"
-k3d image import foretoken-mooncake:dev --cluster "${K3D_CLUSTER#k3d-}"
+k3d image import foretoken-mooncake --cluster "${K3D_CLUSTER#k3d-}"
 ```
 
-For another cluster, replace `REGISTRY` with a registry repository accessible to its nodes. Build with `make image-mooncake MOONCAKE_IMAGE=REGISTRY/mooncake:dev`, push the image with `docker push REGISTRY/mooncake:dev`, and use that image in the Master and both clients in `kvservice.yaml`.
+For another cluster, replace `REGISTRY` with a registry repository accessible to its nodes. Build with `make image-mooncake MOONCAKE_IMAGE=REGISTRY/mooncake`, push the image with `docker push REGISTRY/mooncake`, and use that image in the Master and both clients in `kvservice.yaml`.
 
 ```bash
 foretoken deploy examples/shared-kv-store --timeout 20m

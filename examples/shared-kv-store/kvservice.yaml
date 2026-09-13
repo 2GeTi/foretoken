@@ -8,47 +8,47 @@ metadata:
 spec:
   backend: mooncakeStandaloneStore
   master:
-    image: foretoken-mooncake:dev
+    image: foretoken-mooncake
     fsGroup: 65532
     resources:
       requests:
         cpu: "1"
         memory: 1Gi
     snapshot:
-      size: "1073741824" # 1 GiB
+      size: 1Gi
   storagePools:
     - name: compact
       replicas: 1
       client:
-        image: foretoken-mooncake:dev
+        image: foretoken-mooncake
         fsGroup: 65532
         protocol: tcp
         resources:
           requests:
             cpu: "1"
             memory: 3Gi
-        memoryCapacity: "1073741824" # 1 GiB
+        memoryCapacity: 1Gi
         disk:
-          size: "4294967296" # 4 GiB
+          size: 4Gi
         storageRegistration:
           enabled: true
     - name: large
       replicas: 1
       client:
-        image: foretoken-mooncake:dev
+        image: foretoken-mooncake
         fsGroup: 65532
         protocol: tcp
         resources:
           requests:
             cpu: "2"
             memory: 6Gi
-        memoryCapacity: "4294967296" # 4 GiB
+        memoryCapacity: 4Gi
         disk:
-          size: "17179869184" # 16 GiB
+          size: 16Gi
         storageRegistration:
           enabled: true
   requester:
-    localBufferSize: "67108864" # 64 MiB per model requester
+    localBufferSize: 64Mi
   timeouts:
     startup: 5m
     drain: 30s

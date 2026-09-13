@@ -20,7 +20,6 @@ import (
 	resourcevalidation "github.com/shiweijiezero/foretoken/control-plane/internal/resources"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -523,7 +522,7 @@ func (reconciler *ModelServiceReconciler) resolveManagedKVBindings(ctx context.C
 		if !kv.DeletionTimestamp.IsZero() || kv.Status.ObservedGeneration != kv.Generation || ready == nil || ready.Status != metav1.ConditionTrue || ready.ObservedGeneration != kv.Generation || kv.Status.Binding == nil || kv.Status.Binding.Revision == "" || kv.Status.Binding.ConfigMapName == "" || kv.Status.Binding.ConfigMapKey == "" || kv.Status.Binding.PythonHashSeed != "0" {
 			return fmt.Errorf("KVService %q does not have a current Ready binding", kv.Name)
 		}
-		bufferBytes, err := requesterBufferBytes(kv)
+		bufferBytes, err := resourcevalidation.ParsePositiveBytes("requester.localBufferSize", string(kv.Spec.Requester.LocalBufferSize))
 		if err != nil {
 			return fmt.Errorf("KVService %q requester buffer: %w", kv.Name, err)
 		}
@@ -573,16 +572,4 @@ func (reconciler *ModelServiceReconciler) modelServicesForKVService(ctx context.
 		}
 	}
 	return requests
-}
-
-func requesterBufferBytes(service *inferencev1alpha1.KVService) (int64, error) {
-	quantity, err := resource.ParseQuantity(string(service.Spec.Requester.LocalBufferSize))
-	if err != nil {
-		return 0, err
-	}
-	bytes, exact := quantity.AsInt64()
-	if !exact || bytes < 1 {
-		return 0, fmt.Errorf("must be a positive exact integer byte quantity")
-	}
-	return bytes, nil
 }
