@@ -23,6 +23,10 @@ type KVGroupDisk struct {
 // +kubebuilder:validation:XValidation:rule="self.protocol == 'rdma' ? has(self.rdmaResourceName) && has(self.rdmaResourceCount) : !has(self.rdmaResourceName) && !has(self.rdmaResourceCount)",message="resolved RDMA clients require resource name and count; TCP must omit RDMA resources"
 type KVGroupClientConfig struct {
 	Image string `json:"image"`
+	// FSGroup preserves the resolved volume access group for the client Pod.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	FSGroup *int64 `json:"fsGroup,omitempty"`
 	// +kubebuilder:validation:Enum=tcp;rdma
 	Protocol string `json:"protocol"`
 	// +kubebuilder:validation:Minimum=1
@@ -39,6 +43,8 @@ type KVGroupClientConfig struct {
 	Disk                KVGroupDisk  `json:"disk"`
 	// +optional
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+	// +optional
+	StorageRegistration *StorageRegistration `json:"storageRegistration,omitempty"`
 }
 
 // KVGroupSpec is immutable, resolved client intent materialized from a KVPool.
@@ -54,13 +60,17 @@ type KVGroupSpec struct {
 	MasterServiceDNS string `json:"masterServiceDNS"`
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=65535
-	MasterRPCPort int32               `json:"masterRPCPort"`
-	Client        KVGroupClientConfig `json:"client"`
-	Timeouts      KVTimeouts          `json:"timeouts"`
+	MasterRPCPort int32 `json:"masterRPCPort"`
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	MasterAdminPort int32               `json:"masterAdminPort,omitempty"`
+	Client          KVGroupClientConfig `json:"client"`
+	Timeouts        KVTimeouts          `json:"timeouts"`
 }
 
 // +enum
-// +kubebuilder:validation:Enum=Pending;Provisioning;Ready;Degraded;Draining;Terminating
+// +kubebuilder:validation:Enum=Pending;Provisioning;Ready;Degraded;Terminating
 type KVGroupPhase string
 
 const (
@@ -68,12 +78,11 @@ const (
 	KVGroupPhaseProvisioning KVGroupPhase = "Provisioning"
 	KVGroupPhaseReady        KVGroupPhase = "Ready"
 	KVGroupPhaseDegraded     KVGroupPhase = "Degraded"
-	KVGroupPhaseDraining     KVGroupPhase = "Draining"
 	KVGroupPhaseTerminating  KVGroupPhase = "Terminating"
 )
 
-// KVGroupStatus reports requested capacity and Kubernetes infrastructure only.
-// It never represents Mooncake registration or usable Store capacity.
+// KVGroupStatus reports requested capacity, Kubernetes infrastructure, and optional
+// provider registration.
 type KVGroupStatus struct {
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
