@@ -5,9 +5,11 @@
 
 use std::future::IntoFuture;
 use std::io;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
+use foretoken_artifacts::ModelSource;
 use foretoken_model_protocol::{RuntimeMetadataResponse, RuntimeModelIdentity};
 use foretoken_model_server::api::{AppState, RuntimeHealth, router};
 use foretoken_model_server::backend::VllmBackend;
@@ -28,6 +30,7 @@ use vllm_managed_engine::{ManagedEngineHandle, allocate_handshake_port};
 const KV_KEY_PATH_ENV: &str = "FORETOKEN_KV_INDEX_KEY_PATH";
 const KV_SCOPE_ENV: &str = "FORETOKEN_KV_SCOPE_ID";
 const MODEL_GROUP_UID_ENV: &str = "FORETOKEN_MODEL_GROUP_UID";
+const TEMPORARY_MODEL_SOURCE_ROOT: &str = "/tmp/foretoken-model-source";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -359,29 +362,27 @@ async fn start_engine_attempt(
             shared_kv::LOOKUP_ENDPOINT.into(),
         ));
     }
+    let model_root = cache
+        .map(|cache| cache.model_root(mode))
+        .or_else(foretoken_artifacts::model_root)
+        .unwrap_or_else(|| PathBuf::from(TEMPORARY_MODEL_SOURCE_ROOT));
+    environment.extend(config.launch.source_environment(&model_root));
     let handshake_port = allocate_handshake_port(LOOPBACK_HOST)
         .map_err(|error| EngineStartupFailure::Other(io::Error::other(error)))?;
     let mut managed_engine = config
         .launch
         .managed_engine(handshake_port)
         .map_err(|error| EngineStartupFailure::Other(io::Error::other(error)))?;
-    // Resolve mounted local artifacts without changing the public model identity or
-    // overriding an independently configured tokenizer. Hub cache paths stay upstream-owned.
-    if let Some(cache) = cache {
-        if let Some(model) = cache
-            .local_artifact_path(&config.launch.artifacts.model)
-            .map_err(EngineStartupFailure::Other)?
-        {
-            managed_engine.model = model;
-        }
-        if let Some(tokenizer) = cache
-            .local_artifact_path(&config.launch.artifacts.tokenizer)
-            .map_err(EngineStartupFailure::Other)?
-        {
-            for argument in &mut managed_engine.python_args {
-                if argument.starts_with("--tokenizer=") {
-                    *argument = format!("--tokenizer={tokenizer}");
-                }
+    // Local source is strict: both identifiers must resolve before any engine process starts.
+    if config.launch.artifacts.source == ModelSource::Local {
+        let model = local_artifact_path(&config.launch.artifacts.model)
+            .map_err(EngineStartupFailure::Other)?;
+        let tokenizer = local_artifact_path(&config.launch.artifacts.tokenizer)
+            .map_err(EngineStartupFailure::Other)?;
+        managed_engine.model = model;
+        for argument in &mut managed_engine.python_args {
+            if argument.starts_with("--tokenizer=") {
+                *argument = format!("--tokenizer={tokenizer}");
             }
         }
     }
@@ -447,6 +448,23 @@ async fn start_engine_attempt(
             Err(error)
         }
     }
+}
+
+fn local_artifact_path(identifier: &str) -> io::Result<String> {
+    let root = foretoken_artifacts::model_root();
+    let path =
+        foretoken_artifacts::resolve_directory(root.as_deref(), identifier)?.ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("local artifact {identifier:?} was not found"),
+            )
+        })?;
+    path.into_os_string().into_string().map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "local artifact path is not UTF-8",
+        )
+    })
 }
 
 async fn wait_cache_server(server: &mut Option<tokio::task::JoinHandle<io::Result<()>>>) -> String {
