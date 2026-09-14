@@ -7,7 +7,7 @@
 
 This guide explains how to build Foretoken images from source, configure the Kubernetes platform to use them, and redeploy source changes. Model services remain separate and are deployed with `foretoken deploy`.
 
-Prepare Python 3.11+, Git, Docker with BuildKit, Make, kubectl, Helm, and a Rust toolchain managed by rustup. Editable builds automatically select supported anonymous package and build-image mirrors; see [Use Foretoken on a restricted network](restricted-network.md) for explicit sources and offline nodes. Get the current source and run commands from its root:
+Prepare Python 3.11+, Git, Docker with BuildKit, Make, kubectl, Helm, and a Rust toolchain managed by rustup. Get the current source and run commands from its root:
 
 ```bash
 git clone https://github.com/shiweijiezero/foretoken.git
@@ -37,6 +37,16 @@ Or create and activate a virtual environment with uv:
 uv venv
 source .venv/bin/activate
 uv pip install -e .
+```
+
+To use organization-managed sources, set the endpoints that apply:
+
+```bash
+export FORETOKEN_OCI_REGISTRY=registry.example.com/mirror
+export FORETOKEN_GITHUB_MIRROR=https://source.example.com/github.com
+export UV_DEFAULT_INDEX=https://python.example.com/simple
+export GOPROXY=https://go.example.com
+export FORETOKEN_CARGO_REGISTRY=sparse+https://cargo.example.com/index/
 ```
 
 For a local kind or k3d cluster, build and import the images directly:

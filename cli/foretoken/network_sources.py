@@ -15,10 +15,23 @@ from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
-SOURCE_PROBE_BUDGET_SECONDS = 4.0
-_PROBE_READ_BYTES = 64 * 1024
-_FASTER_RATIO = 0.7
-_FASTER_SECONDS = 0.25
+
+@dataclass(frozen=True)
+class _SourceSelectionPolicy:
+    """Shared internal thresholds for anonymous source selection."""
+
+    probe_timeout_seconds: float
+    probe_read_bytes: int
+    faster_ratio: float
+    faster_margin_seconds: float
+
+
+SOURCE_SELECTION_POLICY = _SourceSelectionPolicy(
+    probe_timeout_seconds=4.0,
+    probe_read_bytes=64 * 1024,
+    faster_ratio=0.7,
+    faster_margin_seconds=0.25,
+)
 
 
 @dataclass(frozen=True)
@@ -53,13 +66,18 @@ def _https_get(
         connection.request("GET", path, headers=headers or {})
         response = connection.getresponse()
         body = bytearray()
-        while len(body) < _PROBE_READ_BYTES:
+        while len(body) < SOURCE_SELECTION_POLICY.probe_read_bytes:
             timeout = deadline - time.monotonic()
             if timeout <= 0:
                 raise TimeoutError
             if connection.sock is not None:
                 connection.sock.settimeout(timeout)
-            chunk = response.read(min(8192, _PROBE_READ_BYTES - len(body)))
+            chunk = response.read(
+                min(
+                    8192,
+                    SOURCE_SELECTION_POLICY.probe_read_bytes - len(body),
+                )
+            )
             if not chunk:
                 break
             body.extend(chunk)
@@ -92,7 +110,7 @@ def _measure_url(url: str) -> float | None:
     """Measure a bounded anonymous GET of one package or source resource."""
     started = time.monotonic()
     try:
-        _read_url(url, started + SOURCE_PROBE_BUDGET_SECONDS)
+        _read_url(url, started + SOURCE_SELECTION_POLICY.probe_timeout_seconds)
     except (OSError, TimeoutError, http.client.HTTPException, ssl.SSLError, ValueError):
         return None
     return time.monotonic() - started
@@ -108,7 +126,7 @@ def _bearer_parameters(header: str) -> dict[str, str]:
 def _measure_oci_manifest(host: str, repository: str, reference: str) -> float | None:
     """Measure an anonymous OCI manifest fetch, including its registry token exchange."""
     started = time.monotonic()
-    deadline = started + SOURCE_PROBE_BUDGET_SECONDS
+    deadline = started + SOURCE_SELECTION_POLICY.probe_timeout_seconds
     url = f"https://{host}/v2/{repository}/manifests/{reference}"
     headers = {
         "Accept": (
@@ -144,12 +162,15 @@ def _measure_oci_manifest(host: str, repository: str, reference: str) -> float |
 
 
 def _prefer_mirror(official: float | None, mirror: float | None) -> bool:
-    """Select a mirror only when official access failed or the measured gain is material."""
+    """Apply the shared materially-faster threshold to one source pair."""
     if mirror is None:
         return False
     if official is None:
         return True
-    return mirror <= official * _FASTER_RATIO and official - mirror >= _FASTER_SECONDS
+    return (
+        mirror <= official * SOURCE_SELECTION_POLICY.faster_ratio
+        and official - mirror >= SOURCE_SELECTION_POLICY.faster_margin_seconds
+    )
 
 
 def select_source_build_sources(

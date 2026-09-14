@@ -15,7 +15,7 @@ spec:
 
 Use `source: modelscope` with the same model identifier to load it from ModelScope. Different model services behind one frontend may use different sources.
 
-Foretoken does not automatically replace the Hugging Face endpoint. The public mirror candidate checked for restricted-network use served the repository API and files, but did not provide the complete download metadata required by the frontend's Hugging Face client. ModelScope remains a separate source rather than an implicit fallback.
+Automatic Hugging Face endpoint replacement is not enabled because the tested public mirror did not satisfy the frontend download metadata requirements.
 
 For a verified Hugging Face-compatible endpoint, set the platform access configuration and install with that values file:
 

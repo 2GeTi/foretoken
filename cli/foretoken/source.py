@@ -16,7 +16,7 @@ from typing import Any
 from foretoken.kubernetes import Kubectl, resource_ref
 from foretoken.manifest import DeploymentError
 from foretoken.network_sources import (
-    SOURCE_PROBE_BUDGET_SECONDS,
+    SOURCE_SELECTION_POLICY,
     select_source_build_sources,
 )
 
@@ -103,7 +103,7 @@ def prepare_source_images(
         if completed.returncode:
             unavailable = (
                 "; unavailable within the "
-                f"{SOURCE_PROBE_BUDGET_SECONDS:g}s source probe budget: "
+                f"{SOURCE_SELECTION_POLICY.probe_timeout_seconds:g}s source probe budget: "
                 + ", ".join(unavailable_sources)
                 if unavailable_sources
                 else ""

@@ -88,7 +88,7 @@ Registry login authorizes the local image push. Private registries also need `im
 
 ### Installation options
 
-Repeatable `--values` files provide platform image, runtime, and hardware settings. Editable builds automatically compare supported anonymous package and build-image sources; `--oci-registry` explicitly selects one registry prefix for release images and CLI-managed charts. Hugging Face-compatible model endpoints remain explicit platform configuration. See [Restricted networks and mirrored sources](../docs/restricted-network.md).
+Repeatable `--values` files provide platform image, runtime, and hardware settings. Editable builds automatically compare supported anonymous package and build-image sources. `--oci-registry` explicitly selects one registry prefix for release images and CLI-managed charts; Hugging Face-compatible model endpoints remain under `runtime.vllm.modelSource`.
 
 Model services are reached through an IP address outside the cluster. k3d, k3s, and cloud clusters assign one automatically. Clusters built with kubeadm, RKE2, or kubespray have no address assignment by default, so installation there ends with `LoadBalancer support Not verified`. Give Foretoken a range of unused addresses in the nodes' subnet, confirmed with the cluster administrator, and it assigns them to services:
 

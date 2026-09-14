@@ -141,7 +141,6 @@ foretoken uninstall
 ## 部署指南
 
 - [源码构建与私有镜像仓库](docs/custom-deployment_zh.md)
-- [受限网络与镜像源](docs/restricted-network_zh.md)
 - [使用 k3d 创建单机 GPU 集群](docs/k3d-deployment_zh.md)
 - [沐曦 GPU](docs/metax-deployment_zh.md)
 

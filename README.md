@@ -141,7 +141,6 @@ The uninstall command preserves Foretoken CRDs and reused cluster components. It
 ## Deployment Guides
 
 - [Source builds and private registries](docs/custom-deployment.md)
-- [Restricted networks and mirrored sources](docs/restricted-network.md)
 - [Single-machine GPU clusters with k3d](docs/k3d-deployment.md)
 - [MetaX GPUs](docs/metax-deployment.md)
 
