@@ -9,23 +9,33 @@ SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 
 本指南供集群管理员一次性准备沐曦镜像和 Foretoken 平台。完成后，模型用户只需按[部署与调用指南](../metax-deployment_zh.md)操作，无需理解底层推理引擎的安装过程。
 
-Foretoken 使用三个镜像：controller 管理 Kubernetes 中的模型服务，frontend 接收请求，model-server 在沐曦 GPU 上执行模型。下面从同一份源码构建三个镜像，并安装配套的 Helm Chart，保证接口和 CRD（Kubernetes 自定义资源定义）与示例一致。
+发布版与其他 GPU 平台共用 controller、frontend 镜像，model-server 使用沐曦运行时镜像。自行构建时，镜像与 Helm Chart 使用同一份源码。
 
 ## 环境要求
 
 集群管理员负责准备：
 
 - Kubernetes 1.29 或更高版本、沐曦驱动和 MetaX device plugin；节点应发布 `metax-tech.com/gpu` 资源。
-- 模型缓存存储。默认单模型示例使用可在线扩容的 `ReadWriteOnce` 默认 StorageClass，缓存从 10 GiB 起步。其他存储方式见[运行时缓存指南](runtime-cache_zh.md)。
+- 目标节点上的可写模型目录，或用于模型缓存的 StorageClass。按[模型存储](../model-storage_zh.md)配置示例的 `cache.yaml`。
 - 可供客户端访问的 Gateway 地址；下面使用 Envoy Gateway。已有平台应由原管理员维护，不要安装第二套控制器接管它。
 
 构建机器需要 Foretoken 源码、支持 BuildKit 的 Docker 和 Make；安装平台需要 kubectl、Helm 及对应集群权限。源码构建会访问 GitHub、PyPI、MetaX Python 软件源及容器镜像仓库。
 
 使用监控时，先准备 Prometheus、Prometheus Operator、`ServiceMonitor`/`PrometheusRule` CRD 和覆盖沐曦节点的 mxExporter。Prometheus 需要选择平台及工作负载 namespace 中的监控资源；额外标签通过 `observability.additionalLabels` 配置。源码 Chart 不安装这些共享依赖，具体接入方式见[可观测性指南](../../observability/README_zh.md)。
 
+## 安装发布版
+
+集群驱动、device plugin 和 mxExporter 准备好后，使用统一安装命令：
+
+```bash
+foretoken install
+```
+
+CLI 根据沐曦 GPU 资源自动选择对应版本的镜像，复用或安装 Prometheus，并处理平台依赖。需要 Gateway 时添加 `--frontend-mode gateway`。混合 GPU 集群通过 `--values` 中的 `runtime.vllm.gpu.resourceName` 或 `runtime.vllm.gpu.nodeSelector` 明确范围；自定义 `runtime.vllm.image` 优先于自动镜像选择。
+
 ## 构建镜像
 
-所有命令从 Foretoken 仓库根目录执行。
+需要自定义 SDK 或推理运行时时，按以下步骤构建。所有命令从 Foretoken 仓库根目录执行。
 
 ### 1. 构建沐曦 model-server
 
@@ -55,8 +65,6 @@ make image-model-server
 make image-frontend
 docker build -f control-plane/Dockerfile -t foretoken-control-plane:dev .
 ```
-
-使用同一份源码的三个镜像，避免旧 frontend 无法读取新 model-server 返回的信息，或旧控制面缺少示例所需的 RuntimeCache CRD。
 
 ### 3. 将镜像提供给节点
 
@@ -162,4 +170,4 @@ uv pip check --python "$VLLM_ENV/.venv/bin/python"
 
 这是镜像构建使用的同一安装器，不继承系统 Python 包，也不跳过依赖求解。源码保留在安装目录的 `third_party` 中。失败目录保留供排查；解决原因后，用新的安装目录重试。激活脚本同时设置 MACA 编译器和库路径，运行时应先加载它。
 
-当前独立安装验证组合是 vLLM/vLLM-metax 0.24.0、MetaX PyTorch 2.10 和 mcoplib 0.4.9。安装器回移[上游 XGrammar 依赖修正](https://github.com/MetaX-MACA/vLLM-metax/commit/1331d8ad37da9a69fe1140b7759633d509b722a9)，以 `+foretoken.1` 标识插件，并使用 Transformers 5.5.3、XGrammar 0.2.1 和 TVM FFI 0.1.9 的兼容组合。已验证文本与 JSON 约束输出；torchaudio 与 PyTorch 存在二进制兼容问题，不用于音频推理。Foretoken 的协议适配范围为 vLLM 0.20–0.28，这不等于每个版本都已完成独立安装或 GPU 验证。
+使用版本矩阵中相互匹配的 vLLM 与 MetaX SDK。

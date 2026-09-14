@@ -7,11 +7,12 @@ SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 
 English | [简体中文](README_zh.md)
 
-The Foretoken command-line tool installs the shared Kubernetes platform, deploys model services from Kustomize configurations, reports serving readiness, resolves frontend endpoints, and runs benchmarks through one `foretoken` entry point.
+The Foretoken command-line tool installs the shared Kubernetes platform, deploys model services from Kustomize configurations, reports serving readiness, resolves frontend URLs, and runs benchmarks through one `foretoken` entry point.
 
 ## Before you start
 
 You need Python 3.11 or later, an active Kubernetes context, `kubectl`, and Helm. GPU nodes must already have their vendor driver and Kubernetes device plugin.
+
 ## Install the command-line tool
 
 Install the published Foretoken command-line tool package with pip:
@@ -44,6 +45,8 @@ The default uses release images and local access through a `LoadBalancer` Servic
 ```bash
 foretoken install
 ```
+
+Installation selects the NVIDIA or MetaX runtime from the cluster's GPU resources. Explicit runtime settings in `--values` take precedence; in a mixed-GPU cluster, select a resource with `runtime.vllm.gpu.resourceName` or restrict the nodes with `runtime.vllm.gpu.nodeSelector`.
 
 Installation also sets up monitoring, reusing a Prometheus and GPU metrics exporter already in the cluster when they exist. See [Observability](../observability/README.md).
 
@@ -85,7 +88,7 @@ Registry login authorizes the local image push. Private registries also need `im
 
 ### Installation options
 
-Repeatable `--values` files provide platform image, runtime, and hardware settings.
+Repeatable `--values` files provide platform image, runtime, and hardware settings. Use `--oci-registry` for mirrored release images and CLI-managed charts.
 
 Model services are reached through an IP address outside the cluster. k3d, k3s, and cloud clusters assign one automatically. Clusters built with kubeadm, RKE2, or kubespray have no address assignment by default, so installation there ends with `LoadBalancer support Not verified`. Give Foretoken a range of unused addresses in the nodes' subnet, confirmed with the cluster administrator, and it assigns them to services:
 
@@ -99,20 +102,11 @@ loadBalancer:
 foretoken install --values platform-values.yaml
 ```
 
-### Persistent runtime cache
-
-Create one `RuntimeCache` in a workload namespace to let Foretoken provision and manage a shared cache PVC. Existing PVCs remain supported through `workload.cache.claimName`. See [Persistent Runtime Cache](../docs/development/runtime-cache.md).
-
 ## Deploy and operate model services
 
-Deploy one frontend and all models rendered by a Kustomize root. Run from the repository root; if you have not obtained the configurations yet:
+Run from the repository checkout prepared in the [Quick Start](../README.md). Deploy one frontend and all models rendered by a Kustomize root.
 
-```bash
-git clone https://github.com/shiweijiezero/foretoken.git
-cd foretoken
-```
-
-See the [multi-model example](../examples/multi-model-quickstart/README.md) for capacity and storage requirements. Use `examples/quickstart` for a single model.
+See the [multi-model example](../examples/multi-model-quickstart/README.md) for resources and [model storage](../docs/model-storage.md) for directory or PVC configuration. Use `examples/quickstart` for a single model.
 
 ```bash
 foretoken deploy examples/multi-model-quickstart --timeout 20m
@@ -147,44 +141,27 @@ FORETOKEN_REQUEST_HOST="$(foretoken endpoint examples/multi-model-quickstart --h
 
 `--host` returns the host and optional port for direct access, or the configured routing hostname for an HTTP Gateway. `foretoken endpoint` waits for the LoadBalancer or Gateway address; use `foretoken deploy` to wait for the services to become ready.
 
-## Run benchmarks
+## Benchmark model services
 
-Install the optional benchmark dependencies with pip:
+Use `foretoken bench` to measure model-service performance. Commands and examples are in [Model Service Benchmarks](../benchmarks/README.md).
 
-```bash
-pip install 'foretoken[bench]'
+## Capture a diagnostic profile
 
-# For source installation from the repository:
-# pip install -e .
-# pip install -e '.[bench]'
-```
-
-Or install the benchmark dependencies in the activated uv environment:
+The experimental command requires a source-installed platform and captures one PyTorch profile from an existing ModelService that uses persistent RuntimeCache storage:
 
 ```bash
-uv pip install 'foretoken[bench]'
+foretoken profile examples/quickstart --profile-engine pytorch --profile-duration 15s
 ```
 
-Then run the benchmark:
-
-```bash
-foretoken bench examples/multi-model-quickstart --model Qwen/Qwen3-0.6B
-```
-
-The command-line tool uses the active `kubectl` context and honors standard Kubernetes configuration such as `KUBECONFIG`.
+The command does not generate traffic. See [Profiling](../observability/profiling.md) for capture and result access.
 
 ## Clean up
 
-Delete the resources rendered by the same configuration:
+Delete the deployed services before uninstalling the platform:
 
 ```bash
 foretoken delete examples/multi-model-quickstart
-```
-
-The command waits for deletion and ignores resources that are already absent. After deleting all Foretoken services, remove the platform release:
-
-```bash
 foretoken uninstall
 ```
 
-The command refuses to run while model services remain. It removes what `foretoken install` installed and leaves reused cluster components and the Foretoken CRDs in place.
+Foretoken CRDs and reused cluster components are retained. Managed MetalLB is also retained while other services depend on it.
