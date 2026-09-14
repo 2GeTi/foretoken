@@ -16,7 +16,7 @@ foretoken bench examples/quickstart \
 
 `--wandb-entity` 选择账号或团队。group 和运行名分别设置。扫描、多数据集在未指定 group 时自动分组，各子运行会在名称后追加标识。单次评测默认不分组。
 
-Charts 中的 **Time/** 展示随时间变化的性能，**Requests/** 按发送顺序展示逐请求指标。在 group 的 Workspace 中可用相同横轴比较各次运行，Summary 保留最终汇总。窗口定义见[结果指标](../../metrics_zh.md#曲线)。
+Charts 包含最终汇总、百分位及 **Time/**、**Cumulative/**、**Requests/** 曲线，Kustomize 评测另有 **Replicas/**。在 group 的 Workspace 中对比各次运行，Summary 保留最终值。窗口定义见[结果指标](../../metrics_zh.md#曲线)。
 
 ![逐请求耗时与 token 数](../imgs/request-order-wandb.png)
 
