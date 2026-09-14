@@ -23,6 +23,18 @@ SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 
 使用监控时，先准备 Prometheus、Prometheus Operator、`ServiceMonitor`/`PrometheusRule` CRD 和覆盖沐曦节点的 mxExporter。Prometheus 需要选择平台及工作负载 namespace 中的监控资源；额外标签通过 `observability.additionalLabels` 配置。源码 Chart 不安装这些共享依赖，具体接入方式见[可观测性指南](../../observability/README_zh.md)。
 
+## 准备 GPU 指标采集
+
+已有 mxExporter 时直接复用。新安装先准备 Prometheus Operator CRD，再为每个沐曦 GPU 节点加标签并应用维护中的配置，将 `NODE` 替换为节点名称：
+
+```bash
+kubectl label node NODE foretoken.io/metax-gpu-worker=true --overwrite
+kubectl apply -f deploy/accelerators/metax/mx-exporter.yaml
+kubectl rollout status daemonset/mx-exporter -n metax-monitor
+```
+
+该配置以特权模式访问 GPU，挂载设备、sysfs 和 kubelet pod-resources 路径，每五秒采集利用率和显存指标。已有 Prometheus 需要选中 `metax-monitor` 中的 ServiceMonitor，详见[接入已有监控](../../observability/README_zh.md#接入已有监控)。
+
 ## 安装发布版
 
 集群驱动、device plugin 和 mxExporter 准备好后，使用统一安装命令：

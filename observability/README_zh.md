@@ -41,6 +41,7 @@ kubectl get servicemonitor,prometheusrule -A \
 ```
 
 在 Prometheus 的 **Targets** 页面确认 Foretoken target 为 `UP`，在 **Rules** 页面确认 `foretoken.recording` 已加载。下面的查询返回 Frontend 请求速率：
+在 Prometheus 的 **Targets** 页面确认 Foretoken target 为 `UP`，在 **Rules** 页面确认 `foretoken.recording`、`foretoken.accelerator-recording` 和 `foretoken.alerting` 已加载。下面的查询返回 Frontend 请求速率：
 
 ```promql
 sum(foretoken:frontend_http_response_starts:rate5m)
@@ -70,7 +71,15 @@ kubectl label namespace monitoring \
 foretoken install --prometheus monitoring/prometheus
 ```
 
-GPU 面板和告警依靠 Foretoken 模型组和模型角色的 Pod 标签识别设备。CLI 管理的 DCGM Exporter 会输出这些标签；复用已有 exporter 时需要同样的标签，否则这些面板没有数据。
+GPU 面板和告警通过 exporter 提供的工作负载 namespace、Pod 与 kube-state-metrics 关联。CLI 管理的监控栈会启用所需的 Pod 标签；已有 kube-prometheus-stack 在其 values 中加入：
+
+```yaml
+kube-state-metrics:
+  metricLabelsAllowlist:
+    - pods=[inference.foretoken.io/model-group,inference.foretoken.io/model-role,inference.foretoken.io/pd-pipeline-scope]
+```
+
+exporter 需要上报真实工作负载的 namespace 和 Pod，无需复制 Foretoken 标签。安装时通过 Kubernetes API 检查指标端点和 Prometheus target，需要 `services/proxy` 的 `get` 权限。Foretoken 指标和 CLI 管理的 DCGM target 默认每五秒抓取一次。
 
 使用服务告警时，复用的 Prometheus 需要通过 `ruleNamespaceSelector` 选择工作负载命名空间中的规则；CLI 管理的监控已配置这一范围。
 

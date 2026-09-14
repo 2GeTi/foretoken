@@ -41,6 +41,7 @@ kubectl get servicemonitor,prometheusrule -A \
 ```
 
 In Prometheus, confirm on **Targets** that the Foretoken targets are `UP` and on **Rules** that `foretoken.recording` is loaded. This query returns the Frontend request rate:
+In Prometheus, confirm on **Targets** that the Foretoken targets are `UP` and on **Rules** that `foretoken.recording`, `foretoken.accelerator-recording`, and `foretoken.alerting` are loaded. This query returns the Frontend request rate:
 
 ```promql
 sum(foretoken:frontend_http_response_starts:rate5m)
@@ -70,7 +71,15 @@ kubectl label namespace monitoring \
 foretoken install --prometheus monitoring/prometheus
 ```
 
-GPU panels and alerts identify devices by the Foretoken model-group and model-role Pod labels. The CLI-managed DCGM Exporter publishes them; a reused exporter needs the same labels, otherwise those panels stay empty.
+GPU panels and alerts join the exporter's workload namespace and Pod with kube-state-metrics. The CLI-managed stack enables the required Pod labels. With an existing kube-prometheus-stack, add these labels to its values:
+
+```yaml
+kube-state-metrics:
+  metricLabelsAllowlist:
+    - pods=[inference.foretoken.io/model-group,inference.foretoken.io/model-role,inference.foretoken.io/pd-pipeline-scope]
+```
+
+Exporters must report the actual workload namespace and Pod; they do not need to copy Foretoken labels. Installation checks their metrics endpoints and Prometheus targets through the Kubernetes API, requiring `get` access to `services/proxy`. Foretoken metrics and CLI-managed DCGM targets are scraped every five seconds.
 
 For service alerts, a reused Prometheus must select rules in the workload namespaces through `ruleNamespaceSelector`; the CLI-managed stack already does this.
 

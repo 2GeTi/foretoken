@@ -20,6 +20,18 @@ Release installations share the controller and frontend images with other GPU pl
 
 The build host needs the Foretoken checkout, Docker with BuildKit, and Make. Platform installation also needs kubectl, Helm, and cluster permissions. Source installation downloads from GitHub, PyPI, the MetaX package index, and the selected container registries.
 
+## Prepare GPU metrics
+
+Reuse the cluster's mxExporter when available. For a new installation, first install the Prometheus Operator CRDs, then label each MetaX GPU node (replace `NODE` with its name) and apply the maintained exporter configuration:
+
+```bash
+kubectl label node NODE foretoken.io/metax-gpu-worker=true --overwrite
+kubectl apply -f deploy/accelerators/metax/mx-exporter.yaml
+kubectl rollout status daemonset/mx-exporter -n metax-monitor
+```
+
+This configuration uses privileged GPU access, mounts the device, sysfs and kubelet pod-resources paths, and collects utilization and memory metrics every five seconds. An existing Prometheus must select its ServiceMonitor in `metax-monitor`; see [monitoring integration](../../observability/README.md#use-an-existing-monitoring-stack).
+
 ## Install release images
 
 After preparing the cluster drivers, device plugin, and mxExporter, use the normal CLI installation:
