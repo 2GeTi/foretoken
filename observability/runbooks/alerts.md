@@ -15,12 +15,12 @@ Select rules in the corresponding service's `spec.observability.alerts.rules`:
 
 | Alert | Service | Signal | Persistence |
 | --- | --- | --- | --- |
-| `ForetokenMetricsTargetDown` | FrontendService or ModelService | A discovered `/metrics` target cannot be scraped | 5 minutes |
-| `ForetokenFrontendHTTPResponseStart5xxRatioHigh` | FrontendService | Response-start 5xx ratio is high while traffic exists | 10 minutes |
-| `ForetokenModelServerSchedulerBacklog` | ModelService | Aggregated vLLM stage scheduler waiting queue is nonzero | 10 minutes |
-| `ForetokenModelServerKVCachePressureHigh` | ModelService | Maximum vLLM KV-cache usage is high | 10 minutes |
-| `ForetokenNVIDIAGPUTemperatureHigh` | ModelService | GPU temperature exceeds the configured threshold | 10 minutes |
-| `ForetokenNVIDIAGPUPowerUsageHigh` | ModelService | GPU power exceeds an explicitly configured threshold | 10 minutes |
+| `ForetokenMetricsTargetDown` | FrontendService or ModelService | A discovered `/metrics` target cannot be scraped | 1 minute |
+| `ForetokenFrontendHTTPResponseStart5xxRatioHigh` | FrontendService | Response-start 5xx ratio is high while traffic exists | 2 minutes |
+| `ForetokenModelServerSchedulerBacklog` | ModelService | Aggregated vLLM stage scheduler waiting queue is nonzero | 2 minutes |
+| `ForetokenModelServerKVCachePressureHigh` | ModelService | Maximum vLLM KV-cache usage is high | 2 minutes |
+| `ForetokenNVIDIAGPUTemperatureHigh` | ModelService | GPU temperature exceeds the configured threshold | 2 minutes |
+| `ForetokenNVIDIAGPUPowerUsageHigh` | ModelService | GPU power exceeds an explicitly configured threshold | 5 minutes |
 
 Inspect the resources in the affected namespace:
 
@@ -39,7 +39,7 @@ labels are excluded, including from temperature and power alerts.
 ## ForetokenMetricsTargetDown
 
 Prometheus has continuously failed to scrape an already discovered Frontend or
-model-server target for five minutes.
+model-server target for one minute.
 
 1. Open the Prometheus Targets page and inspect the target's `lastError`.
 2. Check whether the selected Pod is running and whether its `/metrics`
@@ -54,7 +54,7 @@ request readiness or a confirmed user outage.
 
 ## ForetokenFrontendHTTPResponseStart5xxRatioHigh
 
-More than 5% of Frontend HTTP response starts have been 5xx for ten minutes,
+More than 5% of Frontend HTTP response starts have been 5xx for two minutes,
 while traffic has remained at or above 0.1 response starts per second.
 
 1. Filter the recorded response-start metrics to the alert's namespace and
@@ -68,7 +68,7 @@ ratio or SLO.
 
 ## ForetokenModelServerSchedulerBacklog
 
-The aggregated vLLM stage scheduler queue has remained nonzero for ten minutes.
+The aggregated vLLM stage scheduler queue has remained nonzero for two minutes.
 
 1. Inspect running and waiting requests for the alert's model group and role.
 2. Check KV-cache pressure, Pod health, accelerator utilization, and recent
@@ -78,12 +78,12 @@ The aggregated vLLM stage scheduler queue has remained nonzero for ten minutes.
 
 This is a vLLM stage queue, not the number of users and not the Frontend
 admission queue. A transient nonzero queue is normal; the alert requires a
-continuous ten-minute backlog.
+continuous two-minute backlog.
 
 ## ForetokenModelServerKVCachePressureHigh
 
 The highest KV-cache usage among engines in a model group has remained at or
-above the configured threshold (95% by default) for ten minutes.
+above the configured threshold (95% by default) for two minutes.
 
 1. Confirm the group, role, and model labels, then inspect scheduler waiting and
    running requests.

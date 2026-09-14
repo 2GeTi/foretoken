@@ -13,12 +13,12 @@ Foretoken 告警表示异常信号已经持续了一段时间。告警不会自�
 
 | 告警 | 服务类型 | 信号 | 持续时间 |
 | --- | --- | --- | --- |
-| `ForetokenMetricsTargetDown` | FrontendService 或 ModelService | 已发现的 `/metrics` 目标无法抓取 | 5 分钟 |
-| `ForetokenFrontendHTTPResponseStart5xxRatioHigh` | FrontendService | 存在流量时，响应开始 5xx 比例偏高 | 10 分钟 |
-| `ForetokenModelServerSchedulerBacklog` | ModelService | 聚合后的 vLLM 阶段调度器等待队列不为空 | 10 分钟 |
-| `ForetokenModelServerKVCachePressureHigh` | ModelService | vLLM KV Cache 最高使用率偏高 | 10 分钟 |
-| `ForetokenNVIDIAGPUTemperatureHigh` | ModelService | GPU 温度超过配置阈值 | 10 分钟 |
-| `ForetokenNVIDIAGPUPowerUsageHigh` | ModelService | GPU 功耗超过显式配置的阈值 | 10 分钟 |
+| `ForetokenMetricsTargetDown` | FrontendService 或 ModelService | 已发现的 `/metrics` 目标无法抓取 | 1 分钟 |
+| `ForetokenFrontendHTTPResponseStart5xxRatioHigh` | FrontendService | 存在流量时，响应开始 5xx 比例偏高 | 2 分钟 |
+| `ForetokenModelServerSchedulerBacklog` | ModelService | 聚合后的 vLLM 阶段调度器等待队列不为空 | 2 分钟 |
+| `ForetokenModelServerKVCachePressureHigh` | ModelService | vLLM KV Cache 最高使用率偏高 | 2 分钟 |
+| `ForetokenNVIDIAGPUTemperatureHigh` | ModelService | GPU 温度超过配置阈值 | 2 分钟 |
+| `ForetokenNVIDIAGPUPowerUsageHigh` | ModelService | GPU 功耗超过显式配置的阈值 | 5 分钟 |
 
 首先查看告警所在命名空间中的资源：
 
@@ -33,7 +33,7 @@ kubectl get pods,services,endpointslices --namespace "$NAMESPACE" -o wide
 
 ## ForetokenMetricsTargetDown
 
-Prometheus 已连续五分钟无法抓取一个已经发现的 Frontend 或 model-server 目标。
+Prometheus 已连续一分钟无法抓取一个已经发现的 Frontend 或 model-server 目标。
 
 1. 打开 Prometheus Targets 页面，查看该目标的 `lastError`。
 2. 检查对应 Pod 是否运行，并从监控 Pod 测试其 `/metrics` 接口。
@@ -44,7 +44,7 @@ Prometheus 已连续五分钟无法抓取一个已经发现的 Frontend 或 mode
 
 ## ForetokenFrontendHTTPResponseStart5xxRatioHigh
 
-Frontend 的 HTTP 响应开始事件中，5xx 比例在至少每秒 0.1 个响应开始事件的流量下连续十分钟超过 5%。
+Frontend 的 HTTP 响应开始事件中，5xx 比例在至少每秒 0.1 个响应开始事件的流量下连续两分钟超过 5%。
 
 1. 按告警中的 namespace 和 Frontend service 筛选记录指标，再按 handler 和 status 拆分。
 2. 检查 Frontend 日志以及最近的配置或路由修改。
@@ -54,17 +54,17 @@ Frontend 的 HTTP 响应开始事件中，5xx 比例在至少每秒 0.1 个响�
 
 ## ForetokenModelServerSchedulerBacklog
 
-聚合后的 vLLM stage scheduler 队列连续十分钟不为空。
+聚合后的 vLLM stage scheduler 队列连续两分钟不为空。
 
 1. 查看告警所指 model group 和 role 的 running 与 waiting requests。
 2. 检查 KV Cache 压力、Pod 健康状态、加速器利用率和近期流量变化。
 3. 分别检查受影响的 prefill 或 decode role，不要把 stage 数量解释为用户请求数。
 
-这是 vLLM 的 stage 队列，不是用户数量，也不是 Frontend admission queue。短暂排队属于正常现象，所以规则要求 backlog 连续存在十分钟。
+这是 vLLM 的 stage 队列，不是用户数量，也不是 Frontend admission queue。短暂排队属于正常现象，所以规则要求 backlog 连续存在两分钟。
 
 ## ForetokenModelServerKVCachePressureHigh
 
-一个 model group 中所有 engine 的最高 KV Cache 使用率连续十分钟不低于配置的阈值（默认 95%）。
+一个 model group 中所有 engine 的最高 KV Cache 使用率连续两分钟不低于配置的阈值（默认 95%）。
 
 1. 确认 group、role 和 model 标签，再查看 scheduler waiting 与 running requests。
 2. 调整容量前，先检查请求长度、并发、workload 配置和副本健康状态。
