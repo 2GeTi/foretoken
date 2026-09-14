@@ -39,15 +39,7 @@ source .venv/bin/activate
 uv pip install -e .
 ```
 
-To use organization-managed sources, set the endpoints that apply:
-
-```bash
-export FORETOKEN_OCI_REGISTRY=registry.example.com/mirror
-export FORETOKEN_GITHUB_MIRROR=https://source.example.com/github.com
-export UV_DEFAULT_INDEX=https://python.example.com/simple
-export GOPROXY=https://go.example.com
-export FORETOKEN_CARGO_REGISTRY=sparse+https://cargo.example.com/index/
-```
+Configure the corresponding endpoint or proxy address when a mirror is required.
 
 For a local kind or k3d cluster, build and import the images directly:
 

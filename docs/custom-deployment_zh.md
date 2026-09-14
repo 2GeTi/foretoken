@@ -39,15 +39,7 @@ source .venv/bin/activate
 uv pip install -e .
 ```
 
-使用组织管理的来源时，设置适用的地址：
-
-```bash
-export FORETOKEN_OCI_REGISTRY=registry.example.com/mirror
-export FORETOKEN_GITHUB_MIRROR=https://source.example.com/github.com
-export UV_DEFAULT_INDEX=https://python.example.com/simple
-export GOPROXY=https://go.example.com
-export FORETOKEN_CARGO_REGISTRY=sparse+https://cargo.example.com/index/
-```
+需要使用镜像站时，配置对应的 endpoint 或 proxy 地址。
 
 本地 kind 或 k3d 集群可以直接构建并导入镜像：
 

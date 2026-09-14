@@ -15,9 +15,7 @@ spec:
 
 使用 `source: modelscope` 时，相同模型标识会从 ModelScope 加载。同一个 frontend 后面的不同模型服务可以选择不同来源。
 
-Hugging Face endpoint 不会自动替换，因为本次核对的公共镜像没有满足 frontend 的下载元数据要求。
-
-使用经过验证的 Hugging Face 兼容地址时，在平台 values 中设置访问地址并用该文件安装：
+Hugging Face 镜像通过平台 endpoint 配置，并使用该 values 文件安装：
 
 ```yaml
 runtime:

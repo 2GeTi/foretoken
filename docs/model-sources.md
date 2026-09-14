@@ -15,9 +15,7 @@ spec:
 
 Use `source: modelscope` with the same model identifier to load it from ModelScope. Different model services behind one frontend may use different sources.
 
-Automatic Hugging Face endpoint replacement is not enabled because the tested public mirror did not satisfy the frontend download metadata requirements.
-
-For a verified Hugging Face-compatible endpoint, set the platform access configuration and install with that values file:
+Configure a Hugging Face mirror through the platform endpoint and install with that values file:
 
 ```yaml
 runtime:
