@@ -1,8 +1,8 @@
-# Mooncake prefix reuse
+# Mooncake trace replay
 
-English | [简体中文](mooncake_zh.md) · [Common commands](../examples.md)
+English | [简体中文](mooncake-trace_zh.md) · [Common commands](../examples.md)
 
-Mooncake records request lengths and shared prefix blocks, not the original text. After [setup](../examples.md#setup), generate synthetic inputs with those shared prefixes:
+The Mooncake trace dataset records request lengths and shared prefix blocks, not the original text. After [setup](../examples.md#setup), generate synthetic inputs with those shared prefixes:
 
 ```bash
 foretoken bench examples/quickstart \

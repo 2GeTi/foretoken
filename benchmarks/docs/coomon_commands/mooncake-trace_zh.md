@@ -1,8 +1,8 @@
-# Mooncake 前缀复用
+# Mooncake trace 回放
 
-[English](mooncake.md) | 简体中文 · [常用命令](../examples_zh.md)
+[English](mooncake-trace.md) | 简体中文 · [常用命令](../examples_zh.md)
 
-Mooncake 记录请求长度和共享前缀块，不包含原始文本。完成[准备步骤](../examples_zh.md#准备)后，按记录生成共享前缀输入：
+Mooncake trace 数据集记录请求长度和共享前缀块，不包含原始文本。完成[准备步骤](../examples_zh.md#准备)后，按记录生成共享前缀输入：
 
 ```bash
 foretoken bench examples/quickstart \
