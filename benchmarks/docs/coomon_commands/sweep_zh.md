@@ -15,7 +15,7 @@ for parallel in 1 2 4; do
 done
 ```
 
-使用相同输入运行扫描。参数文件比较并发 1、2、4，每组 384 个请求，每个请求输出 256 token：
+使用相同输入运行[参数文件](../../examples/sweep.jsonl)：
 
 ```bash
 foretoken bench examples/quickstart \
@@ -26,7 +26,7 @@ foretoken bench examples/quickstart \
   --output local,wandb
 ```
 
-[参数文件](../../examples/sweep.jsonl)采用 JSONL 格式。`parallel`、`number` 或 `rate` 的列表会展开成负载点。同一行只能将 `parallel` 或 `rate` 中的一个设为多值列表；`number` 也是多值列表时，长度需与该轴一致。
+每行 JSONL 定义一组参数，`parallel`、`number` 或 `rate` 的列表会展开成负载点。同一行只能将 `parallel` 或 `rate` 中的一个设为多值列表；`number` 也是多值列表时，长度需与该轴一致。
 
 每行可以改变负载、生成或数据集设置，包括输出长度上下界。服务身份、凭据、轨迹来源和结果去向保持不变。扫描不与轨迹回放或多数据集组合。`--num-runs` 可重复运行各参数点。
 
@@ -36,11 +36,11 @@ foretoken bench examples/quickstart \
 
 ## 输出示例
 
-以下结果来自单张 A100 80GB PCIe 上的 Qwen3-0.6B。并发 1 的运行保留了一条失败请求（383/384 成功），其余两组均为 384/384 成功。
+单张 A100 80GB PCIe 上的 Qwen3-0.6B：
 
 ![扫描命令的实际输出](../imgs/sweep-cli.png)
 
-W&B 曲线展示每个一秒窗口内完成请求的 E2EL p95；整组吞吐量使用汇总结果和帕累托图比较。
+W&B 按一秒完成窗口展示 E2EL p95；帕累托图比较整组吞吐量。
 
 ![按一秒完成窗口统计的 E2EL p95 时间曲线](../imgs/sweep-wandb.png)
 

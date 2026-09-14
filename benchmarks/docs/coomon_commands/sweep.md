@@ -15,7 +15,7 @@ for parallel in 1 2 4; do
 done
 ```
 
-Run the sweep with the same inputs. The parameter file compares concurrency 1, 2, and 4, with 384 requests per point and 256 output tokens per request:
+Run the [parameter file](../../examples/sweep.jsonl) with the same inputs:
 
 ```bash
 foretoken bench examples/quickstart \
@@ -26,7 +26,7 @@ foretoken bench examples/quickstart \
   --output local,wandb
 ```
 
-The [parameter file](../../examples/sweep.jsonl) contains JSONL rows. List values for `parallel`, `number`, or `rate` expand into points. Only one of `parallel` and `rate` may be a multi-value list in a row; a multi-value `number` list must match that axis's length.
+Each JSONL row defines a parameter group. Lists of `parallel`, `number`, or `rate` expand into points. Only one of `parallel` and `rate` may be a multi-value list in a row; a multi-value `number` list must match that axis's length.
 
 Each row may change load, generation, or dataset settings, including output-length bounds. Service identity, credentials, trace source, and output destinations stay fixed. Sweeps cannot be combined with trace replay or multiple datasets. `--num-runs` repeats each point.
 
@@ -36,11 +36,11 @@ Delete the service after finishing with `foretoken delete examples/quickstart`.
 
 ## Example output
 
-These results use Qwen3-0.6B on one A100 80GB PCIe GPU. The concurrency-1 run retained one failed request (383/384 successful); the other two completed 384/384.
+Qwen3-0.6B on one A100 80GB PCIe GPU:
 
 ![Recorded sweep output](../imgs/sweep-cli.png)
 
-The W&B chart shows E2EL p95 for requests completed in each one-second window. Use the aggregate results and Pareto plot to compare whole-run throughput.
+W&B shows E2EL p95 in one-second completion windows; the Pareto plot compares whole-run throughput.
 
 ![E2EL p95 over elapsed time, in one-second completion windows](../imgs/sweep-wandb.png)
 
