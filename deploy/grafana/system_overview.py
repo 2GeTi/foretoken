@@ -50,7 +50,6 @@ DEVICE_LEGEND = "{{node}} / {{device_id}}"
 # `observability.alerts.thresholds`; the chart substitutes these placeholders when it renders
 # the dashboard ConfigMap, so the alert rules and the lines always agree.
 KV_CACHE_THRESHOLD = "foretoken_alert_threshold_kv_cache_usage_ratio"
-GPU_UTILIZATION_THRESHOLD = "foretoken_alert_threshold_accelerator_utilization_ratio"
 GPU_TEMPERATURE_THRESHOLD = "foretoken_alert_threshold_nvidia_temperature_celsius"
 GPU_POWER_THRESHOLD = "foretoken_alert_threshold_nvidia_power_watts"
 
@@ -527,7 +526,7 @@ def build() -> dashboard_models.Dashboard:
         series(
             "Preemptions",
             "Requests preempted per second because KV-cache blocks ran out. Sustained preemption "
-            "precedes the KV-cache pressure alert.",
+            "indicates KV-cache pressure.",
             [query(f"sum(foretoken:model_server_preemptions:rate5m{{{MODEL}}})", "Preemptions")],
             unit="ops",
             span=8,
@@ -553,8 +552,7 @@ def build() -> dashboard_models.Dashboard:
     board.with_panel(
         series(
             "KV Cache utilization",
-            "Highest in-engine KV-cache utilization grouped by model role. The dashed line is the "
-            "KV-cache pressure alert threshold.",
+            "Highest in-engine KV-cache utilization grouped by model role.",
             [query(f"max by(model_role) (foretoken:model_server_kv_cache_usage_ratio:max{{{MODEL}}})", "{{model_role}}")],
             unit="percentunit",
             span=8,
@@ -621,7 +619,6 @@ def build() -> dashboard_models.Dashboard:
             ],
             unit="percentunit",
             span=6,
-            reference_line=GPU_UTILIZATION_THRESHOLD,
         )
     )
     board.with_panel(
@@ -644,7 +641,6 @@ def build() -> dashboard_models.Dashboard:
             "Utilization of each Foretoken-attributed GPU.",
             "foretoken:accelerator_gpu_utilization_ratio",
             unit="percentunit",
-            threshold=GPU_UTILIZATION_THRESHOLD,
         )
     )
     board.with_panel(

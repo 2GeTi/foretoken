@@ -86,8 +86,16 @@ jobs:
           fi
           helm template foretoken deploy/charts/foretoken \
             --kube-version 1.36.3 \
+            --set observability.mode=enabled \
+            > /tmp/foretoken-observability-default.yaml
+          test "$(grep -c '^kind: PrometheusRule' /tmp/foretoken-observability-default.yaml)" = "1"
+          grep -q 'name: foretoken.recording' /tmp/foretoken-observability-default.yaml
+          ! grep -q 'name: foretoken.alerting' /tmp/foretoken-observability-default.yaml
+          helm template foretoken deploy/charts/foretoken \
+            --kube-version 1.36.3 \
             --set frontend.enabled=true \
             --set observability.mode=enabled \
+            --set-json 'observability.alerts.rules=["ForetokenMetricsTargetDown","ForetokenFrontendHTTPResponseStart5xxRatioHigh","ForetokenModelServerSchedulerBacklog","ForetokenModelServerKVCachePressureHigh","ForetokenNVIDIAGPUTemperatureHigh"]' \
             --set-string observability.additionalLabels.release=kube-prometheus-stack \
             --set observability.interval=30s \
             --set observability.scrapeTimeout=10s \
@@ -104,18 +112,20 @@ jobs:
           grep -q 'ForetokenFrontendHTTPResponseStart5xxRatioHigh' /tmp/foretoken-observability.yaml
           grep -q 'ForetokenModelServerSchedulerBacklog' /tmp/foretoken-observability.yaml
           grep -q 'ForetokenModelServerKVCachePressureHigh' /tmp/foretoken-observability.yaml
-          grep -q 'ForetokenAcceleratorGPUUtilizationHigh' /tmp/foretoken-observability.yaml
           grep -q 'ForetokenNVIDIAGPUTemperatureHigh' /tmp/foretoken-observability.yaml
-          grep -q 'ForetokenNVIDIAGPUPowerUsageHigh' /tmp/foretoken-observability.yaml
+          ! grep -q 'ForetokenNVIDIAGPUPowerUsageHigh' /tmp/foretoken-observability.yaml
           grep -q 'observability/runbooks/alerts.md' /tmp/foretoken-observability.yaml
           helm template foretoken deploy/charts/foretoken \
             --kube-version 1.36.3 \
             --api-versions monitoring.coreos.com/v1/ServiceMonitor \
             --api-versions monitoring.coreos.com/v1/PrometheusRule \
             --set frontend.enabled=true \
+            --set-json 'observability.alerts.rules=["ForetokenNVIDIAGPUPowerUsageHigh"]' \
+            --set observability.alerts.thresholds.nvidiaPowerWatts=320 \
             > /tmp/foretoken-observability-auto.yaml
           test "$(grep -c '^kind: ServiceMonitor' /tmp/foretoken-observability-auto.yaml)" = "3"
           test "$(grep -c '^kind: PrometheusRule' /tmp/foretoken-observability-auto.yaml)" = "2"
+          grep -q 'ForetokenNVIDIAGPUPowerUsageHigh' /tmp/foretoken-observability-auto.yaml
       - name: Validate operator lifecycle
         run: |
           kind load docker-image foretoken-control-plane:test --name foretoken

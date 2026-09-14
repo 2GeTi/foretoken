@@ -33,6 +33,7 @@ spec:
           # notification_language label (zh, en, or bilingual) picks which of the
           # two is sent; bilingual joins them as "zh / en" unless both are identical.
           payload: |
+            {{- $timezone := "Local" -}}
             {{- $language := index .CommonLabels "notification_language" -}}
             {{- if not $language }}{{ $language = "zh" }}{{ end -}}
             {{- $firing := len .Alerts.Firing }}{{ $resolved := len .Alerts.Resolved }}{{ $shown := len .Alerts -}}
@@ -56,10 +57,10 @@ spec:
             {{- with or .Labels.model_group .Labels.inference_foretoken_io_model_group }}{{ $lines = append $lines (dict "zh" (printf "模型组：%s" .) "en" (printf "Model group: %s" .)) }}{{ end -}}
             {{- with or .Labels.model_role .Labels.inference_foretoken_io_model_role }}{{ $lines = append $lines (dict "zh" (printf "模型角色：%s" .) "en" (printf "Model role: %s" .)) }}{{ end -}}
             {{- with or .Labels.pd_pipeline_scope .Labels.inference_foretoken_io_pd_pipeline_scope }}{{ $lines = append $lines (dict "zh" (printf "流水线范围：%s" .) "en" (printf "Pipeline scope: %s" .)) }}{{ end -}}
-            {{- $startedAt := .StartsAt | tz "Asia/Shanghai" | date "2006-01-02 15:04:05 -0700" -}}
+            {{- $startedAt := .StartsAt | tz $timezone | date "2006-01-02 15:04:05 -0700" -}}
             {{- $lines = append $lines (dict "zh" (printf "告警开始：%s" $startedAt) "en" (printf "Started: %s" $startedAt)) -}}
             {{- if eq .Status "resolved" -}}
-            {{- $endedAt := .EndsAt | tz "Asia/Shanghai" | date "2006-01-02 15:04:05 -0700" -}}
+            {{- $endedAt := .EndsAt | tz $timezone | date "2006-01-02 15:04:05 -0700" -}}
             {{- $lines = append $lines (dict "zh" (printf "告警解除：%s" $endedAt) "en" (printf "Resolved: %s" $endedAt)) -}}
             {{- end -}}
             {{- $lines = append $lines (dict "zh" (printf "摘要：%s" .Annotations.summary_zh) "en" (printf "Summary: %s" .Annotations.summary)) -}}

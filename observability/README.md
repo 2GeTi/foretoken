@@ -7,7 +7,7 @@ SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 
 English | [简体中文](README_zh.md)
 
-Foretoken collects service and accelerator metrics with Prometheus, shows them in the **Foretoken System Overview** Grafana dashboard, and installs alert rules for the most common problems.
+Foretoken collects service and accelerator metrics with Prometheus and shows them in the **Foretoken System Overview** Grafana dashboard. Alert rules are optional and disabled by default.
 
 ## Get started
 
@@ -40,7 +40,7 @@ kubectl get servicemonitor,prometheusrule -A \
   -l app.kubernetes.io/name=foretoken-control-plane
 ```
 
-In Prometheus, confirm on **Targets** that the Foretoken targets are `UP` and on **Rules** that `foretoken.recording` and `foretoken.alerting` are loaded. This query returns the Frontend request rate:
+In Prometheus, confirm on **Targets** that the Foretoken targets are `UP` and on **Rules** that `foretoken.recording` is loaded. This query returns the Frontend request rate:
 
 ```promql
 sum(foretoken:frontend_http_response_starts:rate5m)
@@ -84,15 +84,24 @@ kubectl get configmap \
 
 ## Alerts
 
-Alert rules are installed together with collection. Each alert links to its entry in the [runbooks](runbooks/alerts.md), which explain the signal and how to investigate it. The dashboard draws each alert threshold as a dashed line on the matching panel.
+Select the alert names to enable in the [observability example](../examples/observability/observability.yaml). For example, enable only metrics-target failures:
 
-To change thresholds or the notification language, edit `observability.yaml` in the [observability example](../examples/observability/README.md) and pass it to the installation:
+```yaml
+observability:
+  alerts:
+    rules:
+      - ForetokenMetricsTargetDown
+```
+
+Apply the settings:
 
 ```bash
 foretoken install --values examples/observability/observability.yaml
 ```
 
-`language` accepts `zh`, `en`, or `bilingual` and applies to all alerts of the installation. Notifications are delivered by the cluster's Alertmanager; the optional [Lark integration](integrations/lark/README.md) adds a receiver for Lark group bots.
+Only listed rules are installed. Available names and troubleshooting steps are in the [runbooks](runbooks/alerts.md). Remove a name, or set `rules: []` to disable all alerts, and repeat the installation. Metrics and the dashboard remain available; threshold lines follow the selected rules.
+
+The same values file configures thresholds and `language` (`zh`, `en`, or `bilingual`). Selecting `ForetokenNVIDIAGPUPowerUsageHigh` requires a positive `observability.alerts.thresholds.nvidiaPowerWatts` chosen for the GPU model. Setting a threshold alone does not enable an alert. Notifications are delivered by the cluster's Alertmanager; the optional [Lark integration](integrations/lark/README.md) adds a receiver for Lark group bots.
 
 ## Metrics reference
 

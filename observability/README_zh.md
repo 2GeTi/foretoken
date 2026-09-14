@@ -7,7 +7,7 @@ SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 
 [English](README.md) | 简体中文
 
-Foretoken 使用 Prometheus 采集服务和加速器指标，通过 Grafana 看板 **Foretoken System Overview** 展示，并为常见问题安装告警规则。
+Foretoken 使用 Prometheus 采集服务和加速器指标，通过 Grafana 看板 **Foretoken System Overview** 展示。告警规则按需启用，默认关闭。
 
 ## 快速开始
 
@@ -40,7 +40,7 @@ kubectl get servicemonitor,prometheusrule -A \
   -l app.kubernetes.io/name=foretoken-control-plane
 ```
 
-在 Prometheus 的 **Targets** 页面确认 Foretoken target 为 `UP`，在 **Rules** 页面确认 `foretoken.recording` 和 `foretoken.alerting` 已加载。下面的查询返回 Frontend 请求速率：
+在 Prometheus 的 **Targets** 页面确认 Foretoken target 为 `UP`，在 **Rules** 页面确认 `foretoken.recording` 已加载。下面的查询返回 Frontend 请求速率：
 
 ```promql
 sum(foretoken:frontend_http_response_starts:rate5m)
@@ -84,15 +84,24 @@ kubectl get configmap \
 
 ## 告警
 
-告警规则随采集一起安装。每条告警都链接到[排障手册](runbooks/alerts_zh.md)中的对应条目，说明信号含义和排查方法。看板会把每个告警阈值画成对应面板上的虚线。
+在[可观测性示例](../examples/observability/observability.yaml)中列出要启用的告警名称。例如，只开启指标抓取失败告警：
 
-要调整阈值或通知语言，修改[可观测性示例](../examples/observability/README_zh.md)中的 `observability.yaml`，随安装一起传入：
+```yaml
+observability:
+  alerts:
+    rules:
+      - ForetokenMetricsTargetDown
+```
+
+应用配置：
 
 ```bash
 foretoken install --values examples/observability/observability.yaml
 ```
 
-`language` 可选 `zh`、`en` 或 `bilingual`，对本次安装的全部告警生效。通知由集群的 Alertmanager 发送；可选的 [Lark 集成](integrations/lark/README_zh.md)为 Lark 群机器人提供接收器。
+只安装列表中的规则，可选名称和排查方法见[排障手册](runbooks/alerts_zh.md)。移除某个名称，或设为 `rules: []` 关闭全部告警，再重新执行安装。指标和看板仍保留，阈值线随所选规则显示。
+
+同一配置文件可调整阈值和 `language`（`zh`、`en` 或 `bilingual`）。选择 `ForetokenNVIDIAGPUPowerUsageHigh` 时，必须按显卡型号提供正数 `observability.alerts.thresholds.nvidiaPowerWatts`（瓦）。只填写阈值不会启用告警。通知由集群的 Alertmanager 发送；可选的 [Lark 集成](integrations/lark/README_zh.md)为群机器人提供接收器。
 
 ## 指标参考
 

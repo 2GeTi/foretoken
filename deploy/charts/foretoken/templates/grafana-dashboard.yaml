@@ -14,5 +14,21 @@ metadata:
     grafana_dashboard: "1"
 data:
   foretoken-system-overview.json: |-
-{{ include "foretoken.substituteAlertThresholds" (dict "text" (.Files.Get "files/grafana/foretoken-system-overview.json") "thresholds" .Values.observability.alerts.thresholds) | nindent 4 }}
+{{- $dashboard := .Files.Get "files/grafana/foretoken-system-overview.json" | fromJson -}}
+{{- $alerts := .Values.observability.alerts -}}
+{{- $thresholdRules := dict
+  "foretoken_alert_threshold_kv_cache_usage_ratio" "ForetokenModelServerKVCachePressureHigh"
+  "foretoken_alert_threshold_nvidia_temperature_celsius" "ForetokenNVIDIAGPUTemperatureHigh"
+  "foretoken_alert_threshold_nvidia_power_watts" "ForetokenNVIDIAGPUPowerUsageHigh"
+-}}
+{{- range $panel := $dashboard.panels -}}
+{{- range $step := dig "fieldConfig" "defaults" "thresholds" "steps" (list) $panel -}}
+{{- $threshold := toString $step.value -}}
+{{- if and (hasKey $thresholdRules $threshold) (not (has (get $thresholdRules $threshold) $alerts.rules)) -}}
+{{- $_ := unset $panel.fieldConfig.defaults "thresholds" -}}
+{{- $_ := unset $panel.fieldConfig.defaults.custom "thresholdsStyle" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{ include "foretoken.substituteAlertThresholds" (dict "text" (toPrettyJson $dashboard) "thresholds" .Values.observability.alerts.thresholds) | nindent 4 }}
 {{- end }}

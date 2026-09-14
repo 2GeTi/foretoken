@@ -5,11 +5,13 @@
 # The values below are the chart defaults; edit the ones to change and keep the rest.
 observability:
   alerts:
+    # Add names from observability/runbooks/alerts.md to enable specific rules.
+    rules: []
     # Notification language: zh, en, or bilingual.
     language: zh
-    # Alert rules fire at these values; the dashboard draws them as dashed lines.
+    # Thresholds apply only to selected rules and their dashboard reference lines.
     thresholds:
       kvCacheUsageRatio: 0.95
-      acceleratorUtilizationRatio: 0.95
       nvidiaTemperatureCelsius: 85
-      nvidiaPowerWatts: 300
+      # Required only when the power alert is selected; choose a positive watt threshold.
+      nvidiaPowerWatts: null

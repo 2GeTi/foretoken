@@ -82,21 +82,6 @@ groups:
           description_zh: '{{ $labels.model_group }}/{{ $labels.model_role }} 中 vLLM 引擎的最高 KV Cache 使用率已连续 10 分钟不低于 {{ "foretoken_alert_threshold_kv_cache_usage_ratio" | humanizePercentage }}。每次计算中的最大值可能来自不同引擎。'
           runbook_url: 'https://github.com/shiweijiezero/foretoken/blob/main/observability/runbooks/alerts.md#foretokenmodelserverkvcachepressurehigh'
 
-      - alert: ForetokenAcceleratorGPUUtilizationHigh
-        expr: foretoken:accelerator_gpu_utilization_ratio >= foretoken_alert_threshold_accelerator_utilization_ratio
-        for: 15m
-        labels:
-          service: foretoken
-          severity: warning
-          notification_language: foretoken_alert_language
-        annotations:
-          alertname_zh: 'Foretoken 加速器 GPU 利用率过高'
-          summary: 'Accelerator utilization is high on {{ $labels.vendor }} device {{ $labels.device_id }}'
-          summary_zh: '{{ $labels.vendor }} 加速器 {{ $labels.device_id }} 利用率偏高'
-          description: 'GPU utilization: {{ $value | humanizePercentage }}; threshold: {{ "foretoken_alert_threshold_accelerator_utilization_ratio" | humanizePercentage }} for 15 minutes. Sustained utilization is a capacity signal, not proof of an outage.'
-          description_zh: 'GPU 利用率：{{ $value | humanizePercentage }}；阈值：{{ "foretoken_alert_threshold_accelerator_utilization_ratio" | humanizePercentage }}，持续 15 分钟。持续高利用率表示容量压力，不代表已经发生故障。'
-          runbook_url: 'https://github.com/shiweijiezero/foretoken/blob/main/observability/runbooks/alerts.md#foretokenacceleratorgpuutilizationhigh'
-
       - alert: ForetokenNVIDIAGPUTemperatureHigh
         expr: foretoken:accelerator_gpu_temperature_celsius >= foretoken_alert_threshold_nvidia_temperature_celsius
         for: 10m

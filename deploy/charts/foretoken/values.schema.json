@@ -254,10 +254,25 @@
         "alerts": {
           "type": "object",
           "required": [
+            "rules",
             "language",
             "thresholds"
           ],
           "properties": {
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "ForetokenMetricsTargetDown",
+                  "ForetokenFrontendHTTPResponseStart5xxRatioHigh",
+                  "ForetokenModelServerSchedulerBacklog",
+                  "ForetokenModelServerKVCachePressureHigh",
+                  "ForetokenNVIDIAGPUTemperatureHigh",
+                  "ForetokenNVIDIAGPUPowerUsageHigh"
+                ]
+              }
+            },
             "language": {
               "type": "string",
               "enum": [
@@ -270,17 +285,10 @@
               "type": "object",
               "required": [
                 "kvCacheUsageRatio",
-                "acceleratorUtilizationRatio",
-                "nvidiaTemperatureCelsius",
-                "nvidiaPowerWatts"
+                "nvidiaTemperatureCelsius"
               ],
               "properties": {
                 "kvCacheUsageRatio": {
-                  "type": "number",
-                  "minimum": 0,
-                  "maximum": 1
-                },
-                "acceleratorUtilizationRatio": {
                   "type": "number",
                   "minimum": 0,
                   "maximum": 1
@@ -290,13 +298,43 @@
                   "minimum": 0
                 },
                 "nvidiaPowerWatts": {
-                  "type": "number",
-                  "minimum": 0
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "exclusiveMinimum": 0
                 }
               },
               "additionalProperties": false
             }
           },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "rules": {
+                    "contains": {
+                      "const": "ForetokenNVIDIAGPUPowerUsageHigh"
+                    }
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "thresholds": {
+                    "required": [
+                      "nvidiaPowerWatts"
+                    ],
+                    "properties": {
+                      "nvidiaPowerWatts": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ],
           "additionalProperties": false
         }
       },

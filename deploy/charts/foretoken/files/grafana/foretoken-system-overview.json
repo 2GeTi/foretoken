@@ -1759,7 +1759,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Requests preempted per second because KV-cache blocks ran out. Sustained preemption precedes the KV-cache pressure alert.",
+      "description": "Requests preempted per second because KV-cache blocks ran out. Sustained preemption indicates KV-cache pressure.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1967,7 +1967,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Highest in-engine KV-cache utilization grouped by model role. The dashed line is the KV-cache pressure alert threshold.",
+      "description": "Highest in-engine KV-cache utilization grouped by model role.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2340,26 +2340,10 @@
             "fillOpacity": 8,
             "lineWidth": 2,
             "pointSize": 8,
-            "showPoints": "never",
-            "thresholdsStyle": {
-              "mode": "dashed"
-            }
+            "showPoints": "never"
           },
           "max": 1,
           "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "#0ca30c",
-                "value": null
-              },
-              {
-                "color": "#d03b3b",
-                "value": "foretoken_alert_threshold_accelerator_utilization_ratio"
-              }
-            ]
-          },
           "unit": "percentunit"
         },
         "overrides": []
@@ -2478,26 +2462,10 @@
             "fillOpacity": 8,
             "lineWidth": 2,
             "pointSize": 8,
-            "showPoints": "never",
-            "thresholdsStyle": {
-              "mode": "dashed"
-            }
+            "showPoints": "never"
           },
           "max": 1,
           "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "#0ca30c",
-                "value": null
-              },
-              {
-                "color": "#d03b3b",
-                "value": "foretoken_alert_threshold_accelerator_utilization_ratio"
-              }
-            ]
-          },
           "unit": "percentunit"
         },
         "overrides": []

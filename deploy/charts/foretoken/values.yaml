@@ -57,14 +57,16 @@ observability:
   interval: ""
   scrapeTimeout: ""
   alerts:
+    # Install only the named alert rules; an empty list keeps all alerts disabled.
+    rules: []
     # The language is attached to alert labels so a shared Lark receiver can render one language consistently.
     language: zh
-    # Alert rules fire at these values, and the dashboard draws them as reference lines.
+    # Selected rules use these thresholds, shown as dashboard reference lines.
     thresholds:
       kvCacheUsageRatio: 0.95
-      acceleratorUtilizationRatio: 0.95
       nvidiaTemperatureCelsius: 85
-      nvidiaPowerWatts: 300
+      # Selecting the power alert requires a positive watt threshold for the GPU model.
+      nvidiaPowerWatts: null
 
 # The runtime image must contain Foretoken model-server, its Python launcher, and a compatible vLLM runtime.
 runtime:

@@ -3,7 +3,7 @@
 
 {{/* Installs Foretoken alert rules into an existing Prometheus Operator. */}}
 
-{{- if eq (include "foretoken.observabilityEnabled" .) "true" }}
+{{- if and (eq (include "foretoken.observabilityEnabled" .) "true") .Values.observability.alerts.rules }}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -12,7 +12,17 @@ metadata:
   labels:
     {{- include "foretoken.observabilityLabels" . | nindent 4 }}
 spec:
-{{- $rules := .Files.Get "files/alerting-rules.yaml" -}}
+{{- $definition := .Files.Get "files/alerting-rules.yaml" | fromYaml -}}
+{{- range $group := $definition.groups -}}
+{{- $enabledRules := list -}}
+{{- range $rule := $group.rules -}}
+{{- if has $rule.alert $.Values.observability.alerts.rules -}}
+{{- $enabledRules = append $enabledRules $rule -}}
+{{- end -}}
+{{- end -}}
+{{- $_ := set $group "rules" $enabledRules -}}
+{{- end -}}
+{{- $rules := toYaml $definition -}}
 {{- $rules = replace "foretoken_alert_language" (.Values.observability.alerts.language | toString) $rules -}}
 {{- $rules = include "foretoken.substituteAlertThresholds" (dict "text" $rules "thresholds" .Values.observability.alerts.thresholds) -}}
 {{ $rules | nindent 2 }}

@@ -7,75 +7,49 @@ SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 
 English | [简体中文](README_zh.md)
 
-This optional integration routes alerts labeled `service=foretoken` from an existing Prometheus Alertmanager to a Lark custom bot. Foretoken owns the alert labels and message fields; the platform owns the Alertmanager instance, the destination, and the webhook credential.
+Send Foretoken alerts to a Lark group through its custom bot and the cluster's Alertmanager. Notifications include affected resources, alert details, timestamps, and runbook links.
 
-The manifest is a deployment source, not a second Alertmanager. Applying it creates an `AlertmanagerConfig` in the cluster. Keep the webhook URL in a Kubernetes Secret and never add it to this repository.
+## Before you start
 
-Foretoken adds a `notification_language` label to each alert. Set
-`observability.alerts.language` to `zh`, `en`, or `bilingual` in the
-[observability example](../../../examples/observability/observability.yaml)
-and pass it to `foretoken install --values`. The payload uses that label to
-render Chinese, English, or both languages. Because one Alertmanager message
-can contain several alerts, the choice applies to the deployment's shared
-messages rather than to individual recipients.
+Enable [Foretoken alerts](../../README.md#alerts) and obtain a custom bot webhook from the destination Lark group. The installed Prometheus Operator and Alertmanager must support `webhookConfigs.payload`.
 
-## Prerequisites
+The target Alertmanager must select the `foretoken-lark` configuration through `alertmanagerConfigSelector`. For the same-namespace installation below, the monitoring administrator can set `spec.alertmanagerConfigMatcherStrategy.type` to `OnNamespaceExceptForAlertmanagerNamespace` to accept alerts from Foretoken workload namespaces. See [Alertmanager configuration](https://prometheus-operator.dev/docs/developer/alerting/).
 
-- Prometheus Operator selects `AlertmanagerConfig` resources for the target Alertmanager;
-- the installed CRD and Alertmanager version support `webhookConfigs.payload`;
-- a Lark custom bot webhook is available;
-- the platform's namespace-matching policy permits alerts from the Foretoken workload namespaces.
+## Connect the bot
 
-Prometheus Operator normally scopes an `AlertmanagerConfig` route to its namespace. A configuration stored beside Alertmanager in `monitoring` may therefore reject alerts carrying a different workload `namespace` label. The Alertmanager owner must inspect `alertmanagerConfigMatcherStrategy` and choose the cross-namespace policy deliberately; this integration does not change it.
+Times follow the Alertmanager container's local time zone, not necessarily the host's. To use a different zone, replace `Local` in the `$timezone` setting in [alertmanagerconfig.yaml](alertmanagerconfig.yaml) with an IANA name such as `Europe/Berlin` before applying it. Messages include the UTC offset.
 
-## Install
-
-Choose the namespace that owns Alertmanager and create the referenced Secret there:
+Run from the repository root. Replace `monitoring` with the Alertmanager namespace and the webhook placeholder with the bot's URL:
 
 ```bash
 ALERTMANAGER_NAMESPACE=monitoring
+
+# Store the webhook in a Secret.
 kubectl create secret generic foretoken-lark-webhook \
   --namespace "$ALERTMANAGER_NAMESPACE" \
   --from-literal=url='<LARK_CUSTOM_BOT_WEBHOOK_URL>'
-```
 
-Apply the receiver in the same namespace:
-
-```bash
+# Add the notification receiver in the same namespace.
 kubectl apply \
   --namespace "$ALERTMANAGER_NAMESPACE" \
   --filename observability/integrations/lark/alertmanagerconfig.yaml
 ```
 
-If the Secret already exists, update it through the platform's secret-management workflow rather than committing its value.
+If the Secret already exists, update it through your usual secret-management process. Keep its value out of version control.
 
-## Message contract
+Notifications default to Chinese. Choose `zh`, `en`, or `bilingual` for `observability.alerts.language` using the [observability settings](../../README.md#alerts).
 
-The route selects `service=foretoken`, the common label installed by Foretoken's alert rules. The payload groups alerts by the stable machine alert name and translates the display name (`alertname_zh`), severity, field captions, summary, and description. Resource names and device IDs remain unchanged. Each target includes firing and resolved timestamps in `Asia/Shanghai`.
+## Verify delivery
 
-GPU messages include the evaluated reading, unit, threshold, and persistence window. Resolved notifications retain the last evaluated annotations rather than taking a new device measurement.
+In Alertmanager, confirm that the configuration is loaded and routes to Lark. Use a test alert with `service=foretoken` and an actual Foretoken workload namespace, then confirm that the Lark group receives both firing and resolved notifications.
 
-Both normalized recording-rule labels such as `model_group` and raw ServiceMonitor labels such as `inference_foretoken_io_model_group` are handled because scrape failures occur before recording-rule normalization.
+If no message arrives, check the configuration selector, namespace matching, and Alertmanager delivery logs.
 
-## Verify
-
-Inspect the accepted resource and the Alertmanager routing tree:
+## Remove the integration
 
 ```bash
-kubectl get alertmanagerconfig foretoken-lark \
-  --namespace "$ALERTMANAGER_NAMESPACE" \
-  --output yaml
+kubectl delete alertmanagerconfig foretoken-lark \
+  --namespace "$ALERTMANAGER_NAMESPACE"
+kubectl delete secret foretoken-lark-webhook \
+  --namespace "$ALERTMANAGER_NAMESPACE"
 ```
-
-Test with an alert carrying the same labels as production, including `service=foretoken` and a real Foretoken workload namespace. A test in only the Alertmanager namespace does not verify cross-namespace routing. Confirm both firing and resolved messages in Lark.
-
-## Design references
-
-Alertmanager remains responsible for grouping, deduplication, repetition, and delivery. The payload iterates over `.Alerts` instead of assuming that every grouped alert has identical annotations.
-
-- [Prometheus notification template reference](https://prometheus.io/docs/alerting/latest/notifications/)
-- [Prometheus Operator `AlertmanagerConfig` API](https://prometheus-operator.dev/docs/api-reference/api/#monitoring.coreos.com/v1alpha1.AlertmanagerConfig)
-- [vLLM Production Stack observability configuration](https://github.com/vllm-project/production-stack/blob/main/observability/kube-prom-stack.yaml)
-- [Dynamo XPU alert rules](https://github.com/ai-dynamo/dynamo/blob/main/dev/observability/xpu-alert-rules.yml)
-
-Dynamo's XPU rules provide useful examples of persistence windows, warning and critical levels, exporter availability, and traffic-gated hardware symptoms. vLLM's Production Stack provides a receiver template that iterates over grouped alerts. Neither upstream defines Foretoken's Lark destination, labels, or operator response, so those remain explicit Foretoken integration policy.

@@ -20,7 +20,6 @@ runbook instead of looking for one file per algorithm:
 | `ForetokenFrontendHTTPResponseStart5xxRatioHigh` | Frontend response-start 5xx ratio is high while traffic exists | 10 minutes |
 | `ForetokenModelServerSchedulerBacklog` | Aggregated vLLM stage scheduler waiting queue is nonzero | 10 minutes |
 | `ForetokenModelServerKVCachePressureHigh` | Maximum vLLM KV-cache usage is high | 10 minutes |
-| `ForetokenAcceleratorGPUUtilizationHigh` | Normalized NVIDIA or MetaX GPU utilization is high | 15 minutes |
 | `ForetokenNVIDIAGPUTemperatureHigh` | NVIDIA GPU temperature exceeds the configured threshold | 10 minutes |
 | `ForetokenNVIDIAGPUPowerUsageHigh` | NVIDIA GPU power usage exceeds the configured threshold | 10 minutes |
 
@@ -98,12 +97,6 @@ fleet average; the engine contributing the maximum can change over time. Tune
 `observability.alerts.thresholds.kvCacheUsageRatio` from measured workload
 behavior.
 
-## ForetokenAcceleratorGPUUtilizationHigh
-
-Normalized NVIDIA or MetaX utilization has stayed above the configured
-threshold. Check recent request rate, scheduler waiting and running requests,
-and the affected node or device before adding capacity.
-
 ## ForetokenNVIDIAGPUTemperatureHigh
 
 An NVIDIA DCGM temperature reading has stayed above the configured threshold.
@@ -112,6 +105,10 @@ fires without a Foretoken-attributed NVIDIA DCGM temperature series.
 
 ## ForetokenNVIDIAGPUPowerUsageHigh
 
+Select this rule in [`observability.alerts.rules`](../README.md#alerts) and set
+`observability.alerts.thresholds.nvidiaPowerWatts` to a positive value in watts.
+Remove its name from the list to disable it; power metrics remain available.
+
 An NVIDIA DCGM power reading has stayed above the configured threshold. Compare
 the reading with the device power limit and workload, then inspect thermal and
 node health before changing capacity. No alert fires without a
@@ -119,9 +116,6 @@ Foretoken-attributed NVIDIA DCGM power series.
 
 ## GPU threshold policy
 
-The Chart provides default thresholds for normalized utilization, plus NVIDIA
-temperature and power readings. Override them in
-`observability.alerts.thresholds` when installing the Chart. Utilization rules
-cover NVIDIA and MetaX normalized metrics; temperature and power
-currently apply only when the NVIDIA DCGM metrics exist. These are warning
-signals for capacity and thermal review, not automatic remediation.
+Configure NVIDIA temperature and power thresholds through
+`observability.alerts.thresholds` when installing the Chart. These alerts use
+Foretoken-attributed DCGM readings to prompt device and thermal checks.
