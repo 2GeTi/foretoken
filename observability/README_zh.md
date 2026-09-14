@@ -31,7 +31,7 @@ printf 'Grafana user: %s\nGrafana password: %s\n' \
   "$GRAFANA_USER" "$GRAFANA_PASSWORD"
 ```
 
-在 Grafana 中进入 **Dashboards**，选择 **Foretoken System Overview**。它沿着请求链路依次展示 Frontend、模型服务、缓存和加速器，最后是扩缩容决策；路由和控制面的细节放在折叠分区里。可以按命名空间、Frontend 服务、模型组、模型角色、模型或模型服务筛选。
+在 Grafana 中选择中文看板 **Foretoken 系统概览**，或英文看板 **Foretoken System Overview**。它沿着请求链路依次展示 Frontend、模型服务、缓存和加速器，最后是扩缩容决策；路由和控制面的细节放在折叠分区里。可以按命名空间、Frontend 服务、模型组、模型角色、模型或模型服务筛选。
 
 ## 确认采集正常
 
@@ -105,7 +105,9 @@ foretoken install --values examples/observability/observability.yaml
 | mxExporter | 沐曦利用率和显存 |
 | kubelet/cAdvisor | 容器 CPU 和内存 |
 
-看板和告警查询下列记录规则。模型服务相关规则来自 vLLM 指标。
+看板每五秒刷新，速率和延迟图使用 `$__rate_interval` 动态窗口。TTFT、E2EL 使用秒，TPOT、ITL 使用毫秒；TPOT 同时显示平均值，便于查看粗直方图桶内的实际平均耗时。
+
+下列记录规则供告警和固定窗口查询使用。模型服务相关规则来自 vLLM 指标。
 
 | 类别 | 记录规则 | 含义 |
 | --- | --- | --- |

@@ -16,9 +16,10 @@ GIT = git $(if $(FORETOKEN_GITHUB_MIRROR),-c url.$(patsubst %/,%,$(FORETOKEN_GIT
 	image-frontend image-vllm-metax image-model-server image-model-server-metax \
 	image-benchmark dashboard
 
-# Regenerates the Grafana dashboard shipped by the chart; needs the `dev` extra installed.
+# Regenerates the localized Grafana dashboards shipped by the chart; needs the `dev` extra installed.
 dashboard:
-	python3 deploy/grafana/system_overview.py > deploy/charts/foretoken/files/grafana/foretoken-system-overview.json
+	python3 deploy/grafana/system_overview.py --locale en > deploy/charts/foretoken/files/grafana/foretoken-system-overview.json
+	python3 deploy/grafana/system_overview.py --locale zh > deploy/charts/foretoken/files/grafana/foretoken-system-overview-zh.json
 
 vllm-source:
 	@test -f data-plane/third_party/vllm/rust/Cargo.toml || \

@@ -31,7 +31,7 @@ printf 'Grafana user: %s\nGrafana password: %s\n' \
   "$GRAFANA_USER" "$GRAFANA_PASSWORD"
 ```
 
-In Grafana, select **Dashboards** and open **Foretoken System Overview**. It follows a request through the Frontend, model serving, caches, and accelerators, and ends with autoscaling decisions; routing and control-plane details are in collapsed sections. Filters narrow the view to a namespace, Frontend service, model group, model role, model, or model service.
+In Grafana, open **Foretoken System Overview** for English or **Foretoken 系统概览** for Chinese. It follows a request through the Frontend, model serving, caches, and accelerators, and ends with autoscaling decisions; routing and control-plane details are in collapsed sections. Filters narrow the view to a namespace, Frontend service, model group, model role, model, or model service.
 
 ## Check that collection works
 
@@ -105,7 +105,9 @@ foretoken install --values examples/observability/observability.yaml
 | mxExporter | MetaX utilization and memory |
 | kubelet/cAdvisor | Container CPU and memory |
 
-The dashboard and alerts query these recording rules. Model-serving rules are derived from vLLM metrics.
+The dashboards refresh every five seconds and use `$__rate_interval` for rate and latency charts. TTFT and E2EL use seconds; TPOT and ITL use milliseconds. TPOT also shows a mean, which remains useful when histogram buckets are coarse.
+
+The following recording rules remain available for alerts and fixed-window queries. Model-serving rules are derived from vLLM metrics.
 
 | Area | Recording rule | Meaning |
 | --- | --- | --- |
