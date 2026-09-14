@@ -3,6 +3,8 @@
 
 # Release Versioning
 
+English | [简体中文](release_zh.md)
+
 Foretoken publishes a Python distribution, OCI images, and a Helm Chart. Python packages follow PEP 440, while OCI images and Helm Charts use SemVer. A release keeps the same stage and sequence number across both formats even though their spelling differs.
 
 ## Version stages

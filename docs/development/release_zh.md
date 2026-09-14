@@ -3,6 +3,8 @@
 
 # 发布版本规则
 
+[English](release.md) | 简体中文
+
 Foretoken 会发布 Python distribution、OCI 镜像和 Helm Chart。Python package 遵循 PEP 440，OCI 镜像与 Helm Chart 使用 SemVer。两种格式的具体写法不同，但同一次发布的阶段和序号必须一致。
 
 ## 版本阶段
