@@ -23,9 +23,11 @@ RUN apt-get update \
 
 COPY data-plane/ ./data-plane/
 
+# Key the target cache by the builder image: artifacts built on different
+# Debian releases are not interchangeable even with the same Rust version.
 RUN --mount=type=cache,id=foretoken-cargo-registry,target=/usr/local/cargo/registry \
     --mount=type=cache,id=foretoken-cargo-git,target=/usr/local/cargo/git \
-    --mount=type=cache,id=foretoken-cargo-target,target=/workspace/data-plane/target,sharing=locked \
+    --mount=type=cache,id=foretoken-cargo-target-bookworm,target=/workspace/data-plane/target,sharing=locked \
     if [ -n "${FORETOKEN_GITHUB_MIRROR}" ]; then \
       git config --global url."${FORETOKEN_GITHUB_MIRROR%/}/".insteadOf https://github.com/; \
     fi \

@@ -145,6 +145,16 @@ FORETOKEN_REQUEST_HOST="$(foretoken endpoint examples/multi-model-quickstart --h
 
 Use `foretoken bench` to measure model-service performance. Commands and examples are in [Model Service Benchmarks](../benchmarks/README.md).
 
+## Capture a diagnostic profile
+
+The experimental command requires a source-installed platform and captures one PyTorch profile from an existing ModelService that uses persistent RuntimeCache storage:
+
+```bash
+foretoken profile examples/quickstart --profile-engine pytorch --profile-duration 15s
+```
+
+The command does not generate traffic. See [Profiling](../observability/profiling.md) for capture and result access.
+
 ## Clean up
 
 Delete the deployed services before uninstalling the platform:
