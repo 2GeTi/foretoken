@@ -11,17 +11,16 @@ Foretoken alerts are sustained warning signals. They do not trigger remediation
 and do not by themselves prove a user-visible outage. Start with the labels on
 the alert, then confirm the signal against the current Kubernetes state.
 
-The rules stay in one source file; use this table to choose the relevant
-runbook instead of looking for one file per algorithm:
+Select rules in the corresponding service's `spec.observability.alerts.rules`:
 
-| Alert | Signal | Default persistence |
-| --- | --- | --- |
-| `ForetokenMetricsTargetDown` | A discovered Frontend or model-server `/metrics` target cannot be scraped | 5 minutes |
-| `ForetokenFrontendHTTPResponseStart5xxRatioHigh` | Frontend response-start 5xx ratio is high while traffic exists | 10 minutes |
-| `ForetokenModelServerSchedulerBacklog` | Aggregated vLLM stage scheduler waiting queue is nonzero | 10 minutes |
-| `ForetokenModelServerKVCachePressureHigh` | Maximum vLLM KV-cache usage is high | 10 minutes |
-| `ForetokenNVIDIAGPUTemperatureHigh` | NVIDIA GPU temperature exceeds the configured threshold | 10 minutes |
-| `ForetokenNVIDIAGPUPowerUsageHigh` | NVIDIA GPU power usage exceeds the configured threshold | 10 minutes |
+| Alert | Service | Signal | Persistence |
+| --- | --- | --- | --- |
+| `ForetokenMetricsTargetDown` | FrontendService or ModelService | A discovered `/metrics` target cannot be scraped | 5 minutes |
+| `ForetokenFrontendHTTPResponseStart5xxRatioHigh` | FrontendService | Response-start 5xx ratio is high while traffic exists | 10 minutes |
+| `ForetokenModelServerSchedulerBacklog` | ModelService | Aggregated vLLM stage scheduler waiting queue is nonzero | 10 minutes |
+| `ForetokenModelServerKVCachePressureHigh` | ModelService | Maximum vLLM KV-cache usage is high | 10 minutes |
+| `ForetokenNVIDIAGPUTemperatureHigh` | ModelService | GPU temperature exceeds the configured threshold | 10 minutes |
+| `ForetokenNVIDIAGPUPowerUsageHigh` | ModelService | GPU power exceeds an explicitly configured threshold | 10 minutes |
 
 Inspect the resources in the affected namespace:
 
@@ -94,7 +93,7 @@ above the configured threshold (95% by default) for ten minutes.
 
 The recorded value is the maximum across engines at each evaluation, not a
 fleet average; the engine contributing the maximum can change over time. Tune
-`observability.alerts.thresholds.kvCacheUsageRatio` from measured workload
+`spec.observability.alerts.thresholds.kvCacheUsageRatio` from measured workload
 behavior.
 
 ## ForetokenNVIDIAGPUTemperatureHigh
@@ -105,17 +104,11 @@ fires without a Foretoken-attributed NVIDIA DCGM temperature series.
 
 ## ForetokenNVIDIAGPUPowerUsageHigh
 
-Select this rule in [`observability.alerts.rules`](../README.md#alerts) and set
-`observability.alerts.thresholds.nvidiaPowerWatts` to a positive value in watts.
+Select this rule in [`spec.observability.alerts.rules`](../README.md#alerts) and set
+`spec.observability.alerts.thresholds.nvidiaPowerWatts` to a positive value in watts.
 Remove its name from the list to disable it; power metrics remain available.
 
 An NVIDIA DCGM power reading has stayed above the configured threshold. Compare
 the reading with the device power limit and workload, then inspect thermal and
 node health before changing capacity. No alert fires without a
 Foretoken-attributed NVIDIA DCGM power series.
-
-## GPU threshold policy
-
-Configure NVIDIA temperature and power thresholds through
-`observability.alerts.thresholds` when installing the Chart. These alerts use
-Foretoken-attributed DCGM readings to prompt device and thermal checks.

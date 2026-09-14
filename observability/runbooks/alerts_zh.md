@@ -9,16 +9,16 @@ SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 
 Foretoken 告警表示异常信号已经持续了一段时间。告警不会自动修复系统，也不能单独证明用户请求已经中断。排查时先读取告警标签，再用当前 Kubernetes 状态确认信号。
 
-所有规则集中在一个源文件中；先用下表选择对应的排障章节，不需要为每种算法寻找单独文件：
+在对应服务的 `spec.observability.alerts.rules` 中选择需要的规则：
 
-| 告警 | 信号 | 默认持续时间 |
-| --- | --- | --- |
-| `ForetokenMetricsTargetDown` | 已发现的 Frontend 或 model-server `/metrics` 目标无法抓取 | 5 分钟 |
-| `ForetokenFrontendHTTPResponseStart5xxRatioHigh` | 在存在流量时，Frontend 响应开始 5xx 比例偏高 | 10 分钟 |
-| `ForetokenModelServerSchedulerBacklog` | 聚合后的 vLLM stage scheduler waiting 队列不为空 | 10 分钟 |
-| `ForetokenModelServerKVCachePressureHigh` | vLLM KV Cache 最高使用率偏高 | 10 分钟 |
-| `ForetokenNVIDIAGPUTemperatureHigh` | NVIDIA GPU 温度超过配置阈值 | 10 分钟 |
-| `ForetokenNVIDIAGPUPowerUsageHigh` | NVIDIA GPU 功耗超过配置阈值 | 10 分钟 |
+| 告警 | 服务类型 | 信号 | 持续时间 |
+| --- | --- | --- | --- |
+| `ForetokenMetricsTargetDown` | FrontendService 或 ModelService | 已发现的 `/metrics` 目标无法抓取 | 5 分钟 |
+| `ForetokenFrontendHTTPResponseStart5xxRatioHigh` | FrontendService | 存在流量时，响应开始 5xx 比例偏高 | 10 分钟 |
+| `ForetokenModelServerSchedulerBacklog` | ModelService | 聚合后的 vLLM 阶段调度器等待队列不为空 | 10 分钟 |
+| `ForetokenModelServerKVCachePressureHigh` | ModelService | vLLM KV Cache 最高使用率偏高 | 10 分钟 |
+| `ForetokenNVIDIAGPUTemperatureHigh` | ModelService | GPU 温度超过配置阈值 | 10 分钟 |
+| `ForetokenNVIDIAGPUPowerUsageHigh` | ModelService | GPU 功耗超过显式配置的阈值 | 10 分钟 |
 
 首先查看告警所在命名空间中的资源：
 
@@ -70,7 +70,7 @@ Frontend 的 HTTP 响应开始事件中，5xx 比例在至少每秒 0.1 个响�
 2. 调整容量前，先检查请求长度、并发、workload 配置和副本健康状态。
 3. 比较各个 Pod 或 engine，定位实际热点。
 
-记录指标在每次计算时取所有 engine 的最大值，而不是集群平均值；贡献最大值的 engine 可能随时间改变。阈值由 `observability.alerts.thresholds.kvCacheUsageRatio` 配置，应根据真实 workload 的测量结果调整。
+记录指标在每次计算时取所有 engine 的最大值，而不是集群平均值；贡献最大值的 engine 可能随时间改变。阈值由 `spec.observability.alerts.thresholds.kvCacheUsageRatio` 配置，应根据真实 workload 的测量结果调整。
 
 ## ForetokenNVIDIAGPUTemperatureHigh
 
@@ -78,10 +78,6 @@ NVIDIA DCGM 温度读数已超过配置阈值。检查节点散热、设备健�
 
 ## ForetokenNVIDIAGPUPowerUsageHigh
 
-在 [`observability.alerts.rules`](../README_zh.md#告警) 中选择此规则，并将 `observability.alerts.thresholds.nvidiaPowerWatts` 配置为正数，单位为瓦。从列表中移除其名称即可关闭，功耗指标仍可查看。
+在 [`spec.observability.alerts.rules`](../README_zh.md#告警) 中选择此规则，并将 `spec.observability.alerts.thresholds.nvidiaPowerWatts` 配置为正数，单位为瓦。从列表中移除其名称即可关闭，功耗指标仍可查看。
 
 NVIDIA DCGM 功耗读数已超过配置阈值。先将读数与设备功耗上限和 workload 对比，再检查温度和节点健康状态；没有归属到 Foretoken 的 NVIDIA DCGM 功耗指标时，这条规则不会产生告警。
-
-## GPU 阈值策略
-
-安装 Chart 时，通过 `observability.alerts.thresholds` 配置 NVIDIA 温度和功耗阈值。这些告警使用归属到 Foretoken 的 DCGM 读数，提示检查设备和散热。

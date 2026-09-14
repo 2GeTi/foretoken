@@ -56,17 +56,8 @@ observability:
   additionalLabels: {}
   interval: ""
   scrapeTimeout: ""
-  alerts:
-    # Install only the named alert rules; an empty list keeps all alerts disabled.
-    rules: []
-    # The language is attached to alert labels so a shared Lark receiver can render one language consistently.
-    language: zh
-    # Selected rules use these thresholds, shown as dashboard reference lines.
-    thresholds:
-      kvCacheUsageRatio: 0.95
-      nvidiaTemperatureCelsius: 85
-      # Selecting the power alert requires a positive watt threshold for the GPU model.
-      nvidiaPowerWatts: null
+  # Prometheus NAMESPACE/NAME; foretoken install resolves the selected instance.
+  prometheus: ""
 
 # The runtime image must contain Foretoken model-server, its Python launcher, and a compatible vLLM runtime.
 runtime:

@@ -17,7 +17,7 @@ SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 
 ## 接入机器人
 
-时间默认跟随 Alertmanager 容器的本地时区，不一定与宿主机一致。如需指定时区，在应用配置前，将 [alertmanagerconfig.yaml](alertmanagerconfig.yaml) 中 `$timezone` 的 `Local` 改为 `Europe/Berlin` 等 IANA 时区名称。消息中的时间包含 UTC 偏移。
+在 [alertmanagerconfig.yaml](alertmanagerconfig.yaml) 中将 `$language` 设为 `zh`（默认）、`en` 或 `bilingual`。`$timezone` 默认使用 `Local`，跟随 Alertmanager 容器的时区；可改为 `Europe/Berlin` 等 IANA 时区名称。消息中的时间包含 UTC 偏移。
 
 在仓库根目录执行。将 `monitoring` 替换为 Alertmanager 所在命名空间，将 webhook 占位符替换为机器人的 URL：
 
@@ -36,8 +36,6 @@ kubectl apply \
 ```
 
 如果 Secret 已存在，按现有凭据管理流程更新，不将其内容提交到版本库。
-
-通知默认使用中文。通过[可观测性配置](../../README_zh.md#告警)，可将 `observability.alerts.language` 设为 `zh`、`en` 或 `bilingual`。
 
 ## 验证投递
 

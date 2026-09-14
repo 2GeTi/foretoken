@@ -9,17 +9,16 @@ groups:
       - alert: ForetokenMetricsTargetDown
         expr: |
           (
-            up{endpoint="http", inference_foretoken_io_frontend_service!=""} == 0
+            up{endpoint="http", namespace="foretoken_alert_namespace", inference_foretoken_io_frontend_service!="", inference_foretoken_io_frontend_service="foretoken_alert_frontend"} == 0
           )
           or
           (
-            up{endpoint="model-server", inference_foretoken_io_model_group!=""} == 0
+            up{endpoint="model-server", namespace="foretoken_alert_namespace", inference_foretoken_io_model_group!="", inference_foretoken_io_model_group=~"foretoken_alert_model_groups"} == 0
           )
         for: 5m
         labels:
           service: foretoken
           severity: warning
-          notification_language: foretoken_alert_language
         annotations:
           alertname_zh: 'Foretoken 指标目标不可用'
           summary: 'Foretoken metrics target {{ $labels.endpoint }} cannot be scraped'
@@ -31,19 +30,18 @@ groups:
       - alert: ForetokenFrontendHTTPResponseStart5xxRatioHigh
         expr: |
           (
-            foretoken:frontend_http_response_start_5xx_ratio:rate5m > 0.05
+            foretoken:frontend_http_response_start_5xx_ratio:rate5m{namespace="foretoken_alert_namespace", frontend_service="foretoken_alert_frontend"} > 0.05
           )
           and on (namespace, frontend_service)
           (
             sum by (namespace, frontend_service) (
-              foretoken:frontend_http_response_starts:rate5m
+              foretoken:frontend_http_response_starts:rate5m{namespace="foretoken_alert_namespace", frontend_service="foretoken_alert_frontend"}
             ) >= 0.1
           )
         for: 10m
         labels:
           service: foretoken
           severity: warning
-          notification_language: foretoken_alert_language
         annotations:
           alertname_zh: 'Foretoken 前端响应开始阶段 5xx 比例过高'
           summary: 'Frontend {{ $labels.frontend_service }} has elevated response-start 5xx errors'
@@ -53,12 +51,11 @@ groups:
           runbook_url: 'https://github.com/shiweijiezero/foretoken/blob/main/observability/runbooks/alerts.md#foretokenfrontendhttpresponsestart5xxratiohigh'
 
       - alert: ForetokenModelServerSchedulerBacklog
-        expr: foretoken:model_server_requests_waiting:sum > 0
+        expr: foretoken:model_server_requests_waiting:sum{namespace="foretoken_alert_namespace", model_group=~"foretoken_alert_model_groups"} > 0
         for: 10m
         labels:
           service: foretoken
           severity: warning
-          notification_language: foretoken_alert_language
         annotations:
           alertname_zh: 'Foretoken 模型服务调度器队列持续排队'
           summary: 'vLLM scheduler backlog persists for model group {{ $labels.model_group }}'
@@ -68,12 +65,11 @@ groups:
           runbook_url: 'https://github.com/shiweijiezero/foretoken/blob/main/observability/runbooks/alerts.md#foretokenmodelserverschedulerbacklog'
 
       - alert: ForetokenModelServerKVCachePressureHigh
-        expr: foretoken:model_server_kv_cache_usage_ratio:max >= foretoken_alert_threshold_kv_cache_usage_ratio
+        expr: foretoken:model_server_kv_cache_usage_ratio:max{namespace="foretoken_alert_namespace", model_group=~"foretoken_alert_model_groups"} >= foretoken_alert_threshold_kv_cache_usage_ratio
         for: 10m
         labels:
           service: foretoken
           severity: warning
-          notification_language: foretoken_alert_language
         annotations:
           alertname_zh: 'Foretoken 模型服务 KV Cache 压力过高'
           summary: 'KV-cache pressure is high for model group {{ $labels.model_group }}'
@@ -83,12 +79,11 @@ groups:
           runbook_url: 'https://github.com/shiweijiezero/foretoken/blob/main/observability/runbooks/alerts.md#foretokenmodelserverkvcachepressurehigh'
 
       - alert: ForetokenNVIDIAGPUTemperatureHigh
-        expr: foretoken:accelerator_gpu_temperature_celsius >= foretoken_alert_threshold_nvidia_temperature_celsius
+        expr: foretoken:accelerator_gpu_temperature_celsius{namespace="foretoken_alert_namespace", model_group=~"foretoken_alert_model_groups"} >= foretoken_alert_threshold_nvidia_temperature_celsius
         for: 10m
         labels:
           service: foretoken
           severity: warning
-          notification_language: foretoken_alert_language
         annotations:
           alertname_zh: 'Foretoken NVIDIA GPU 温度过高'
           summary: 'NVIDIA GPU temperature is high on {{ $labels.device_id }}'
@@ -98,12 +93,11 @@ groups:
           runbook_url: 'https://github.com/shiweijiezero/foretoken/blob/main/observability/runbooks/alerts.md#foretokennvidiagputemperaturehigh'
 
       - alert: ForetokenNVIDIAGPUPowerUsageHigh
-        expr: foretoken:accelerator_gpu_power_watts >= foretoken_alert_threshold_nvidia_power_watts
+        expr: foretoken:accelerator_gpu_power_watts{namespace="foretoken_alert_namespace", model_group=~"foretoken_alert_model_groups"} >= foretoken_alert_threshold_nvidia_power_watts
         for: 10m
         labels:
           service: foretoken
           severity: warning
-          notification_language: foretoken_alert_language
         annotations:
           alertname_zh: 'Foretoken NVIDIA GPU 功耗过高'
           summary: 'NVIDIA GPU power usage is high on {{ $labels.device_id }}'

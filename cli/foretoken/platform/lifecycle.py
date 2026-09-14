@@ -399,6 +399,9 @@ class PlatformLifecycle:
                 tuple(sorted(monitor_namespaces)),
                 command.timeout,
             )
+            mark_managed_metrics_scraper_namespace(kubectl, managed_prometheus.namespace)
+            resource = helm.prometheus_resource(managed_prometheus)
+            selected_prometheus = PrometheusRef(resource.name, resource.namespace, ())
         if install_managed_dcgm:
             helm.install_dcgm_exporter(
                 managed_dcgm,
@@ -417,6 +420,7 @@ class PlatformLifecycle:
             gateway_section_name=command.gateway_section_name,
             gateway_controller_name=gateway_plan.controller_name,
             observability_labels=observability_labels,
+            observability_prometheus=f"{selected_prometheus.namespace}/{selected_prometheus.name}",
             gpu_resource_name=gpu_resource_name,
             reuse_values=platform_exists,
             timeout=command.timeout,
@@ -439,9 +443,6 @@ class PlatformLifecycle:
                 f"{load_balancer_plan.release.display_name} (Layer 2; address allocation is confirmed per Service)",
             )
         if install_managed_prometheus:
-            mark_managed_metrics_scraper_namespace(
-                kubectl, managed_prometheus.namespace
-            )
             _print_plan("Prometheus", "Ready", managed_prometheus.display_name)
         if install_managed_dcgm:
             _print_plan("NVIDIA DCGM Exporter", "Ready", managed_dcgm.display_name)

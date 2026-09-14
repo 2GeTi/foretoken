@@ -11,7 +11,7 @@ from typing import Any
 
 import yaml
 
-from foretoken.manifest import DeploymentError
+from foretoken.manifest import DeploymentError, ResourceRef
 from foretoken.platform.config import load_balancer_config_from_values
 from foretoken.platform.helm_client import HelmClient
 from foretoken.platform.types import (
@@ -32,6 +32,25 @@ class Helm(HelmClient):
     def prometheus_release(self) -> ReleaseRef:
         """Return the Prometheus release managed with the platform."""
         return ReleaseRef(self._config.prometheus.release_name, self._config.namespace)
+
+    def prometheus_resource(self, release: ReleaseRef) -> ResourceRef:
+        """Read the Prometheus identity from the managed chart instead of reproducing its naming rules."""
+        rendered = self.run(
+            ["get", "manifest", release.name, "--namespace", release.namespace]
+        ).stdout
+        try:
+            resources = [
+                item for item in yaml.safe_load_all(rendered)
+                if isinstance(item, dict)
+                and item.get("apiVersion") == "monitoring.coreos.com/v1"
+                and item.get("kind") == "Prometheus"
+            ]
+        except yaml.YAMLError as exc:
+            raise DeploymentError("managed monitoring chart returned invalid YAML") from exc
+        if len(resources) != 1:
+            raise DeploymentError("managed monitoring chart must contain one Prometheus")
+        metadata = resources[0]["metadata"]
+        return ResourceRef("Prometheus", metadata["name"], metadata.get("namespace") or release.namespace)
 
     def dcgm_release(self) -> ReleaseRef:
         """Return the NVIDIA exporter release managed with the platform."""
@@ -275,6 +294,7 @@ class Helm(HelmClient):
         gateway_section_name: str,
         gateway_controller_name: str,
         observability_labels: tuple[tuple[str, str], ...],
+        observability_prometheus: str,
         gpu_resource_name: str | None,
         reuse_values: bool,
         timeout: str,
@@ -310,6 +330,7 @@ class Helm(HelmClient):
             gateway_controller_name,
             observability_labels,
         )
+        args.extend(["--set-string", f"observability.prometheus={observability_prometheus}"])
         if gpu_resource_name is not None:
             args.extend(
                 [
@@ -493,8 +514,7 @@ class Helm(HelmClient):
                 "prometheus.prometheusSpec.ruleSelector="
                 + json.dumps(rule_selector, separators=(",", ":")),
                 "--set-json",
-                "prometheus.prometheusSpec.ruleNamespaceSelector="
-                + json.dumps(namespace_selector, separators=(",", ":")),
+                "prometheus.prometheusSpec.ruleNamespaceSelector={}",
             ]
         )
         self.run(args)

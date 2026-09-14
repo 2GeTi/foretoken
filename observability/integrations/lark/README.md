@@ -17,7 +17,7 @@ The target Alertmanager must select the `foretoken-lark` configuration through `
 
 ## Connect the bot
 
-Times follow the Alertmanager container's local time zone, not necessarily the host's. To use a different zone, replace `Local` in the `$timezone` setting in [alertmanagerconfig.yaml](alertmanagerconfig.yaml) with an IANA name such as `Europe/Berlin` before applying it. Messages include the UTC offset.
+In [alertmanagerconfig.yaml](alertmanagerconfig.yaml), set `$language` to `zh` (the default), `en`, or `bilingual`. `$timezone` defaults to `Local`, using the Alertmanager container's time zone; an IANA name such as `Europe/Berlin` overrides it. Messages include the UTC offset.
 
 Run from the repository root. Replace `monitoring` with the Alertmanager namespace and the webhook placeholder with the bot's URL:
 
@@ -36,8 +36,6 @@ kubectl apply \
 ```
 
 If the Secret already exists, update it through your usual secret-management process. Keep its value out of version control.
-
-Notifications default to Chinese. Choose `zh`, `en`, or `bilingual` for `observability.alerts.language` using the [observability settings](../../README.md#alerts).
 
 ## Verify delivery
 

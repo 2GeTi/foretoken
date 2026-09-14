@@ -72,6 +72,8 @@ foretoken install --prometheus monitoring/prometheus
 
 GPU panels and alerts identify devices by the Foretoken model-group and model-role Pod labels. The CLI-managed DCGM Exporter publishes them; a reused exporter needs the same labels, otherwise those panels stay empty.
 
+For service alerts, a reused Prometheus must select rules in the workload namespaces through `ruleNamespaceSelector`; the CLI-managed stack already does this.
+
 With a reused Prometheus, Grafana stays under that platform's control. A Grafana sidecar that watches ConfigMaps labeled `grafana_dashboard=1` picks up the dashboard from the `foretoken-platform` namespace. Otherwise, export the JSON and import it through Grafana:
 
 ```bash
@@ -84,24 +86,27 @@ kubectl get configmap \
 
 ## Alerts
 
-Select the alert names to enable in the [observability example](../examples/observability/observability.yaml). For example, enable only metrics-target failures:
+Alert selection belongs to the service deployment. In a `ModelService`, select only the rules needed for that model:
 
 ```yaml
-observability:
-  alerts:
-    rules:
-      - ForetokenMetricsTargetDown
+spec:
+  observability:
+    alerts:
+      rules:
+        - ForetokenModelServerKVCachePressureHigh
 ```
 
-Apply the settings:
+The [observability example](../examples/observability/README.md) keeps these settings in a Kustomize patch for the Quick Start. Edit its `observability.yaml`, then deploy:
 
 ```bash
-foretoken install --values examples/observability/observability.yaml
+foretoken deploy examples/observability --timeout 20m
 ```
 
-Only listed rules are installed. Available names and troubleshooting steps are in the [runbooks](runbooks/alerts.md). Remove a name, or set `rules: []` to disable all alerts, and repeat the installation. Metrics and the dashboard remain available; threshold lines follow the selected rules.
+`FrontendService` uses the same selection path for frontend scrape and HTTP errors. Model rules cover only that ModelService's execution groups; shared frontend failures remain frontend-level signals. Available names and troubleshooting steps are in the [runbooks](runbooks/alerts.md).
 
-The same values file configures thresholds and `language` (`zh`, `en`, or `bilingual`). Selecting `ForetokenNVIDIAGPUPowerUsageHigh` requires a positive `observability.alerts.thresholds.nvidiaPowerWatts` chosen for the GPU model. Setting a threshold alone does not enable an alert. Notifications are delivered by the cluster's Alertmanager; the optional [Lark integration](integrations/lark/README.md) adds a receiver for Lark group bots.
+Remove a name, or use `rules: []`, and deploy again to remove the corresponding alerts. Metrics and the dashboard remain available. The CLI reports alert configuration failures separately from serving readiness; `deploy` does not install monitoring.
+
+Selecting the power alert also requires a positive `spec.observability.alerts.thresholds.nvidiaPowerWatts`, chosen for the GPU model. Setting a threshold alone does not enable a rule. Notification language, destination, and time zone are configured on the receiver; see the optional [Lark integration](integrations/lark/README.md).
 
 ## Metrics reference
 

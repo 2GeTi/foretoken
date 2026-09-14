@@ -72,6 +72,8 @@ foretoken install --prometheus monitoring/prometheus
 
 GPU 面板和告警依靠 Foretoken 模型组和模型角色的 Pod 标签识别设备。CLI 管理的 DCGM Exporter 会输出这些标签；复用已有 exporter 时需要同样的标签，否则这些面板没有数据。
 
+使用服务告警时，复用的 Prometheus 需要通过 `ruleNamespaceSelector` 选择工作负载命名空间中的规则；CLI 管理的监控已配置这一范围。
+
 复用 Prometheus 时，Grafana 仍由原平台管理。能够发现 `grafana_dashboard=1` ConfigMap 的 Grafana sidecar 会从 `foretoken-platform` 命名空间自动加载看板；否则导出 JSON 后在 Grafana 中导入：
 
 ```bash
@@ -84,24 +86,27 @@ kubectl get configmap \
 
 ## 告警
 
-在[可观测性示例](../examples/observability/observability.yaml)中列出要启用的告警名称。例如，只开启指标抓取失败告警：
+告警随服务部署配置。在 `ModelService` 中，只选择这个模型需要的规则：
 
 ```yaml
-observability:
-  alerts:
-    rules:
-      - ForetokenMetricsTargetDown
+spec:
+  observability:
+    alerts:
+      rules:
+        - ForetokenModelServerKVCachePressureHigh
 ```
 
-应用配置：
+[可观测性示例](../examples/observability/README_zh.md)把这些配置放在快速开始的 Kustomize 补丁中。修改其中的 `observability.yaml` 后部署：
 
 ```bash
-foretoken install --values examples/observability/observability.yaml
+foretoken deploy examples/observability --timeout 20m
 ```
 
-只安装列表中的规则，可选名称和排查方法见[排障手册](runbooks/alerts_zh.md)。移除某个名称，或设为 `rules: []` 关闭全部告警，再重新执行安装。指标和看板仍保留，阈值线随所选规则显示。
+`FrontendService` 使用相同的配置位置选择前端抓取失败和 HTTP 错误告警。模型规则只覆盖该 ModelService 的执行实例；共享前端的错误仍归前端，不记到某个模型上。可选名称和排查方法见[排障手册](runbooks/alerts_zh.md)。
 
-同一配置文件可调整阈值和 `language`（`zh`、`en` 或 `bilingual`）。选择 `ForetokenNVIDIAGPUPowerUsageHigh` 时，必须按显卡型号提供正数 `observability.alerts.thresholds.nvidiaPowerWatts`（瓦）。只填写阈值不会启用告警。通知由集群的 Alertmanager 发送；可选的 [Lark 集成](integrations/lark/README_zh.md)为群机器人提供接收器。
+移除名称或设为 `rules: []`，再次部署即可关闭对应告警，指标和看板仍保留。CLI 会报告告警配置失败，服务自身的就绪状态单独维护；`deploy` 不负责安装监控平台。
+
+选择功耗告警时，还需按显卡型号填写正数 `spec.observability.alerts.thresholds.nvidiaPowerWatts`，单位为瓦。只填写阈值不会启用规则。通知语言、接收目标和时区在接收器上配置，见可选的 [Lark 集成](integrations/lark/README_zh.md)。
 
 ## 指标参考
 
