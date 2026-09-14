@@ -275,6 +275,10 @@ func main() {
 	}
 
 	// Controllers are registered explicitly so each resource keeps one lifecycle owner.
+	if err := (&controllers.ProfileRunReconciler{Client: manager.GetClient()}).SetupWithManager(manager); err != nil {
+		ctrl.Log.Error(err, "unable to register ProfileRun controller")
+		os.Exit(1)
+	}
 	if err := (&controllers.RuntimeCacheReconciler{Client: manager.GetClient()}).SetupWithManager(manager); err != nil {
 		ctrl.Log.Error(err, "unable to register RuntimeCache controller")
 		os.Exit(1)

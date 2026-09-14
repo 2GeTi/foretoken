@@ -15,6 +15,7 @@ use foretoken_model_server::api::{AppState, RuntimeHealth, router};
 use foretoken_model_server::backend::VllmBackend;
 use foretoken_model_server::config::RuntimeConfig;
 use foretoken_model_server::kv_event_adapter::KvEventAdapter;
+use foretoken_model_server::profiling;
 use foretoken_model_server::runtime_cache;
 use foretoken_model_server::runtime_transport::LOOPBACK_HOST;
 use foretoken_model_server::shared_kv;
@@ -40,6 +41,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = RuntimeConfig::from_env().map_err(std::io::Error::other)?;
     let cache_shutdown = Arc::new(Notify::new());
     let cache_config = runtime_cache::Config::from_env().map_err(std::io::Error::other)?;
+    let profiling_config = if let Some(cache) = &cache_config {
+        let workers = config.launch.parallelism.tp
+            * config.launch.parallelism.pp
+            * config.launch.parallelism.dp
+            * config.launch.parallelism.pcp;
+        Some(profiling::Config::from_runtime_cache(
+            cache,
+            required_env(MODEL_GROUP_UID_ENV)?,
+            workers,
+        ))
+    } else {
+        None
+    };
     let mut cache_server = if let Some(server_config) = cache_config.clone() {
         let address = (config.listen_address.ip(), server_config.observation_port());
         let listener = TcpListener::bind(address).await?;
@@ -62,16 +76,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The model-server owns one startup deadline across the persistent attempt and one
     // Pod-scoped temporary retry, including complete teardown of a failed child process.
     let startup_deadline = Instant::now() + config.launch.startup_timeout();
-    let (engine, client) = match start_engine_attempt(
+    let (engine, client, cache_mode) = match start_engine_attempt(
         &config,
         cache_config.as_ref(),
+        profiling_config.as_ref(),
         runtime_cache::Mode::Persistent,
         startup_deadline,
         &mut cache_server,
     )
     .await
     {
-        Ok(started) => started,
+        Ok((engine, client)) => (engine, client, runtime_cache::Mode::Persistent),
         Err(EngineStartupFailure::PersistentCache { context, source }) => {
             let cache = cache_config
                 .as_ref()
@@ -85,18 +100,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             match start_engine_attempt(
                 &config,
                 Some(cache),
+                profiling_config.as_ref(),
                 runtime_cache::Mode::Temporary,
                 startup_deadline,
                 &mut cache_server,
             )
             .await
             {
-                Ok(started) => {
+                Ok((engine, client)) => {
                     info!(
                         cache_mode = runtime_cache::Mode::Temporary.as_str(),
                         "EngineCore started with Pod-scoped temporary cache storage"
                     );
-                    started
+                    (engine, client, runtime_cache::Mode::Temporary)
                 }
                 Err(failure) => {
                     return Err(io::Error::other(format!(
@@ -166,6 +182,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     health.set_client_healthy(true);
     health.set_accepting(true);
     let backend = Arc::new(VllmBackend::new(Llm::new(client), max_concurrent_requests));
+    let profiling = if cache_mode == runtime_cache::Mode::Persistent {
+        profiling_config
+    } else {
+        None
+    };
+    let mut profiler =
+        profiling.map(|config| profiling::Supervisor::new(config, backend.clone(), health.clone()));
 
     // Expose only the restricted group-local API after EngineCore is connected and healthy.
     let listener = match TcpListener::bind(config.listen_address).await {
@@ -181,6 +204,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let shutdown = Arc::new(Notify::new());
     let server_shutdown = shutdown.clone();
     let mut app_state = AppState::new(backend.clone(), health.clone(), metadata);
+    if let Some(profiler) = &profiler {
+        app_state = app_state.with_profiling(profiler.handle());
+    }
     if let Some(kv_events) = kv_events {
         app_state = app_state.with_kv_events(kv_events);
     }
@@ -212,6 +238,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ChildExited(String),
         Server(String),
         CacheServer(String),
+        Profiling(String),
     }
     let stop = tokio::select! {
         () = shutdown_signal() => Stop::Signal,
@@ -228,13 +255,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Err(error) => format!("HTTP server failed: {error}"),
         }),
         reason = wait_cache_server(&mut cache_server) => Stop::CacheServer(reason),
+        result = async {
+            match &mut profiler {
+                Some(profiler) => profiler.run().await,
+                None => std::future::pending().await,
+            }
+        } => Stop::Profiling(result.err().unwrap_or_else(|| "capture supervisor stopped".into())),
     };
     match &stop {
         Stop::Signal => info!("received shutdown signal"),
         Stop::ClientUnhealthy(reason)
         | Stop::ChildExited(reason)
         | Stop::Server(reason)
-        | Stop::CacheServer(reason) => warn!(%reason),
+        | Stop::CacheServer(reason)
+        | Stop::Profiling(reason) => warn!(%reason),
     }
 
     // Stop new admission before draining HTTP handlers, the client, and finally the child process.
@@ -243,8 +277,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     shutdown.notify_waiters();
     cache_shutdown.notify_waiters();
     let deadline = Instant::now() + config.launch.drain_timeout();
+    // Only an active native capture can hold the backend lock or require forced profiler stop.
+    // Merely preparing profiling must not bypass normal request draining on SIGTERM.
+    if let Some(profiler) = &mut profiler
+        && profiler.has_native_capture()
+    {
+        engine.shutdown(config.launch.drain_timeout()).await?;
+        engine.wait_for_exit().await;
+        profiler
+            .engine_stopped("diagnostic runtime terminated")
+            .await;
+    }
     if !matches!(&stop, Stop::Server(_)) {
-        match tokio::time::timeout(config.launch.drain_timeout(), server.as_mut()).await {
+        match tokio::time::timeout(
+            deadline.saturating_duration_since(Instant::now()),
+            server.as_mut(),
+        )
+        .await
+        {
             Ok(Ok(())) => {}
             Ok(Err(error)) => error!(%error, "HTTP server failed while draining"),
             Err(_) => {
@@ -261,13 +311,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         warn!(%error, "could not shut down managed EngineCore cleanly");
     }
     health.set_process_alive(false);
+    if let Some(profiler) = &mut profiler {
+        profiler.engine_stopped("runtime terminated").await;
+    }
 
     match stop {
         Stop::Signal => Ok(()),
         Stop::ClientUnhealthy(reason)
         | Stop::ChildExited(reason)
         | Stop::Server(reason)
-        | Stop::CacheServer(reason) => Err(std::io::Error::other(reason).into()),
+        | Stop::CacheServer(reason)
+        | Stop::Profiling(reason) => Err(std::io::Error::other(reason).into()),
     }
 }
 
@@ -333,6 +387,7 @@ async fn wait_cache_write_failure(
 async fn start_engine_attempt(
     config: &RuntimeConfig,
     cache: Option<&runtime_cache::Config>,
+    profiling: Option<&profiling::Config>,
     mode: runtime_cache::Mode,
     startup_deadline: Instant,
     cache_server: &mut Option<tokio::task::JoinHandle<io::Result<()>>>,
@@ -346,6 +401,13 @@ async fn start_engine_attempt(
     } else {
         Vec::new()
     };
+    if mode == runtime_cache::Mode::Persistent
+        && let Some(profile) = profiling
+    {
+        profile.prepare().map_err(|error| {
+            cache_mode_failure(mode, "profiling storage preparation failed", error)
+        })?;
+    }
     if config.launch.kv.shared_prefix_lookup() {
         let mut python_paths = vec![std::path::PathBuf::from(shared_kv::PYTHON_MODULE_PATH)];
         if let Some(existing) = std::env::var_os("PYTHONPATH") {
@@ -385,6 +447,11 @@ async fn start_engine_attempt(
                 *argument = format!("--tokenizer={tokenizer}");
             }
         }
+    }
+    if mode == runtime_cache::Mode::Persistent
+        && let Some(profile) = profiling
+    {
+        managed_engine.python_args.push(profile.engine_argument());
     }
     let protocol_timeout = startup_deadline.saturating_duration_since(Instant::now());
     if protocol_timeout.is_zero() {
