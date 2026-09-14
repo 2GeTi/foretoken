@@ -15,19 +15,6 @@ spec:
 
 使用 `source: modelscope` 时，相同模型标识会从 ModelScope 加载。同一个 frontend 后面的不同模型服务可以选择不同来源。
 
-Hugging Face 镜像通过平台 endpoint 配置，并使用该 values 文件安装：
-
-```yaml
-runtime:
-  vllm:
-    modelSource:
-      endpoint: https://hub.example.com
-```
-
-```bash
-foretoken install --values model-source-values.yaml
-```
-
 ## 使用本地模型目录
 
 将完整模型放到统一模型根目录：
