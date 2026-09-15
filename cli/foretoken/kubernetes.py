@@ -65,17 +65,27 @@ class Kubectl:
             )
 
     def run(
-        self, args: Iterable[str], *, input_text: str | None = None
+        self,
+        args: Iterable[str],
+        *,
+        input_text: str | None = None,
+        timeout: float | None = None,
     ) -> subprocess.CompletedProcess[str]:
-        """Execute kubectl and preserve its diagnostic output on failure."""
+        """Execute kubectl within an optional caller-owned timeout and preserve diagnostics."""
         command = ["kubectl", *args]
-        completed = subprocess.run(
-            command,
-            input=input_text,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
+        try:
+            completed = subprocess.run(
+                command,
+                input=input_text,
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise DeploymentError(
+                f"{' '.join(command)} timed out after {timeout:g}s"
+            ) from exc
         if completed.returncode:
             detail = completed.stderr.strip() or completed.stdout.strip()
             raise DeploymentError(f"{' '.join(command)} failed: {detail}")
@@ -179,12 +189,21 @@ class Kubectl:
             args.extend(["--namespace", namespace])
         return bool(self.run(args).stdout.strip())
 
-    def get(self, kind: str, name: str, namespace: str = "") -> dict[str, Any]:
-        """Return one Kubernetes object as decoded JSON."""
+    def get(
+        self,
+        kind: str,
+        name: str,
+        namespace: str = "",
+        *,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        """Return one Kubernetes object as decoded JSON within an optional timeout."""
         args = ["get", kind, name]
         if namespace:
             args.extend(["--namespace", namespace])
-        return _decode_object(self.run([*args, "-o", "json"]).stdout)
+        return _decode_object(
+            self.run([*args, "-o", "json"], timeout=timeout).stdout
+        )
 
     def get_if_exists(
         self, kind: str, name: str, namespace: str = ""
@@ -197,12 +216,25 @@ class Kubectl:
         return _decode_object(output) if output else None
 
     def get_resources(
-        self, resources: tuple[ResourceRef, ...]
+        self,
+        resources: tuple[ResourceRef, ...],
+        *,
+        timeout: float | None = None,
     ) -> tuple[dict[str, Any], ...]:
-        """Return named resources from one namespace with a single kubectl call."""
+        """Return named resources from one namespace within an optional timeout."""
         namespaces = {resource.namespace for resource in resources}
         if len(namespaces) != 1:
             raise DeploymentError("selected resources must share one namespace")
+        if len(resources) == 1:
+            resource = resources[0]
+            return (
+                self.get(
+                    resource.kind,
+                    resource.name,
+                    resource.namespace,
+                    timeout=timeout,
+                ),
+            )
         args = [
             "get",
             *(f"{resource.kind.lower()}/{resource.name}" for resource in resources),
@@ -210,7 +242,9 @@ class Kubectl:
         namespace = next(iter(namespaces))
         if namespace:
             args.extend(["--namespace", namespace])
-        return _decode_resource_list(self.run([*args, "-o", "json"]).stdout)
+        return _decode_resource_list(
+            self.run([*args, "-o", "json"], timeout=timeout).stdout
+        )
 
     def list_resources(
         self, kinds: Iterable[str], namespace: str
