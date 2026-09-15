@@ -56,9 +56,9 @@ func Render(selected []string, scope Scope, thresholds *inferencev1alpha1.ModelA
 	for index := range groups {
 		groups[index] = regexp.QuoteMeta(groups[index])
 	}
-	groupPattern := strings.Join(groups, "|")
-	if len(groups) == 0 {
-		groupPattern = "a^" // The empty ownership set must match no series.
+	groupPattern := "a^" // The empty ownership set must match no series.
+	if len(groups) != 0 {
+		groupPattern = "^(?:" + strings.Join(groups, "|") + ")$"
 	}
 	// Scope values are quoted as PromQL strings, not interpolated as query syntax.
 	scopeValues := strings.NewReplacer(
