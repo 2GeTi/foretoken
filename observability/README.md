@@ -93,7 +93,7 @@ spec:
   observability:
     alerts:
       rules:
-        - ForetokenModelServerKVCachePressureHigh
+        - ForetokenMetricsTargetDown
 ```
 
 The [observability example](../examples/observability/README.md) keeps these settings in a Kustomize patch for the Quick Start. Edit its `observability.yaml`, then deploy:

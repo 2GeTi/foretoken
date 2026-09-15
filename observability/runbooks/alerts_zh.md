@@ -13,8 +13,6 @@ SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 | --- | --- | --- | --- | --- |
 | `ForetokenMetricsTargetDown` | `FrontendService` 或 `ModelService` | 已发现的 `/metrics` 目标无法抓取 | 1 分钟 | 所选服务的目标 |
 | `ForetokenFrontendHTTPResponseStart5xxRatioHigh` | `FrontendService` | 流量至少为每秒 0.1 个响应开始事件时，5xx 比例超过 5% | 2 分钟 | 所选 FrontendService |
-| `ForetokenModelServerSchedulerBacklog` | `ModelService` | 该服务聚合后的 vLLM 阶段等待队列持续不为空 | 2 分钟 | 所选服务的 ModelGroup |
-| `ForetokenModelServerKVCachePressureHigh` | `ModelService` | 该服务 engine 的最高 KV Cache 使用率达到配置阈值 | 2 分钟 | `kvCacheUsageRatio`（默认 95%） |
 | `ForetokenNVIDIAGPUTemperatureHigh` | `ModelService` | 归属到该服务的 NVIDIA GPU 达到温度阈值 | 2 分钟 | `nvidiaTemperatureCelsius`（默认 85°C）；ModelGroup 作用域 |
 | `ForetokenNVIDIAGPUPowerUsageHigh` | `ModelService` | 归属到该服务的 NVIDIA GPU 达到功耗阈值 | 5 分钟 | 选择该规则并设置正数 `nvidiaPowerWatts`；ModelGroup 作用域 |
 

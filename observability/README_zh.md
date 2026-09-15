@@ -93,7 +93,7 @@ spec:
   observability:
     alerts:
       rules:
-        - ForetokenModelServerKVCachePressureHigh
+        - ForetokenMetricsTargetDown
 ```
 
 [可观测性示例](../examples/observability/README_zh.md)把这些配置放在快速开始的 Kustomize 补丁中。修改其中的 `observability.yaml` 后部署：

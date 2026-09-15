@@ -652,12 +652,10 @@ spec:
                         items:
                           enum:
                           - ForetokenMetricsTargetDown
-                          - ForetokenModelServerSchedulerBacklog
-                          - ForetokenModelServerKVCachePressureHigh
                           - ForetokenNVIDIAGPUTemperatureHigh
                           - ForetokenNVIDIAGPUPowerUsageHigh
                           type: string
-                        maxItems: 5
+                        maxItems: 3
                         type: array
                         x-kubernetes-list-type: set
                       thresholds:
@@ -665,11 +663,6 @@ spec:
                         description: ModelAlertThresholds configures the selected
                           model rules, not their activation.
                         properties:
-                          kvCacheUsageRatio:
-                            default: 0.95
-                            maximum: 1
-                            minimum: 0
-                            type: number
                           nvidiaPowerWatts:
                             exclusiveMinimum: true
                             minimum: 0

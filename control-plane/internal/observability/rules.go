@@ -68,7 +68,6 @@ func Render(selected []string, scope Scope, thresholds *inferencev1alpha1.ModelA
 	)
 	values := map[string]*float64{}
 	if thresholds != nil {
-		values["foretoken_alert_threshold_kv_cache_usage_ratio"] = thresholds.KVCacheUsageRatio
 		values["foretoken_alert_threshold_nvidia_temperature_celsius"] = thresholds.NVIDIATemperatureCelsius
 		values["foretoken_alert_threshold_nvidia_power_watts"] = thresholds.NVIDIAPowerWatts
 	}

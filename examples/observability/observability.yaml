@@ -18,4 +18,4 @@ metadata:
 spec:
   observability:
     alerts:
-      rules: [] # Example: [ForetokenModelServerKVCachePressureHigh]
+      rules: [] # Example: [ForetokenMetricsTargetDown]
