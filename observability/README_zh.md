@@ -102,7 +102,7 @@ spec:
 foretoken deploy examples/observability --timeout 20m
 ```
 
-`FrontendService` 使用相同的配置位置选择前端抓取失败和 HTTP 错误告警。模型规则只覆盖该 ModelService 的执行实例；共享前端的错误仍归前端，不记到某个模型上。可选名称和排查方法见[排障手册](runbooks/alerts_zh.md)。
+`FrontendService` 使用相同的配置位置选择前端抓取失败和 HTTP 错误告警。模型规则只覆盖该 ModelService 的执行实例；共享前端的错误仍归前端，不记到某个模型上。可选名称和触发条件见[告警参考](runbooks/alerts_zh.md)。
 
 移除名称或设为 `rules: []`，再次部署即可关闭对应告警，指标和看板仍保留。CLI 会报告告警配置失败，服务自身的就绪状态单独维护；`deploy` 不负责安装监控平台。
 

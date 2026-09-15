@@ -102,7 +102,7 @@ The [observability example](../examples/observability/README.md) keeps these set
 foretoken deploy examples/observability --timeout 20m
 ```
 
-`FrontendService` uses the same selection path for frontend scrape and HTTP errors. Model rules cover only that ModelService's execution groups; shared frontend failures remain frontend-level signals. Available names and troubleshooting steps are in the [runbooks](runbooks/alerts.md).
+`FrontendService` uses the same selection path for frontend scrape and HTTP errors. Model rules cover only that ModelService's execution groups; shared frontend failures remain frontend-level signals. Available names and trigger conditions are in the [alert reference](runbooks/alerts.md).
 
 Remove a name, or use `rules: []`, and deploy again to remove the corresponding alerts. Metrics and the dashboard remain available. The CLI reports alert configuration failures separately from serving readiness; `deploy` does not install monitoring.
 
