@@ -27,10 +27,10 @@ For multi-turn data, each HTTP turn is a request. A failed turn stops that conve
 
 W&B records these views after each run:
 
-- **Time/** uses elapsed seconds for one-second completion-window counts, throughput, failure rate, p95 timings, and mean in-flight requests. The last window uses its actual duration.
-- **Cumulative/** shows completed-request totals, success rate, mean timings, and throughput since the run began.
-- **Requests/** uses request index in send order, starting at one, for individual timings, token counts, and success.
-- **Replicas/** records controller-applied desired and Ready replicas for Kustomize runs, separately for each model service and scaling target. Raw samples are saved in `replica_observations.json`; collection ends with the workload, without waiting for subsequent scale-down.
+- Time series use elapsed seconds for one-second completion-window counts, throughput, failure rate, p95 timings, and mean in-flight requests. The last window uses its actual duration.
+- Cumulative series show completed-request totals, success rate, mean timings, and throughput since the run began.
+- Request series use request index in send order, starting at one, for individual timings, token counts, and success.
+- Kustomize runs also record controller-applied desired and Ready replicas for each model service and scaling target.
 
 Charts and console output use seconds for TTFT, E2EL, and conversation timings, and milliseconds for TPOT and ITL. Raw JSON timings remain in seconds.
 
@@ -38,6 +38,6 @@ Time-window token throughput attributes a successful request's tokens to the win
 
 Runs in the same W&B group share these axes. Final aggregates and available p50/p95/p99 values are also recorded in Charts for run comparisons, with a copy in Summary. Older runs retain their original metric names and units.
 
-Trace results also report replay delay from scheduled arrival to actual send. E2EL and TTFT labeled `including replay delay` include that wait. **Trace/** charts use scheduled arrival time; **Time/** charts use actual request completion windows.
+Trace results also report replay delay from scheduled arrival to actual send. E2EL and TTFT labeled `including replay delay` include that wait. Trace series use scheduled arrival time; time series use actual request completion windows.
 
 Retries are disabled by default. `--max-retries N` allows up to `N` additional attempts for transient failures; retry time is included in logical request latency.

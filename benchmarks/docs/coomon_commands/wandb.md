@@ -16,7 +16,7 @@ foretoken bench examples/quickstart \
 
 `--wandb-entity` selects the account or team. Group and run name are independent. Sweeps and multi-dataset runs generate a group if none is supplied; child labels are appended to their run names. Single runs are ungrouped by default.
 
-Charts includes final aggregates, percentiles, and **Time/**, **Cumulative/**, **Requests/** histories. Kustomize runs also record **Replicas/**. Open a group's Workspace to compare runs; Summary retains the final values. See [Result metrics](../../metrics.md#curves) for window definitions.
+The W&B page shows final aggregate metrics, P50/P95/P99 percentile metrics, and time-based, cumulative, and per-request series. Kustomize runs also show replica-count changes. Open a group's Workspace to compare runs; Summary retains the final values. See [Result metrics](../../metrics.md#curves) for window definitions.
 
 ![Per-request timings and token counts](../imgs/request-order-wandb.png)
 

@@ -17,8 +17,8 @@ from foretoken.manifest import DeploymentError, ResourceRef
 
 logger = logging.getLogger(__name__)
 
-_SAMPLE_INTERVAL_SECONDS = 1.0
-_KUBECTL_TIMEOUT_SECONDS = 5.0
+DEFAULT_REPLICA_SAMPLE_INTERVAL_SECONDS = 1.0
+DEFAULT_REPLICA_KUBECTL_TIMEOUT_SECONDS = 5.0
 
 
 @dataclass(frozen=True)
@@ -78,13 +78,13 @@ class KubernetesReplicaObserver:
                 self._last_error = str(exc)
             else:
                 self._observations.extend(observations)
-            self._stop.wait(_SAMPLE_INTERVAL_SECONDS)
+            self._stop.wait(DEFAULT_REPLICA_SAMPLE_INTERVAL_SECONDS)
 
     def _read_observations(self) -> tuple[ReplicaObservation, ...]:
         observed_at = time.perf_counter()
         values = self._kubectl.get_resources(
             self._resources,
-            timeout=_KUBECTL_TIMEOUT_SECONDS,
+            timeout=DEFAULT_REPLICA_KUBECTL_TIMEOUT_SECONDS,
         )
         by_name = {
             str((value.get("metadata") or {}).get("name") or ""): value

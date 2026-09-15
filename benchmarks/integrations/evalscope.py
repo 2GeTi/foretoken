@@ -309,7 +309,7 @@ def _evalscope_arguments(
         "stream": generation.stream,
         "top_p": generation.top_p,
         "top_k": generation.top_k,
-        # EvalScope 1.11.1 requires a float here. The Foretoken plugin removes
+        # EvalScope requires a float here. The Foretoken plugin removes
         # this placeholder from the final request when no temperature was set.
         "temperature": (
             0.0 if generation.temperature is None else generation.temperature
@@ -552,7 +552,7 @@ def _map_evalscope_metrics(
 def _read_evalscope_request_measurements(
     output_dir: str,
 ) -> tuple[list[RequestMeasurement], float | None]:
-    """Read EvalScope 1.11.1 SQLite records and their monotonic time origin.
+    """Read EvalScope SQLite records and their monotonic time origin.
 
     ``run_one_benchmark`` returns aggregate types only; the ``result`` table holds
     the per-request rows that multi-dataset runs merge. EvalScope persists HTTP
