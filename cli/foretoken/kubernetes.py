@@ -382,7 +382,7 @@ def timeout_seconds(value: str) -> float:
 def resource_progress(
     resource: ResourceRef, value: dict[str, Any]
 ) -> ResourceProgress:
-    """Interpret one service's Ready condition without accepting stale generations."""
+    """Interpret current serving and explicitly selected alert readiness without accepting stale generations."""
     metadata = value.get("metadata") or {}
     status = value.get("status") or {}
     if metadata.get("deletionTimestamp"):
@@ -393,6 +393,20 @@ def resource_progress(
     generation = int(metadata.get("generation") or 0)
     observed_generation = int(status.get("observedGeneration") or 0)
     conditions = status.get("conditions") or []
+    alerts = ((value.get("spec") or {}).get("observability") or {}).get("alerts") or {}
+    alerts_selected = bool(alerts.get("rules"))
+    alerts_condition = next(
+        (item for item in conditions if item.get("type") == "AlertsReady"), None
+    )
+    alerts_current = (
+        alerts_condition is not None
+        and int(alerts_condition.get("observedGeneration") or 0) == generation
+    )
+    if alerts_current and alerts_condition.get("status") == "False":
+        return ResourceProgress(
+            resource, "Failed", str(alerts_condition.get("reason") or "AlertsFailed"),
+            str(alerts_condition.get("message") or "Service alerts are not configured"), False,
+        )
     ready_condition = next(
         (
             condition
@@ -424,6 +438,18 @@ def resource_progress(
 
     condition_status = str(ready_condition.get("status") or "Unknown")
     if condition_status == "True":
+        if not alerts_selected and alerts_condition is not None:
+            return ResourceProgress(
+                resource, "Progressing", "AlertsRemoving",
+                "Waiting for service alert removal", False,
+            )
+        if alerts_selected and (
+            not alerts_current or alerts_condition.get("status") != "True"
+        ):
+            return ResourceProgress(
+                resource, "Progressing", "AlertsReconciling",
+                "Waiting for the selected service alerts", False,
+            )
         return ResourceProgress(resource, "Ready", reason, message, True)
     if condition_status == "False" and reason == "InvalidIntent":
         return ResourceProgress(resource, "Failed", reason, message, False)

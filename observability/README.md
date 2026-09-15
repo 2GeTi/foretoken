@@ -7,7 +7,7 @@ SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 
 English | [简体中文](README_zh.md)
 
-Foretoken collects service and accelerator metrics with Prometheus, shows them in the **Foretoken System Overview** Grafana dashboard, and installs alert rules for the most common problems.
+Foretoken collects service and accelerator metrics with Prometheus and shows them in the **Foretoken System Overview** Grafana dashboard. Alert rules are optional and disabled by default.
 
 ## Get started
 
@@ -40,7 +40,7 @@ kubectl get servicemonitor,prometheusrule -A \
   -l app.kubernetes.io/name=foretoken-control-plane
 ```
 
-In Prometheus, confirm on **Targets** that the Foretoken targets are `UP` and on **Rules** that `foretoken.recording` and `foretoken.alerting` are loaded. This query returns the Frontend request rate:
+In Prometheus, confirm on **Targets** that the Foretoken targets are `UP` and on **Rules** that `foretoken.recording` is loaded. This query returns the Frontend request rate:
 
 ```promql
 sum(foretoken:frontend_http_response_starts:rate5m)
@@ -72,6 +72,8 @@ foretoken install --prometheus monitoring/prometheus
 
 GPU panels and alerts identify devices by the Foretoken model-group and model-role Pod labels. The CLI-managed DCGM Exporter publishes them; a reused exporter needs the same labels, otherwise those panels stay empty.
 
+For service alerts, a reused Prometheus must select rules in the workload namespaces through `ruleNamespaceSelector`; the CLI-managed stack already does this.
+
 With a reused Prometheus, Grafana stays under that platform's control. A Grafana sidecar that watches ConfigMaps labeled `grafana_dashboard=1` picks up the dashboard from the `foretoken-platform` namespace. Otherwise, export the JSON and import it through Grafana:
 
 ```bash
@@ -84,15 +86,27 @@ kubectl get configmap \
 
 ## Alerts
 
-Alert rules are installed together with collection. Each alert links to its entry in the [runbooks](runbooks/alerts.md), which explain the signal and how to investigate it. The dashboard draws each alert threshold as a dashed line on the matching panel.
+Alert selection belongs to the service deployment. In a `ModelService`, select only the rules needed for that model:
 
-To change thresholds or the notification language, edit `observability.yaml` in the [observability example](../examples/observability/README.md) and pass it to the installation:
-
-```bash
-foretoken install --values examples/observability/observability.yaml
+```yaml
+spec:
+  observability:
+    alerts:
+      rules:
+        - ForetokenModelServerKVCachePressureHigh
 ```
 
-`language` accepts `zh`, `en`, or `bilingual` and applies to all alerts of the installation. Notifications are delivered by the cluster's Alertmanager; the optional [Lark integration](integrations/lark/README.md) adds a receiver for Lark group bots.
+The [observability example](../examples/observability/README.md) keeps these settings in a Kustomize patch for the Quick Start. Edit its `observability.yaml`, then deploy:
+
+```bash
+foretoken deploy examples/observability --timeout 20m
+```
+
+`FrontendService` uses the same selection path for frontend scrape and HTTP errors. Model rules cover only that ModelService's execution groups; shared frontend failures remain frontend-level signals. Available names and trigger conditions are in the [alert reference](runbooks/alerts.md).
+
+Remove a name, or use `rules: []`, and deploy again to remove the corresponding alerts. Metrics and the dashboard remain available. The CLI reports alert configuration failures separately from serving readiness; `deploy` does not install monitoring.
+
+Selecting the power alert also requires a positive `spec.observability.alerts.thresholds.nvidiaPowerWatts`, chosen for the GPU model. Setting a threshold alone does not enable a rule. Notification language, destination, and time zone are configured on the receiver; see the optional [Lark integration](integrations/lark/README.md).
 
 ## Metrics reference
 
