@@ -30,8 +30,8 @@ type ModelObservability struct {
 type ModelAlerts struct {
 	// +optional
 	// +listType=set
-	// +kubebuilder:validation:MaxItems=5
-	// +kubebuilder:validation:items:Enum=ForetokenMetricsTargetDown;ForetokenModelServerSchedulerBacklog;ForetokenModelServerKVCachePressureHigh;ForetokenNVIDIAGPUTemperatureHigh;ForetokenNVIDIAGPUPowerUsageHigh
+	// +kubebuilder:validation:MaxItems=3
+	// +kubebuilder:validation:items:Enum=ForetokenMetricsTargetDown;ForetokenNVIDIAGPUTemperatureHigh;ForetokenNVIDIAGPUPowerUsageHigh
 	Rules []string `json:"rules,omitempty"`
 
 	// +optional
@@ -41,12 +41,6 @@ type ModelAlerts struct {
 
 // ModelAlertThresholds configures the selected model rules, not their activation.
 type ModelAlertThresholds struct {
-	// +optional
-	// +kubebuilder:default=0.95
-	// +kubebuilder:validation:Minimum=0
-	// +kubebuilder:validation:Maximum=1
-	KVCacheUsageRatio *float64 `json:"kvCacheUsageRatio,omitempty"`
-
 	// +optional
 	// +kubebuilder:default=85
 	// +kubebuilder:validation:Minimum=0

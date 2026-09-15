@@ -13,8 +13,6 @@ Select rules in the owning service's `spec.observability.alerts.rules`. An empty
 | --- | --- | --- | --- | --- |
 | `ForetokenMetricsTargetDown` | `FrontendService` or `ModelService` | A discovered `/metrics` target cannot be scraped | 1 minute | The selected service's target |
 | `ForetokenFrontendHTTPResponseStart5xxRatioHigh` | `FrontendService` | More than 5% of response starts are 5xx while traffic is at least 0.1 response/s | 2 minutes | The selected FrontendService |
-| `ForetokenModelServerSchedulerBacklog` | `ModelService` | Its aggregated vLLM stage waiting queue remains nonzero | 2 minutes | The selected service's ModelGroups |
-| `ForetokenModelServerKVCachePressureHigh` | `ModelService` | Its maximum engine KV-cache usage reaches the configured threshold | 2 minutes | `kvCacheUsageRatio` (default 95%) |
 | `ForetokenNVIDIAGPUTemperatureHigh` | `ModelService` | An attributed NVIDIA GPU reaches the configured temperature threshold | 2 minutes | `nvidiaTemperatureCelsius` (default 85°C); ModelGroup scope |
 | `ForetokenNVIDIAGPUPowerUsageHigh` | `ModelService` | An attributed NVIDIA GPU reaches the configured power threshold | 5 minutes | Select the rule and set positive `nvidiaPowerWatts`; ModelGroup scope |
 
