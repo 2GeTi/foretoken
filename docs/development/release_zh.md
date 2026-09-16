@@ -73,7 +73,7 @@ v0.0.1.post1
 
 ## 构建与推送发布产物
 
-在待发布的源码目录执行。准备 Python 3.11+、已安装的 Foretoken 包（`pip install -e .`）、Git、Rust/Cargo、Make、支持 BuildKit 的 Docker 和 Helm，以及兼容的 NVIDIA、沐曦推理运行时镜像。沐曦基础镜像可按[镜像构建指南](metax-platform_zh.md#构建镜像)准备。将下面的仓库前缀和基础镜像替换为实际值：
+准备兼容的 NVIDIA 和沐曦推理运行时镜像，然后将下面的仓库前缀和镜像名称替换为实际值：
 
 ```bash
 export REGISTRY=ghcr.io/your-org/foretoken
@@ -83,9 +83,7 @@ export METAX_INFERENCE_ENGINE_IMAGE=your-metax-runtime:version
 deploy/release-artifacts build --registry "$REGISTRY"
 ```
 
-该命令构建共用的 `control-plane`、`frontend`，以及 NVIDIA 的 `model-server:<version>` 和沐曦的 `model-server:<version>-metax`，并将 Chart 打包到 `/tmp/foretoken-release`。版本取自 `pyproject.toml` 和 `Chart.yaml`，无需另传 tag。CPU 架构兼容时，同一台机器可构建两个变体，不必同时安装两种 GPU；运行验证仍分别在对应硬件上进行。
-
-基础镜像需要特定 Python 解释器时，NVIDIA 设置 `FORETOKEN_VLLM_PYTHON`，沐曦设置 `METAX_VLLM_PYTHON`。已有的构建镜像源和软件包索引变量继续生效。
+control-plane、frontend、model-server 镜像和 Helm Chart 使用同一个版本。沐曦 model-server 镜像带有 `-metax` 后缀。
 
 完成产物验证后，登录仓库并推送：
 
@@ -95,9 +93,7 @@ helm registry login ghcr.io
 deploy/release-artifacts push --registry "$REGISTRY"
 ```
 
-已有远端 tag 保持不变，中途失败后可用相同命令继续。此入口不更新 `latest`，不创建 GitHub Release，也不发布 Python 包。首次发布时配置 package 可见性，公开发布需验证匿名访问。
-
-`--components model-server,model-server-metax` 可选择产物；修改 Chart 目录时，在构建和推送命令中使用相同的 `--output-dir`。`--dry-run` 仅打印命令，完整选项见 `deploy/release-artifacts --help`。
+已有 tag 不会被覆盖，发布中途失败后可使用相同命令重试。完整命令参考见 `deploy/release-artifacts --help`。
 
 ## 发布顺序
 

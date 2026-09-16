@@ -73,7 +73,7 @@ Published versions are immutable. Never rebuild and overwrite a version already 
 
 ## Build and push the release artifacts
 
-Run from the release checkout with Python 3.11+, the Foretoken package installed (`pip install -e .`), Git, Rust/Cargo, Make, Docker with BuildKit, and Helm. Prepare compatible NVIDIA and MetaX inference-runtime images; the [MetaX build guide](metax-platform.md#build-the-images) covers creating the latter. Replace the registry prefix and runtime image names below with your own:
+Prepare compatible NVIDIA and MetaX inference-runtime images, then replace the registry prefix and runtime image names below with your own:
 
 ```bash
 export REGISTRY=ghcr.io/your-org/foretoken
@@ -83,11 +83,9 @@ export METAX_INFERENCE_ENGINE_IMAGE=your-metax-runtime:version
 deploy/release-artifacts build --registry "$REGISTRY"
 ```
 
-The command builds shared `control-plane` and `frontend` images, `model-server:<version>` for NVIDIA, and `model-server:<version>-metax` for MetaX. It packages the Chart in `/tmp/foretoken-release`. Versions come from `pyproject.toml` and `Chart.yaml`; no tag argument is needed. Both variants can be built on the same compatible CPU architecture without attaching both GPU vendors, but must be validated on their respective hardware.
+The release uses one shared version for the control-plane, frontend, model-server images, and Helm Chart. The MetaX model-server image adds the `-metax` suffix.
 
-If a runtime requires a particular Python executable, set `FORETOKEN_VLLM_PYTHON` for NVIDIA or `METAX_VLLM_PYTHON` for MetaX. Existing build mirror and package-index variables remain available.
-
-After validating the artifacts, log in to the registry and push:
+After validating the artifacts, log in to the registry and push them:
 
 ```bash
 docker login ghcr.io
@@ -95,9 +93,7 @@ helm registry login ghcr.io
 deploy/release-artifacts push --registry "$REGISTRY"
 ```
 
-Existing remote tags are left unchanged, so the same push command can resume a partial release. It does not update `latest`, create a GitHub Release, or publish Python packages. On first publication, configure package visibility and verify anonymous access for public releases.
-
-Use `--components model-server,model-server-metax` to select artifacts, `--output-dir` to change the Chart directory in both commands, or `--dry-run` to print commands. Full options are available through `deploy/release-artifacts --help`.
+Existing tags are not overwritten, so the same command can retry an incomplete publication. See `deploy/release-artifacts --help` for the complete command reference.
 
 ## Release sequence
 
