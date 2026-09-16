@@ -7,7 +7,7 @@ SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 
 English | [简体中文](README_zh.md)
 
-Foretoken collects service and accelerator metrics with Prometheus and shows them in the **Foretoken System Overview** Grafana dashboard. Alert rules are optional and disabled by default.
+Foretoken collects service and accelerator metrics with Prometheus and shows them in the Foretoken System Overview Grafana dashboard. Alert rules are optional and disabled by default.
 
 ## Get started
 
@@ -31,7 +31,7 @@ printf 'Grafana user: %s\nGrafana password: %s\n' \
   "$GRAFANA_USER" "$GRAFANA_PASSWORD"
 ```
 
-In Grafana, select **Dashboards** and open **Foretoken System Overview**. It follows a request through the Frontend, model serving, caches, and accelerators, and ends with autoscaling decisions; routing and control-plane details are in collapsed sections. Filters narrow the view to a namespace, Frontend service, model group, model role, model, or model service.
+In Grafana, open Foretoken System Overview for English or Foretoken 系统概览 for Chinese. It follows a request through the Frontend, model serving, caches, and accelerators, and ends with autoscaling decisions; routing and control-plane details are in collapsed sections. Filters narrow the view to a namespace, Frontend service, model group, model role, model, or model service.
 
 ## Check that collection works
 
@@ -40,7 +40,7 @@ kubectl get servicemonitor,prometheusrule -A \
   -l app.kubernetes.io/name=foretoken-control-plane
 ```
 
-In Prometheus, confirm on **Targets** that the Foretoken targets are `UP` and on **Rules** that `foretoken.recording` is loaded. This query returns the Frontend request rate:
+In Prometheus, confirm on Targets that the Foretoken targets are `UP` and on Rules that `foretoken.recording` is loaded. This query returns the Frontend request rate:
 
 ```promql
 sum(foretoken:frontend_http_response_starts:rate5m)
@@ -119,7 +119,9 @@ Selecting the power alert also requires a positive `spec.observability.alerts.th
 | mxExporter | MetaX utilization and memory |
 | kubelet/cAdvisor | Container CPU and memory |
 
-The dashboard and alerts query these recording rules. Model-serving rules are derived from vLLM metrics.
+Dashboard latency metrics use seconds for TTFT and E2EL, and milliseconds for TPOT and ITL. TPOT includes both percentile and mean values.
+
+The following recording rules remain available for alerts and fixed-window queries. Model-serving rules are derived from vLLM metrics.
 
 | Area | Recording rule | Meaning |
 | --- | --- | --- |
