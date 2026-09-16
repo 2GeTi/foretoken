@@ -50,6 +50,8 @@ Installation selects the NVIDIA or MetaX runtime from the cluster's GPU resource
 
 Installation also sets up monitoring, reusing a Prometheus and GPU metrics exporter already in the cluster when they exist. See [Observability](../observability/README.md).
 
+For [Slack notifications](../observability/integrations/slack/README.md), provide a webhook Secret reference in platform values. Installation creates the receiver and configures the CLI-managed Alertmanager to route workload alerts.
+
 ### Gateway mode
 
 Gateway mode creates a dedicated `GatewayClass` and `Gateway`, installing Envoy Gateway if no compatible controller is available:

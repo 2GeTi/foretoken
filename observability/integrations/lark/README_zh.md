@@ -13,7 +13,9 @@ SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 
 启用 [Foretoken 告警](../../README_zh.md#告警)，并取得目标 Lark 群的自定义机器人 webhook。已安装的 Prometheus Operator 和 Alertmanager 需要支持 `webhookConfigs.payload`。
 
-目标 Alertmanager 需要通过 `alertmanagerConfigSelector` 选中 `foretoken-lark` 配置。按下文安装到 Alertmanager 所在命名空间时，监控管理员可将 `spec.alertmanagerConfigMatcherStrategy.type` 设为 `OnNamespaceExceptForAlertmanagerNamespace`，接收 Foretoken 工作负载命名空间的告警。参阅 [Alertmanager 配置指南](https://prometheus-operator.dev/docs/developer/alerting/)。
+CLI 管理的 Alertmanager 会选中 `foretoken-platform` 中的配置，并允许这些配置接收工作负载命名空间的告警。使用 CLI 管理的监控栈时，下文使用这个命名空间。
+
+对于已有 Alertmanager，管理员需要通过 `alertmanagerConfigSelector` 选中 `foretoken-lark`，并允许工作负载命名空间。按下文将配置安装到 Alertmanager 所在命名空间时，支持的版本可使用 `spec.alertmanagerConfigMatcherStrategy.type: OnNamespaceExceptForAlertmanagerNamespace`。参阅 [Alertmanager 配置指南](https://prometheus-operator.dev/docs/developer/alerting/)。
 
 ## 接入机器人
 

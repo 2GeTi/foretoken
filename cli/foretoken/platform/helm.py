@@ -515,6 +515,11 @@ class Helm(HelmClient):
                 + json.dumps(rule_selector, separators=(",", ":")),
                 "--set-json",
                 "prometheus.prometheusSpec.ruleNamespaceSelector={}",
+                # Receivers beside the managed Alertmanager route workload alerts;
+                # configurations in other namespaces retain namespace isolation.
+                "--set-string",
+                "alertmanager.alertmanagerSpec.alertmanagerConfigMatcherStrategy.type="
+                "OnNamespaceExceptForAlertmanagerNamespace",
             ]
         )
         self.run(args)

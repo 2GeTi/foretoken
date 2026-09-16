@@ -50,6 +50,8 @@ foretoken install
 
 安装同时会配置监控；集群里已有 Prometheus 和 GPU 指标 exporter 时直接复用。详见[可观测性](../observability/README_zh.md)。
 
+如需 [Slack 通知](../observability/integrations/slack/README_zh.md)，在平台 values 中填写 webhook 的 Secret 引用。安装会创建接收器，并配置 CLI 管理的 Alertmanager，使其能路由工作负载告警。
+
 ### 网关模式
 
 网关模式会创建专用的 `GatewayClass` 和 `Gateway`，集群没有可复用的控制器时自动安装 Envoy Gateway：

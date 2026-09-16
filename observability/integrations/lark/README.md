@@ -13,7 +13,9 @@ Send Foretoken alerts to a Lark group through its custom bot and the cluster's A
 
 Enable [Foretoken alerts](../../README.md#alerts) and obtain a custom bot webhook from the destination Lark group. The installed Prometheus Operator and Alertmanager must support `webhookConfigs.payload`.
 
-The target Alertmanager must select the `foretoken-lark` configuration through `alertmanagerConfigSelector`. For the same-namespace installation below, the monitoring administrator can set `spec.alertmanagerConfigMatcherStrategy.type` to `OnNamespaceExceptForAlertmanagerNamespace` to accept alerts from Foretoken workload namespaces. See [Alertmanager configuration](https://prometheus-operator.dev/docs/developer/alerting/).
+The CLI-managed Alertmanager selects configurations in `foretoken-platform` and allows them to receive alerts from workload namespaces. Use that namespace below when using the CLI-managed stack.
+
+For an existing Alertmanager, its administrator must select `foretoken-lark` through `alertmanagerConfigSelector` and allow workload namespaces. For the same-namespace installation below, `spec.alertmanagerConfigMatcherStrategy.type: OnNamespaceExceptForAlertmanagerNamespace` provides this behavior on supported versions. See [Alertmanager configuration](https://prometheus-operator.dev/docs/developer/alerting/).
 
 ## Connect the bot
 
