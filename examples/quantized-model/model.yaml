@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
+
+apiVersion: inference.foretoken.io/v1alpha1
+kind: ModelService
+metadata:
+  name: qwen2.5-0.5b-awq
+spec:
+  model: Qwen/Qwen2.5-0.5B-Instruct-AWQ
+  source: hf
+  backend: vllm
+  replicas: 1
+  resources:
+    requests:
+      cpu: "2"
+      memory: 8Gi
+      gpu:
+        count: 1
+    limits:
+      cpu: "4"
+      memory: 16Gi
+  timeouts:
+    startup: 5m
+    drain: 2m
+  parallelism:
+    tp: 1
+    pp: 1
+    pcp: 1
+    dcp: 1
+  extraArgs:
+    - --quantization=awq
+    - --dtype=half
+    - --max-model-len=4096
