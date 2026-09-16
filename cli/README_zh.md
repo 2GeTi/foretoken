@@ -112,7 +112,7 @@ foretoken install --values platform-values.yaml
 foretoken deploy examples/multi-model-quickstart --timeout 20m
 ```
 
-该命令会应用配置、输出服务状态变化，并在所有服务就绪后退出。未指定 `--timeout` 时最多等待十分钟。
+该命令会应用配置、输出服务状态变化，并在所有服务就绪且所选告警配置完成后退出。未指定 `--timeout` 时最多等待十分钟。告警配置放在服务的 Kustomize 部署中，见[服务可观测性示例](../examples/observability/README_zh.md)。
 
 不应用配置，直接查看同一部署的状态：
 
@@ -144,6 +144,16 @@ FORETOKEN_REQUEST_HOST="$(foretoken endpoint examples/multi-model-quickstart --h
 ## 评测模型服务
 
 使用 `foretoken bench` 评测模型服务性能，命令和示例见[模型服务性能评测](../benchmarks/README_zh.md)。
+
+## 采集诊断 Profile
+
+该实验性命令要求平台通过源码安装，并可对使用持久 RuntimeCache 的已有 ModelService 采集一次 PyTorch profile：
+
+```bash
+foretoken profile examples/quickstart --profile-engine pytorch --profile-duration 15s
+```
+
+命令不会生成流量。采集和查看结果见[性能剖析指南](../observability/profiling_zh.md)。
 
 ## 清理
 

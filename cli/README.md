@@ -112,7 +112,7 @@ See the [multi-model example](../examples/multi-model-quickstart/README.md) for 
 foretoken deploy examples/multi-model-quickstart --timeout 20m
 ```
 
-The command applies the configuration, reports service state changes, and exits when every service is Ready. Without `--timeout`, it waits up to ten minutes.
+The command applies the configuration, reports service state changes, and exits when every service is Ready and its selected alerts are configured. Without `--timeout`, it waits up to ten minutes. Configure service alerts in the Kustomize deployment; see [service observability](../examples/observability/README.md).
 
 Inspect the same deployment without applying it:
 
@@ -144,6 +144,16 @@ FORETOKEN_REQUEST_HOST="$(foretoken endpoint examples/multi-model-quickstart --h
 ## Benchmark model services
 
 Use `foretoken bench` to measure model-service performance. Commands and examples are in [Model Service Benchmarks](../benchmarks/README.md).
+
+## Capture a diagnostic profile
+
+The experimental command requires a source-installed platform and captures one PyTorch profile from an existing ModelService that uses persistent RuntimeCache storage:
+
+```bash
+foretoken profile examples/quickstart --profile-engine pytorch --profile-duration 15s
+```
+
+The command does not generate traffic. See [Profiling](../observability/profiling.md) for capture and result access.
 
 ## Clean up
 

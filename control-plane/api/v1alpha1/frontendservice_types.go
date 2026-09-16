@@ -63,6 +63,10 @@ type FrontendServiceSpec struct {
 	Resources FrontendResources `json:"resources"`
 	Timeouts  FrontendTimeouts  `json:"timeouts"`
 
+	// Observability selects frontend-scoped alerts, including shared HTTP failures.
+	// +optional
+	Observability *FrontendObservability `json:"observability,omitempty"`
+
 	// +optional
 	// +kubebuilder:default={}
 	RouterPipeline RouterPipeline `json:"routerPipeline,omitempty"`

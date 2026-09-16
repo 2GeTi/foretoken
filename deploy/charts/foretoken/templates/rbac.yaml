@@ -38,9 +38,33 @@ rules:
       - runtimecaches.inference.foretoken.io
       - modelpools.inference.foretoken.io
       - modelgroups.inference.foretoken.io
+      - profileruns.inference.foretoken.io
     verbs:
       - get
       - patch
+  - apiGroups:
+      - monitoring.coreos.com
+    resources:
+      - prometheusrules
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - patch
+      - delete
+  - apiGroups:
+      - monitoring.coreos.com
+    resources:
+      - prometheuses
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    verbs:
+      - get
   - apiGroups:
       - inference.foretoken.io
     resources:
@@ -49,6 +73,24 @@ rules:
       - get
       - list
       - watch
+  - apiGroups:
+      - inference.foretoken.io
+    resources:
+      - profileruns
+      - profileruns/status
+      - profileruns/finalizers
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
+  - apiGroups:
+      - apps
+    resources:
+      - replicasets
+    verbs:
+      - get
   {{- if .Values.frontend.enabled }}
   - apiGroups:
       - inference.foretoken.io
