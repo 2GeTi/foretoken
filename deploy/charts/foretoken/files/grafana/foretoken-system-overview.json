@@ -173,7 +173,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Frontend responses started per second over Grafana's dynamic rate interval.",
+      "description": "Frontend responses started per second over the selected rate window.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1533,7 +1533,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Maximum per-model-group request-level TPOT quantiles and mean over Grafana's dynamic rate interval, in milliseconds. Each request contributes its average time between output tokens.",
+      "description": "Maximum per-model-group request-level TPOT quantiles and mean over the selected rate window, in milliseconds. Each request contributes its average time between output tokens.",
       "fieldConfig": {
         "defaults": {
           "color": {

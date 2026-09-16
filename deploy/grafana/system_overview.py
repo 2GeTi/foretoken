@@ -8,7 +8,7 @@ and Chinese JSON dashboards under `deploy/charts/foretoken/files/grafana/`; the 
 both through one Grafana ConfigMap. The generated JSON files are deployed artifacts, and this
 module is their shared source.
 
-The dashboard reads raw Frontend and model-server metrics over Grafana's dynamic rate interval,
+The dashboard reads raw Frontend and model-server metrics over a selected rate interval,
 plus recording rules and bounded router, controller, and autoscaling metrics. Its section order
 follows the Dynamo dashboard: service health first, then the request path from the Frontend through model
 serving and caches to accelerators, and finally routing, control-plane, and autoscaling decisions.
@@ -125,8 +125,8 @@ ZH = {
         "当前正在上报所选 Frontend 服务指标的 Prometheus target 数量。",
     "Prometheus targets currently reporting for the selected model groups and roles.":
         "当前正在上报所选模型组和角色指标的 Prometheus target 数量。",
-    "Frontend responses started per second over Grafana's dynamic rate interval.":
-        "Grafana 动态速率窗口内每秒开始的 Frontend 响应数。",
+    "Frontend responses started per second over the selected rate window.":
+        "选定速率窗口内每秒开始的 Frontend 响应数。",
     "HTTP responses that started with 5xx divided by all started responses. Streaming failures after headers are not included.":
         "开始时状态为 5xx 的 HTTP 响应占全部已开始响应的比例，不包含响应头发出后的流式失败。",
     "Prompt tokens processed per second by the selected model servers.":
@@ -153,8 +153,8 @@ ZH = {
         "从 JSON 解码后的 Frontend handler 入口到模型服务器终止输出的每模型组最大分位数，单位为秒；不包含下游客户端正文消费时间。Frontend 与模型服务器时钟必须同步。",
     "Maximum per-model-group TTFT quantile, in seconds, from Frontend handler entry after JSON decoding to the first token received by model-server. Chat and completion requests share this origin.":
         "从 JSON 解码后的 Frontend handler 入口到模型服务器收到首个 token 的每模型组最大 TTFT 分位数，单位为秒；Chat 与 Completion 请求使用相同起点。",
-    "Maximum per-model-group request-level TPOT quantiles and mean over Grafana's dynamic rate interval, in milliseconds. Each request contributes its average time between output tokens.":
-        "Grafana 动态速率窗口内每模型组最大的请求级 TPOT 分位数和平均值，单位为毫秒；每个请求贡献一次输出 token 间平均耗时。",
+    "Maximum per-model-group request-level TPOT quantiles and mean over the selected rate window, in milliseconds. Each request contributes its average time between output tokens.":
+        "选定速率窗口内每模型组最大的请求级 TPOT 分位数和平均值，单位为毫秒；每个请求贡献一次输出 token 间平均耗时。",
     "Maximum per-model-group gap between consecutive output-token events, in milliseconds. Unlike TPOT, each token interval is observed separately.":
         "每模型组相邻输出 token 事件间隔的最大分位数，单位为毫秒；与 TPOT 不同，每个 token 间隔都会单独观测。",
     "P90 time, in seconds, a request spends waiting for the scheduler, in prefill, and in decode.":
@@ -298,7 +298,7 @@ def histogram_quantile(bucket_rates: str, dimensions: str, quantile: float) -> s
 
 
 def model_rate_ratio(numerator_metric: str, denominator_metric: str) -> str:
-    """Average per-model-group ratios derived from raw counters over Grafana's rate window."""
+    """Average per-model-group ratios derived from raw counters over the selected rate window."""
     numerator = f"sum by({MODEL_DIMENSIONS}) ({model_metric(numerator_metric, rate=True)})"
     denominator = f"sum by({MODEL_DIMENSIONS}) ({model_metric(denominator_metric, rate=True)})"
     return f"avg({numerator} / clamp_min({denominator}, 1e-9))"
@@ -437,7 +437,7 @@ def latency(
 
 
 def distribution(title: str, description: str, metric: str) -> heatmap.Panel:
-    """A heatmap of a raw request-length histogram using Grafana's dynamic rate window."""
+    """A heatmap of a raw request-length histogram using the selected rate window."""
     return (
         heatmap.Panel()
         .title(title)
@@ -614,7 +614,7 @@ def build() -> dashboard_models.Dashboard:
     board.with_panel(
         headline(
             "Requests / s",
-            "Frontend responses started per second over Grafana's dynamic rate interval.",
+            "Frontend responses started per second over the selected rate window.",
             f"sum({frontend_request_rates})",
             unit="reqps",
             interval="5s",
@@ -794,7 +794,7 @@ def build() -> dashboard_models.Dashboard:
             model_metric("vllm:request_time_per_output_token_seconds_bucket", rate=True),
             MODEL_DIMENSIONS,
             "Time per output token (TPOT)",
-            "Maximum per-model-group request-level TPOT quantiles and mean over Grafana's dynamic rate interval, "
+            "Maximum per-model-group request-level TPOT quantiles and mean over the selected rate window, "
             "in milliseconds. Each request contributes its average time between output tokens.",
             unit="suffix: ms",
             scale=1_000,

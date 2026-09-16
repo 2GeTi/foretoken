@@ -173,7 +173,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Grafana 动态速率窗口内每秒开始的 Frontend 响应数。",
+      "description": "选定速率窗口内每秒开始的 Frontend 响应数。",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1533,7 +1533,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Grafana 动态速率窗口内每模型组最大的请求级 TPOT 分位数和平均值，单位为毫秒；每个请求贡献一次输出 token 间平均耗时。",
+      "description": "选定速率窗口内每模型组最大的请求级 TPOT 分位数和平均值，单位为毫秒；每个请求贡献一次输出 token 间平均耗时。",
       "fieldConfig": {
         "defaults": {
           "color": {
