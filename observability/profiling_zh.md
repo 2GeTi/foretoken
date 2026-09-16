@@ -44,11 +44,9 @@ foretoken bench examples/quickstart \
   --number 2 --max-tokens 128 --output local
 ```
 
-命令准备好负载，等待全部选中 runtime 报告 `Capturing`，再通过正常的 Frontend 发送请求。如果观察到就绪前窗口已结束，会报错且不发送请求。请求完成后，命令请求 `Finish` 并等待导出；采集窗口先结束不会截断 benchmark。此模式使用一个生成式负载和 `--rate -1`，不支持仅提供 URL 的服务、轨迹回放、参数扫描或多个数据集。
+服务必须已经部署，并使用持久 RuntimeCache。采集开始后才发送请求；负载完成后，命令会结束采集并等待 trace 导出。如果记录时长先结束，benchmark 仍会继续。按 Ctrl-C 或负载执行失败时会请求取消，已有服务和采集文件都会保留。
 
-`--wait-timeout` 分别限制采集启动与完成阶段的等待时间。Ctrl-C 或负载执行失败会请求取消；采集未成功时命令也会报错。已有服务和 RuntimeCache 结果会保留，无需转发端口或添加 profiling 专用的服务 YAML。
-
-启用本地输出时，`profile.json` 记录 ProfileRun 身份、最后观察到的状态、采集就绪观察时间和请求时间。这些是客户端观察，不是精确的 GPU 事件边界；实际录到了什么，要查看原生 trace 和 manifest。比较延迟、吞吐量时，应另跑一次不启用 profiling 的 benchmark。
+此模式只支持一个生成式负载，并使用默认的 `--rate -1`；不支持 `--url`、轨迹回放、参数扫描或多个数据集。`--wait-timeout` 分别限制等待采集开始和导出的时间。Profiling 会增加开销，测量延迟和吞吐量时应另跑一次不带 `--profile` 的评测。
 
 ## 查看结果
 

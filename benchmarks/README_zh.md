@@ -80,9 +80,9 @@ foretoken bench examples/quickstart \
   --number 2 --max-tokens 128 --output local
 ```
 
-源码安装的平台需要支持[性能剖析](../observability/profiling_zh.md)，服务需要持久 RuntimeCache 存储。命令等待采集开始后才发送请求；负载完成后结束采集并等待导出。如果采集窗口先结束，负载仍跑完指定的请求数量。Profiling 会增加开销，正式性能测量应另跑一次不带 `--profile` 的评测。
+请先部署服务；该功能要求平台从源码安装，并使用持久 RuntimeCache。采集开始后才发送请求，负载完成后等待 trace 导出。此模式只支持一个生成式负载，并使用默认的 `--rate -1`；不支持 `--url`、轨迹回放、参数扫描或多个数据集。
 
-此模式支持一个生成式负载，使用默认的 `--rate -1`；不支持 `--url`、轨迹回放、参数扫描或多个数据集。`--wait-timeout` 分别限制启动与完成阶段的等待时长。本地 `profile.json` 记录这次运行及其 PVC 结果位置，trace 文件仍保存在 RuntimeCache。取消和查看结果见[性能剖析](../observability/profiling_zh.md)。
+Profiling 会增加开销，测量延迟和吞吐量时应另跑一次不带 `--profile` 的评测。前提条件、取消操作和结果位置见[性能剖析](../observability/profiling_zh.md)。
 
 ### 轨迹回放
 

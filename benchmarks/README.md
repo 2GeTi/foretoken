@@ -80,9 +80,9 @@ foretoken bench examples/quickstart \
   --number 2 --max-tokens 128 --output local
 ```
 
-The source-installed platform must support [profiling](../observability/profiling.md) and the service must have persistent RuntimeCache storage. Requests wait until capture is active. After the workload finishes, the command ends capture and waits for export. If the recording window ends first, the workload still completes its requested count. Profiling adds overhead; use a separate run without `--profile` for performance measurements.
+Deploy the service first; profiling requires a source-installed platform and persistent RuntimeCache storage. Requests start after capture is active, and the command waits for trace export after the workload. This mode supports one generated workload with the default `--rate -1`; it does not support `--url`, trace replay, sweeps or multiple datasets.
 
-This mode accepts one generated workload with the default `--rate -1`, not `--url`, trace replay, sweeps or multiple datasets. `--wait-timeout` bounds each startup/completion wait. Local `profile.json` links the run to its retained PVC output; trace files remain in RuntimeCache. See [Profiling](../observability/profiling.md) for cancellation and result inspection.
+Profiling adds overhead, so use a separate run without `--profile` for latency and throughput measurements. See [Profiling](../observability/profiling.md) for prerequisites, cancellation and result access.
 
 ### Trace replay
 

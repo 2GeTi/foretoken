@@ -56,13 +56,11 @@ After stop/flush, the supervisor writes the manifest and atomically renames the 
 
 The manifest's `startedAtUnixMs` follows native start, `recordingEndedAtUnixMs` marks the stop request, and `exportedAtUnixMs` follows stop/flush. Native workers may stop at slightly different times; these control timestamps do not claim exact GPU event boundaries. ProfileRun `finishedAt` is controller-observed completion.
 
-## Benchmark coordination
+## Benchmark integration
 
-`benchmarks/profiling` coordinates one generated workload with the same `foretoken.profiling.ProfileRun` client used by `foretoken profile`. It does not start native profilers or own serving resources. Only existing deployments are accepted, so benchmark cleanup cannot remove RuntimeCache artifacts.
+`foretoken bench --profile` uses the same service-owned capture lifecycle as `foretoken profile`. It accepts only an existing deployment with persistent RuntimeCache storage. The benchmark owns request scheduling; the controller and runtime continue to own capture participants, deadlines, export and retained artifacts.
 
-The EvalScope adapter gates prepared HTTP requests on one shared capture-start task, before request latency timing. All selected participants must report `Capturing`; an already-ended window aborts dispatch. EvalScope retains ownership of request scheduling, cancellation and event-loop shutdown. Its executor drains before the benchmark context submits cancellation, including when create was in flight during Ctrl-C.
-
-Normal workload completion submits `Finish` and observes export; exceptional exit submits `Cancel`. Runtime deadlines still apply independently. Local `profile.json` retains identity and client observation times alongside the HTTP results; the native manifest and trace remain the evidence of actual recording coverage.
+Requests start only after capture is active. A completed workload requests early capture completion and waits for export, while interruption or request failure requests cancellation. Benchmark cleanup never deletes the service or its RuntimeCache output.
 
 ## Upstream references
 

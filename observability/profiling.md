@@ -44,11 +44,9 @@ foretoken bench examples/quickstart \
   --number 2 --max-tokens 128 --output local
 ```
 
-The command prepares the workload, waits until all selected runtimes report `Capturing`, then releases requests through the normal frontend. It fails without sending requests if capture ends before that readiness is observed. When requests finish, it requests `Finish` and waits for export. A window that ends first does not truncate the benchmark. Use one generated workload with `--rate -1`; URL-only services, trace replay, sweeps and multiple datasets are not supported in this mode.
+The service must already be deployed and use persistent RuntimeCache storage. Requests start after capture is active. When the workload finishes, the command ends capture and waits for trace export; if the recording duration ends first, the benchmark continues. Ctrl-C or a workload failure requests cancellation. The existing service and captured files are retained.
 
-`--wait-timeout` bounds each capture startup/completion wait. Ctrl-C or a workload failure requests cancellation; an unsuccessful capture makes the command fail. Existing services and RuntimeCache output are retained. No port forwarding or profiling-specific service YAML is needed.
-
-With local output, `profile.json` records the ProfileRun identity, last observed status, capture-readiness observation and request timestamps. These are client observations, not exact GPU event boundaries: inspect the native trace and manifest to determine what was recorded. Use a separate benchmark without profiling for latency and throughput comparisons.
+This mode supports one generated workload with the default `--rate -1`; it does not support `--url`, trace replay, sweeps or multiple datasets. `--wait-timeout` limits each wait for capture startup and export. Profiling adds overhead, so use a separate benchmark without `--profile` for latency and throughput measurements.
 
 ## Inspect results
 
