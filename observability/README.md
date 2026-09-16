@@ -7,7 +7,7 @@ SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 
 English | [简体中文](README_zh.md)
 
-Foretoken collects service and accelerator metrics with Prometheus and shows them in the **Foretoken System Overview** Grafana dashboard. Alert rules are optional and disabled by default.
+Foretoken collects service and accelerator metrics with Prometheus and shows them in the Foretoken System Overview Grafana dashboard. Alert rules are optional and disabled by default.
 
 ## Get started
 
@@ -31,7 +31,7 @@ printf 'Grafana user: %s\nGrafana password: %s\n' \
   "$GRAFANA_USER" "$GRAFANA_PASSWORD"
 ```
 
-In Grafana, select **Dashboards** and open **Foretoken System Overview**. It follows a request through the Frontend, model serving, caches, and accelerators, and ends with autoscaling decisions; routing and control-plane details are in collapsed sections. Filters narrow the view to a namespace, Frontend service, model group, model role, model, or model service.
+In Grafana, open Foretoken System Overview for English or Foretoken 系统概览 for Chinese. It follows a request through the Frontend, model serving, caches, and accelerators, and ends with autoscaling decisions; routing and control-plane details are in collapsed sections. Filters narrow the view to a namespace, Frontend service, model group, model role, model, or model service.
 
 ## Check that collection works
 
@@ -40,15 +40,49 @@ kubectl get servicemonitor,prometheusrule -A \
   -l app.kubernetes.io/name=foretoken-control-plane
 ```
 
-In Prometheus, confirm on Targets that the Foretoken targets are `UP` and on Rules that `foretoken.recording`, `foretoken.accelerator-recording`, and `foretoken.alerting` are loaded. This query returns the Frontend request rate:
+In Prometheus, confirm on Targets that the Foretoken targets are `UP` and on Rules that `foretoken.recording` is loaded. This query returns the Frontend request rate:
 
 ```promql
 sum(foretoken:frontend_http_response_starts:rate5m)
 ```
 
-## Install monitoring
+## Use an existing monitoring stack
 
-Run `foretoken install` to detect the cluster monitoring stack and configure the collection required by Foretoken. When MetaX GPU resources are detected, the CLI verifies the compatible mxExporter and its metrics collection. After installation, open Prometheus Targets and confirm Foretoken targets are `UP`; the CLI-managed Grafana loads the Foretoken System Overview dashboard.
+The CLI reuses what the cluster already provides and installs only what is missing:
+
+| Component | Not present | Present | Present but not usable | `foretoken uninstall` |
+| --- | --- | --- | --- | --- |
+| Prometheus | Install a CLI-managed kube-prometheus-stack | Reuse it | Stop and ask for an explicit choice | Remove only the CLI-managed release |
+| NVIDIA DCGM Exporter | Install a CLI-managed exporter on clusters with NVIDIA GPUs | Reuse it | Stop | Remove only the CLI-managed release |
+| MetaX mxExporter | Stop; the cluster must provide it | Reuse it | Stop | Keep it |
+
+An exporter is usable when it covers every GPU node and the selected Prometheus scrapes it. The CLI does not install GPU drivers, device plugins, or vendor operators.
+
+If several compatible Prometheus instances exist, choose one:
+
+```bash
+# Allow the Prometheus namespace to scrape Foretoken metrics
+kubectl label namespace monitoring \
+  inference.foretoken.io/metrics-scraper=true \
+  --overwrite
+
+# Select the Prometheus instance
+foretoken install --prometheus monitoring/prometheus
+```
+
+GPU panels and alerts identify devices by the Foretoken model-group and model-role Pod labels. The CLI-managed DCGM Exporter publishes them; a reused exporter needs the same labels, otherwise those panels stay empty.
+
+For service alerts, a reused Prometheus must select rules in the workload namespaces through `ruleNamespaceSelector`; the CLI-managed stack already does this.
+
+With a reused Prometheus, Grafana stays under that platform's control. A Grafana sidecar that watches ConfigMaps labeled `grafana_dashboard=1` picks up the dashboard from the `foretoken-platform` namespace. Otherwise, export the JSON and import it through Grafana:
+
+```bash
+kubectl get configmap \
+  --namespace foretoken-platform \
+  foretoken-control-plane-system-dashboard \
+  --output jsonpath='{.data.foretoken-system-overview\.json}' \
+  > /tmp/foretoken-system-overview.json
+```
 
 ## Alerts
 
@@ -85,7 +119,9 @@ Selecting the power alert also requires a positive `spec.observability.alerts.th
 | mxExporter | MetaX utilization and memory |
 | kubelet/cAdvisor | Container CPU and memory |
 
-The dashboard and alerts query these recording rules. Model-serving rules are derived from vLLM metrics.
+Dashboard latency metrics use seconds for TTFT and E2EL, and milliseconds for TPOT and ITL. TPOT includes both percentile and mean values.
+
+The following recording rules remain available for alerts and fixed-window queries. Model-serving rules are derived from vLLM metrics.
 
 | Area | Recording rule | Meaning |
 | --- | --- | --- |
