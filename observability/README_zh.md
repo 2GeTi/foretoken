@@ -7,7 +7,7 @@ SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 
 [English](README.md) | 简体中文
 
-Foretoken 使用 Prometheus 采集服务和加速器指标，通过 Grafana 看板 **Foretoken System Overview** 展示。告警规则按需启用，默认关闭。
+Foretoken 使用 Prometheus 采集服务和加速器指标，通过 Grafana 看板 Foretoken System Overview 展示。告警规则按需启用，默认关闭。
 
 ## 快速开始
 
@@ -31,7 +31,7 @@ printf 'Grafana user: %s\nGrafana password: %s\n' \
   "$GRAFANA_USER" "$GRAFANA_PASSWORD"
 ```
 
-在 Grafana 中选择中文看板 **Foretoken 系统概览**，或英文看板 **Foretoken System Overview**。它沿着请求链路依次展示 Frontend、模型服务、缓存和加速器，最后是扩缩容决策；路由和控制面的细节放在折叠分区里。可以按命名空间、Frontend 服务、模型组、模型角色、模型或模型服务筛选。
+在 Grafana 中选择中文看板 Foretoken 系统概览，或英文看板 Foretoken System Overview。它沿着请求链路依次展示 Frontend、模型服务、缓存和加速器，最后是扩缩容决策；路由和控制面的细节放在折叠分区里。可以按命名空间、Frontend 服务、模型组、模型角色、模型或模型服务筛选。
 
 ## 确认采集正常
 
@@ -40,7 +40,7 @@ kubectl get servicemonitor,prometheusrule -A \
   -l app.kubernetes.io/name=foretoken-control-plane
 ```
 
-在 Prometheus 的 **Targets** 页面确认 Foretoken target 为 `UP`，在 **Rules** 页面确认 `foretoken.recording` 已加载。下面的查询返回 Frontend 请求速率：
+在 Prometheus 的 Targets 页面确认 Foretoken target 为 `UP`，在 Rules 页面确认 `foretoken.recording` 已加载。下面的查询返回 Frontend 请求速率：
 
 ```promql
 sum(foretoken:frontend_http_response_starts:rate5m)
@@ -119,7 +119,7 @@ foretoken deploy examples/observability --timeout 20m
 | mxExporter | 沐曦利用率和显存 |
 | kubelet/cAdvisor | 容器 CPU 和内存 |
 
-看板每五秒刷新，速率和延迟图使用 `$__rate_interval` 动态窗口。TTFT、E2EL 使用秒，TPOT、ITL 使用毫秒；TPOT 同时显示平均值，便于查看粗直方图桶内的实际平均耗时。
+看板中的 TTFT 和 E2EL 使用秒，TPOT 和 ITL 使用毫秒。TPOT 同时提供百分位和平均值。
 
 下列记录规则供告警和固定窗口查询使用。模型服务相关规则来自 vLLM 指标。
 
