@@ -28,7 +28,7 @@ After preparing the cluster drivers, device plugin, monitoring stack, and mxExpo
 foretoken install
 ```
 
-The MetaX image is selected automatically and the CLI verifies the discovered exporter metrics and Prometheus targets. See [CLI installation](../../cli/README.md#install-the-kubernetes-platform) for Gateway and custom configuration.
+The MetaX image is selected automatically. See [CLI installation](../../cli/README.md#install-the-kubernetes-platform) for Gateway and custom configuration.
 
 ## Build the images
 

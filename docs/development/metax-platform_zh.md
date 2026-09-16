@@ -30,7 +30,7 @@ SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 foretoken install
 ```
 
-CLI 会自动选择沐曦镜像，并验证发现的 exporter 指标和 Prometheus target。Gateway 和自定义配置见 [CLI 安装指南](../../cli/README_zh.md#安装-kubernetes-平台)。
+自动选择沐曦镜像。Gateway 和自定义配置见 [CLI 安装指南](../../cli/README_zh.md#安装-kubernetes-平台)。
 
 ## 构建镜像
 
