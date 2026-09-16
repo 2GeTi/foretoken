@@ -31,6 +31,7 @@ class BenchmarkProfile:
         self.first_request_at: str | None = None
         self.last_response_at: str | None = None
         self.successful_requests = 0
+        self.failed_requests = 0
 
     def __enter__(self) -> BenchmarkProfile:
         """Keep dataset preparation outside the capture window; start at first dispatch."""
@@ -71,6 +72,7 @@ class BenchmarkProfile:
         """Record completed request evidence without treating HTTP success as GPU trace proof."""
         self.last_response_at = datetime.now(timezone.utc).isoformat()
         self.successful_requests += int(succeeded)
+        self.failed_requests += int(not succeeded)
 
     def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
         """Finish after normal workload completion, cancel on failure, and retain the run reference."""
@@ -80,6 +82,9 @@ class BenchmarkProfile:
                 return
             if self.successful_requests == 0:
                 raise DeploymentError("no successful benchmark request accompanied the capture")
+            if self.failed_requests:
+                self.run.cancel()
+                return
             self.run.observe()
             self.run.request("Finish")
             self.run.wait()
@@ -97,4 +102,5 @@ class BenchmarkProfile:
                     "first_request_at": self.first_request_at,
                     "last_response_at": self.last_response_at,
                     "successful_requests": self.successful_requests,
+                    "failed_requests": self.failed_requests,
                 })
