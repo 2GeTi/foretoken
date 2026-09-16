@@ -11,6 +11,7 @@ COMPONENTS=control-plane,frontend,model-server,model-server-metax,chart
 REGISTRY=
 DRY_RUN=false
 PLAIN_HTTP=false
+PYTHON=${FORETOKEN_PYTHON:-python}
 
 usage() {
   cat <<'EOF'
@@ -30,7 +31,7 @@ Options:
                             control-plane,frontend,model-server,
                             model-server-metax,chart
   --output-dir DIRECTORY    Chart package directory (default: /tmp/foretoken-release).
-  --dry-run                 Print commands without building, checking, or pushing.
+  --dry-run                 Print commands for supplementary parsing only.
   --plain-http              Allow a local HTTP registry for artifact publication.
   -h, --help                Show this help.
 
@@ -125,9 +126,14 @@ REGISTRY=${REGISTRY%/}
   exit 2
 }
 
+command -v "$PYTHON" >/dev/null || {
+  printf 'missing required command: %s\n' "$PYTHON" >&2
+  exit 1
+}
+
 # Translate the package's PEP 440 release spelling to the OCI/Chart SemVer spelling.
 read -r PYTHON_VERSION OCI_VERSION < <(
-  python3 - "$ROOT" <<'PY'
+  "$PYTHON" - "$ROOT" <<'PY'
 from pathlib import Path
 import sys
 import tomllib
@@ -260,27 +266,44 @@ if [[ "$MODE" == build ]]; then
       "OCI_REVISION=$OCI_REVISION"
   fi
   if selected model-server; then
-    [[ -n "${INFERENCE_ENGINE_IMAGE:-}" ]] || {
-      printf '%s\n' 'INFERENCE_ENGINE_IMAGE is required for model-server' >&2
-      exit 2
-    }
-    build_model_server \
-      "$MODEL_SERVER_IMAGE" \
-      "$INFERENCE_ENGINE_IMAGE" \
-      "${FORETOKEN_VLLM_PYTHON:-}"
+    if [[ "$DRY_RUN" == true ]]; then
+      build_model_server \
+        "$MODEL_SERVER_IMAGE" \
+        "${INFERENCE_ENGINE_IMAGE:-INFERENCE_ENGINE_IMAGE}" \
+        "${FORETOKEN_VLLM_PYTHON:-}"
+    else
+      [[ -n "${INFERENCE_ENGINE_IMAGE:-}" ]] || {
+        printf '%s\n' 'INFERENCE_ENGINE_IMAGE is required for model-server' >&2
+        exit 2
+      }
+      build_model_server \
+        "$MODEL_SERVER_IMAGE" \
+        "$INFERENCE_ENGINE_IMAGE" \
+        "${FORETOKEN_VLLM_PYTHON:-}"
+    fi
   fi
   if selected model-server-metax; then
-    [[ -n "${METAX_INFERENCE_ENGINE_IMAGE:-}" ]] || {
-      printf '%s\n' 'METAX_INFERENCE_ENGINE_IMAGE is required for model-server-metax' >&2
-      exit 2
-    }
-    (
-      unset FORETOKEN_VLLM_PYTHON
-      build_model_server \
-        "$MODEL_SERVER_METAX_IMAGE" \
-        "$METAX_INFERENCE_ENGINE_IMAGE" \
-        "${METAX_VLLM_PYTHON:-}"
-    )
+    if [[ "$DRY_RUN" == true ]]; then
+      (
+        unset FORETOKEN_VLLM_PYTHON
+        build_model_server \
+          "$MODEL_SERVER_METAX_IMAGE" \
+          "${METAX_INFERENCE_ENGINE_IMAGE:-METAX_INFERENCE_ENGINE_IMAGE}" \
+          "${METAX_VLLM_PYTHON:-}"
+      )
+    else
+      [[ -n "${METAX_INFERENCE_ENGINE_IMAGE:-}" ]] || {
+        printf '%s\n' 'METAX_INFERENCE_ENGINE_IMAGE is required for model-server-metax' >&2
+        exit 2
+      }
+      (
+        unset FORETOKEN_VLLM_PYTHON
+        build_model_server \
+          "$MODEL_SERVER_METAX_IMAGE" \
+          "$METAX_INFERENCE_ENGINE_IMAGE" \
+          "${METAX_VLLM_PYTHON:-}"
+      )
+    fi
   fi
   if selected chart; then
     run mkdir -p "$OUTPUT_DIR"
