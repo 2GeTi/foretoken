@@ -67,13 +67,10 @@ class ProfileRun:
         ).stdout)
         self.name, self.uid = created["metadata"]["name"], created["metadata"]["uid"]
         print(f"ProfileRun {self.namespace}/{self.name}", flush=True)
-        print(
-            f"Inspect later: kubectl get profilerun {self.name} -n {self.namespace} -o yaml",
-            flush=True,
-        )
+        print("View captures: foretoken profile view", flush=True)
 
     def observe(self) -> dict[str, Any]:
-        """Read this capture's status and print progress and retained artifact locations."""
+        """Read this capture's status and print progress changes."""
         run = json.loads(self.kubectl.run([
             "get", "profilerun", self.name, "-n", self.namespace,
             "-o", "json", "--request-timeout=20s",
@@ -84,13 +81,6 @@ class ProfileRun:
         progress = (self.status.get("phase", "Pending"), self.status.get("message", ""))
         if progress != self._previous:
             print(f"{progress[0]}: {progress[1]}".rstrip(": "), flush=True)
-            artifact = self.status.get("artifact")
-            if self.terminal and artifact:
-                print(
-                    f"Artifacts: RuntimeCache PVC {self.namespace}/{artifact['claimName']} "
-                    f"— {artifact['path']}",
-                    flush=True,
-                )
             self._previous = progress
         return self.status
 
@@ -134,14 +124,3 @@ class ProfileRun:
             f"stopped waiting after {self.command.timeout}; ProfileRun {self.namespace}/{self.name} "
             "continues independently. Inspect its status with the command above."
         )
-
-
-def capture(command: ProfileCommand) -> None:
-    """Create a retained ProfileRun; the controller owns execution and stop after CLI exit."""
-    run = ProfileRun(command)
-    try:
-        run.start()
-        run.wait()
-    except KeyboardInterrupt:
-        run.cancel()
-        raise

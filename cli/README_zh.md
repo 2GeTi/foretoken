@@ -147,7 +147,7 @@ FORETOKEN_REQUEST_HOST="$(foretoken endpoint examples/multi-model-quickstart --h
 
 ## 采集诊断 Profile
 
-使用 `foretoken profile` 采集已有服务的流量，或用 `foretoken bench --profile` 在评测时采集。命令和结果查看见[性能剖析指南](../observability/profiling_zh.md)。
+在 `foretoken deploy` 或 `foretoken bench` 后加 `--profile` 采集性能数据，用 `foretoken profile view` 浏览结果。详见[性能剖析指南](../observability/profiling_zh.md)。
 
 ## 清理
 

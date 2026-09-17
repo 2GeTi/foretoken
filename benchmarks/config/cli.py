@@ -11,6 +11,8 @@ from collections.abc import Sequence
 from dataclasses import MISSING, fields
 from typing import Any
 
+from foretoken.arguments import add_profile_arguments, validate_profile_arguments
+
 from benchmarks.config.benchmark import (
     ArrivalTraceSchedule,
     BenchmarkConfig,
@@ -91,19 +93,7 @@ def _add_benchmark_arguments(parser: argparse.ArgumentParser) -> None:
         help="Timeout for each deployment readiness or profile startup/completion stage",
     )
 
-    # Service-owned capture
-    parser.add_argument(
-        "--profile", action="store_true",
-        help="Capture one profile while benchmarking a deployed or temporary service",
-    )
-    parser.add_argument(
-        "--profile-engine", choices=("pytorch",),
-        help="Required with --profile; native profiler to use",
-    )
-    parser.add_argument(
-        "--profile-duration",
-        help="Required with --profile; maximum recording duration, e.g. 15s",
-    )
+    add_profile_arguments(parser)
 
     # HTTP workload
     parser.add_argument(
@@ -464,8 +454,5 @@ def parse_benchmark_arguments(
     _add_benchmark_arguments(parser)
 
     parsed_args = parser.parse_args(argv)
-    if parsed_args.profile and not (parsed_args.profile_engine and parsed_args.profile_duration):
-        parser.error("--profile requires --profile-engine and --profile-duration")
-    if not parsed_args.profile and (parsed_args.profile_engine or parsed_args.profile_duration):
-        parser.error("--profile-engine and --profile-duration require --profile")
+    validate_profile_arguments(parser, parsed_args)
     return _benchmark_config(parsed_args)
