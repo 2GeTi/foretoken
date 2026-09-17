@@ -7,7 +7,7 @@ use foretoken_artifacts::ModelSource;
 use foretoken_model_server::launch::LaunchPlanV1;
 
 fn plan() -> LaunchPlanV1 {
-    LaunchPlanV1::parse(r#"{"version":1,"nodeCount":1,"artifacts":{"source":"hf","model":"model","revision":"rev","tokenizer":"tokenizer","tokenizerRevision":"tokenizer-rev"},"parallelism":{"tp":2,"pp":1,"dp":1,"pcp":1,"dcp":1},"kv":{"kind":"none","events":true},"lifecycle":{"startupSeconds":30,"drainSeconds":7},"internalGenerateRequestBodyLimitBytes":67108864,"extraArgs":["--max-model-len=32768"]}"#).unwrap()
+    LaunchPlanV1::parse(r#"{"version":1,"nodeCount":1,"artifacts":{"source":"hf","model":"model","revision":"rev","tokenizer":"tokenizer","tokenizerRevision":"tokenizer-rev"},"parallelism":{"tp":2,"pp":1,"dp":1,"pcp":1,"dcp":1},"inference":{"maxModelLen":32768,"dtype":"bfloat16","quantization":"awq","kvCacheDType":"fp8","gpuMemoryUtilization":0.8,"maxNumSeqs":16,"maxNumBatchedTokens":2048,"enforceEager":false,"speculativeDecoding":{"method":"eagle3","model":"draft/model","numSpeculativeTokens":2}},"kv":{"kind":"none","events":true},"lifecycle":{"startupSeconds":30,"drainSeconds":7},"internalGenerateRequestBodyLimitBytes":67108864,"extraArgs":["--compilation-config={\"mode\": 3}"]}"#).unwrap()
 }
 
 // Protects launch from unsupported node and context-parallel topology combinations.
@@ -41,7 +41,27 @@ fn renders_supported_owned_arguments() {
             "{flag}: {args:?}"
         );
     }
-    assert!(args.iter().any(|arg| arg == "--max-model-len=32768"));
+    for argument in [
+        "--max-model-len=32768",
+        "--dtype=bfloat16",
+        "--quantization=awq",
+        "--kv-cache-dtype=fp8",
+        "--gpu-memory-utilization=0.8",
+        "--max-num-seqs=16",
+        "--max-num-batched-tokens=2048",
+        "--no-enforce-eager",
+        r#"--compilation-config={"mode": 3}"#,
+    ] {
+        assert!(args.iter().any(|arg| arg == argument), "{args:?}");
+    }
+    let speculative = args
+        .iter()
+        .find_map(|arg| arg.strip_prefix("--speculative-config="))
+        .expect("speculative config");
+    let speculative: serde_json::Value = serde_json::from_str(speculative).unwrap();
+    assert_eq!(speculative["method"], "eagle3");
+    assert_eq!(speculative["model"], "draft/model");
+    assert_eq!(speculative["num_speculative_tokens"], 2);
     assert!(
         !args
             .iter()

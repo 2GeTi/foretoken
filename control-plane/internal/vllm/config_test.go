@@ -12,20 +12,36 @@ import (
 // TestCompileExtraArgsBoundary protects controller-owned vLLM arguments from user extraArgs overrides.
 func TestCompileExtraArgsBoundary(t *testing.T) {
 	template := testVLLMTemplate(1)
-	template.ExtraArgs = []inferencev1alpha1.BackendArg{"--max-model-len=32768", "--enforce-eager"}
-	if config, err := Compile(template); err != nil || len(config.ExtraArgs) != 2 {
-		t.Fatalf("valid extraArgs = %#v, err = %v", config.ExtraArgs, err)
+	maxModelLen := int32(32768)
+	template.Inference = inferencev1alpha1.InferenceParameters{
+		MaxModelLen: &maxModelLen,
+		DType:       "bfloat16",
+		SpeculativeDecoding: &inferencev1alpha1.SpeculativeDecoding{
+			Method: "eagle3", Model: "draft/model", NumSpeculativeTokens: 2,
+		},
+	}
+	template.ExtraArgs = []inferencev1alpha1.BackendArg{"--gpu-memory-utilization=0.8", `--compilation-config={"mode": 3}`}
+	if config, err := Compile(template); err != nil || len(config.ExtraArgs) != 2 || config.Inference.MaxModelLen == nil {
+		t.Fatalf("valid inference config = %#v, extraArgs = %#v, err = %v", config.Inference, config.ExtraArgs, err)
 	}
 	for _, args := range [][]inferencev1alpha1.BackendArg{
-		{"--model=other"},
+		{"--tensor_parallel_s=2"},
 		{"--max-model-len 32768"},
-		{"--unknown=1"},
-		{"--max-model-len=1", "--max-model-len=2"},
+		{"--dtype=float16"},
+		{"--speculative-config={\"method\":\"ngram\",\"num_speculative_tokens\":2}"},
+		{"--speculative-config.method=ngram"},
+		{"--kv-transfer-config.kv_connector=OtherConnector"},
+		{"--nnodes=2"},
 	} {
 		template.ExtraArgs = args
 		if _, err := Compile(template); err == nil {
 			t.Fatalf("unsafe extraArgs %v were accepted", args)
 		}
+	}
+	template.Inference.SpeculativeDecoding = nil
+	template.ExtraArgs = []inferencev1alpha1.BackendArg{`--speculative-config={"method": "ngram", "num_speculative_tokens": 2}`, "--kv_cache_dtype=fp8", "--compilation-config.cudagraph_capture_sizes+=1,2"}
+	if _, err := Compile(template); err != nil {
+		t.Fatalf("advanced speculative passthrough was rejected: %v", err)
 	}
 }
 

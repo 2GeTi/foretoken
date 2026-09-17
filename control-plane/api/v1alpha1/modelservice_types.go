@@ -301,6 +301,70 @@ const (
 	ModelSourceModelScope ModelSource = "modelscope"
 )
 
+// SpeculativeDecoding defines the common speculative decoding controls passed to the inference engine.
+type SpeculativeDecoding struct {
+	// Method uses the engine's strategy name, such as draft_model, eagle3, ngram, or mtp.
+	// +kubebuilder:validation:MinLength=1
+	Method string `json:"method"`
+
+	// Model is a draft model identifier or a directory visible inside the engine container.
+	// Methods that do not load separate draft weights may omit it.
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	Model string `json:"model,omitempty"`
+
+	// NumSpeculativeTokens is the maximum number of tokens proposed per decoding step.
+	// +kubebuilder:validation:Minimum=1
+	NumSpeculativeTokens int32 `json:"numSpeculativeTokens"`
+}
+
+// InferenceParameters contains common model-execution choices shared by every Pool.
+type InferenceParameters struct {
+	// MaxModelLen limits the combined prompt and generated sequence length.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	MaxModelLen *int32 `json:"maxModelLen,omitempty"`
+
+	// DType selects the model weight and activation data type supported by the engine.
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	DType string `json:"dtype,omitempty"`
+
+	// Quantization selects the engine's weight quantization method.
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	Quantization string `json:"quantization,omitempty"`
+
+	// KVCacheDType selects the data type used for the engine's KV cache.
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	KVCacheDType string `json:"kvCacheDType,omitempty"`
+
+	// GPUMemoryUtilization is the fraction of device memory available to each engine instance.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:ExclusiveMinimum=true
+	// +kubebuilder:validation:Maximum=1
+	GPUMemoryUtilization *float64 `json:"gpuMemoryUtilization,omitempty"`
+
+	// MaxNumSeqs limits the sequences scheduled in one engine iteration.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	MaxNumSeqs *int32 `json:"maxNumSeqs,omitempty"`
+
+	// MaxNumBatchedTokens limits the tokens scheduled in one engine iteration.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	MaxNumBatchedTokens *int32 `json:"maxNumBatchedTokens,omitempty"`
+
+	// EnforceEager disables graph capture when true; omission preserves the engine default.
+	// +optional
+	EnforceEager *bool `json:"enforceEager,omitempty"`
+
+	// +optional
+	SpeculativeDecoding *SpeculativeDecoding `json:"speculativeDecoding,omitempty"`
+}
+
 // ModelServiceSpec defines the desired state of a model service.
 // +kubebuilder:validation:XValidation:rule="!has(self.modelPools) || !(has(self.replicas) || has(self.nodes) || has(self.resources) || has(self.parallelism) || has(self.maxInputTokens) || has(self.kvCache) || has(self.features))",message="spec.modelPools is mutually exclusive with top-level replicas, nodes, resources, parallelism, maxInputTokens, kvCache, and features"
 // +kubebuilder:validation:XValidation:rule="has(self.modelPools) || (has(self.resources) && has(self.parallelism))",message="top-level resources and parallelism are required when spec.modelPools is omitted"
@@ -328,6 +392,10 @@ type ModelServiceSpec struct {
 
 	// +kubebuilder:validation:Enum=vllm
 	Backend string `json:"backend"`
+
+	// Inference contains common model-execution parameters shared by every compiled Pool.
+	// +optional
+	Inference *InferenceParameters `json:"inference,omitempty"`
 
 	// InternalGenerateRequestBodyLimitBytes is the maximum body size accepted by
 	// a group-local generate endpoint. It defaults to 64 MiB.
@@ -391,7 +459,8 @@ type ModelServiceSpec struct {
 	// +kubebuilder:validation:MaxItems=32
 	ModelPools []ModelPoolTemplate `json:"modelPools,omitempty"`
 
-	// ExtraArgs are inference-engine CLI flags shared by every compiled Pool.
+	// ExtraArgs pass advanced inference-engine CLI flags shared by every compiled Pool.
+	// Flags conflict only with explicitly set inference fields or controller-owned launch settings.
 	// +optional
 	// +listType=atomic
 	// +kubebuilder:validation:MaxItems=256

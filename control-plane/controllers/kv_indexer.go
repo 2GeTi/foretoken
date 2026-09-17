@@ -65,6 +65,7 @@ func kvScopeID(group *inferencev1alpha1.ModelGroup) string {
 		Model, Revision, Tokenizer, TokenizerRevision string
 		Source                                        inferencev1alpha1.ModelSource
 		Parallelism                                   inferencev1alpha1.CompiledParallelism
+		Inference                                     inferencev1alpha1.InferenceParameters
 		RuntimeArgs                                   []inferencev1alpha1.BackendArg
 		KVRuntime                                     *inferencev1alpha1.ModelGroupKVRuntimeConfig
 	}{
@@ -74,6 +75,7 @@ func kvScopeID(group *inferencev1alpha1.ModelGroup) string {
 		TokenizerRevision: group.Spec.Artifacts.TokenizerRevision,
 		Source:            group.Spec.Artifacts.Source,
 		Parallelism:       group.Spec.Parallelism,
+		Inference:         group.Spec.Runtime.Inference,
 		RuntimeArgs:       group.Spec.Runtime.Args,
 		KVRuntime:         group.Spec.KVRuntime,
 	}

@@ -186,6 +186,9 @@ type ModelGroupRuntime struct {
 	// +kubebuilder:validation:Maximum=65535
 	Port int32 `json:"port"`
 
+	// Inference is the typed model-execution configuration rendered by the runtime adapter.
+	Inference InferenceParameters `json:"inference,omitempty"`
+
 	// Args contains inference-engine flags not represented by the typed Group specification.
 	// +optional
 	// +listType=atomic

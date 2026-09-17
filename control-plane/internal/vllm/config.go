@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 	"time"
 
@@ -23,6 +24,7 @@ type EffectiveConfig struct {
 	Tokenizer         string
 	TokenizerRevision string
 	Parallelism       inferencev1alpha1.CompiledParallelism
+	Inference         inferencev1alpha1.InferenceParameters
 	ExtraArgs         []inferencev1alpha1.BackendArg
 }
 
@@ -33,6 +35,7 @@ type LaunchPlanV1 struct {
 	NodeCount                             int32             `json:"nodeCount"`
 	Artifacts                             LaunchArtifacts   `json:"artifacts"`
 	Parallelism                           LaunchParallelism `json:"parallelism"`
+	Inference                             LaunchInference   `json:"inference,omitempty"`
 	KV                                    LaunchKVPlan      `json:"kv"`
 	EC                                    *LaunchECPlan     `json:"ec,omitempty"`
 	Lifecycle                             LaunchLifecycle   `json:"lifecycle"`
@@ -55,6 +58,25 @@ type LaunchParallelism struct {
 	PCP int32             `json:"pcp"`
 	DCP int32             `json:"dcp"`
 	EP  *LaunchExpertPlan `json:"ep,omitempty"`
+}
+
+// LaunchInference carries common execution choices without exposing vLLM CLI spelling.
+type LaunchInference struct {
+	MaxModelLen          *int32                     `json:"maxModelLen,omitempty"`
+	DType                string                     `json:"dtype,omitempty"`
+	Quantization         string                     `json:"quantization,omitempty"`
+	KVCacheDType         string                     `json:"kvCacheDType,omitempty"`
+	GPUMemoryUtilization *float64                   `json:"gpuMemoryUtilization,omitempty"`
+	MaxNumSeqs           *int32                     `json:"maxNumSeqs,omitempty"`
+	MaxNumBatchedTokens  *int32                     `json:"maxNumBatchedTokens,omitempty"`
+	EnforceEager         *bool                      `json:"enforceEager,omitempty"`
+	SpeculativeDecoding  *LaunchSpeculativeDecoding `json:"speculativeDecoding,omitempty"`
+}
+
+type LaunchSpeculativeDecoding struct {
+	Method               string `json:"method"`
+	Model                string `json:"model,omitempty"`
+	NumSpeculativeTokens int32  `json:"numSpeculativeTokens"`
 }
 
 type LaunchExpertPlan struct {
@@ -109,6 +131,7 @@ func Compile(template inferencev1alpha1.NormalizedPoolTemplate) (EffectiveConfig
 		Model: template.Model, Source: template.Source, Revision: template.ModelRevision,
 		Tokenizer: template.Tokenizer, TokenizerRevision: template.TokenizerRevision,
 		Parallelism: copyParallelism(template.Parallelism),
+		Inference:   *template.Inference.DeepCopy(),
 	}
 	if effective.Tokenizer == "" {
 		effective.Tokenizer = effective.Model
@@ -116,7 +139,7 @@ func Compile(template inferencev1alpha1.NormalizedPoolTemplate) (EffectiveConfig
 	if effective.TokenizerRevision == "" {
 		effective.TokenizerRevision = effective.Revision
 	}
-	if err := validateExtraArgs(template.ExtraArgs); err != nil {
+	if err := validateExtraArgs(template.ExtraArgs, effective.Inference); err != nil {
 		return EffectiveConfig{}, err
 	}
 	effective.ExtraArgs = append([]inferencev1alpha1.BackendArg(nil), template.ExtraArgs...)
@@ -150,7 +173,7 @@ func BuildLaunchPlan(group inferencev1alpha1.ModelGroupSpec) (LaunchPlanV1, erro
 	if err := validateParallelism(group.Parallelism); err != nil {
 		return LaunchPlanV1{}, err
 	}
-	if err := validateExtraArgs(group.Runtime.Args); err != nil {
+	if err := validateExtraArgs(group.Runtime.Args, group.Runtime.Inference); err != nil {
 		return LaunchPlanV1{}, err
 	}
 	if group.Runtime.InternalGenerateRequestBodyLimitBytes < inferencev1alpha1.MinInternalGenerateRequestBodyLimitBytes || group.Runtime.InternalGenerateRequestBodyLimitBytes > inferencev1alpha1.MaxInternalGenerateRequestBodyLimitBytes {
@@ -172,7 +195,7 @@ func BuildLaunchPlan(group inferencev1alpha1.ModelGroupSpec) (LaunchPlanV1, erro
 	for i := range group.Runtime.Args {
 		extra[i] = string(group.Runtime.Args[i])
 	}
-	return LaunchPlanV1{Version: 1, NodeCount: group.NodeCount, Artifacts: LaunchArtifacts{Model: group.Artifacts.Model, Source: group.Artifacts.Source, Revision: group.Artifacts.ModelRevision, Tokenizer: group.Artifacts.Tokenizer, TokenizerRevision: group.Artifacts.TokenizerRevision}, Parallelism: parallelism, KV: kv, EC: ec, Lifecycle: LaunchLifecycle{StartupSeconds: startup, DrainSeconds: drain}, InternalGenerateRequestBodyLimitBytes: group.Runtime.InternalGenerateRequestBodyLimitBytes, ExtraArgs: extra}, nil
+	return LaunchPlanV1{Version: 1, NodeCount: group.NodeCount, Artifacts: LaunchArtifacts{Model: group.Artifacts.Model, Source: group.Artifacts.Source, Revision: group.Artifacts.ModelRevision, Tokenizer: group.Artifacts.Tokenizer, TokenizerRevision: group.Artifacts.TokenizerRevision}, Parallelism: parallelism, Inference: launchInference(group.Runtime.Inference), KV: kv, EC: ec, Lifecycle: LaunchLifecycle{StartupSeconds: startup, DrainSeconds: drain}, InternalGenerateRequestBodyLimitBytes: group.Runtime.InternalGenerateRequestBodyLimitBytes, ExtraArgs: extra}, nil
 }
 
 // JSON returns deterministic output because LaunchPlanV1 uses only ordered structs and slices.
@@ -268,6 +291,20 @@ func copyParallelism(input inferencev1alpha1.CompiledParallelism) inferencev1alp
 	return output
 }
 
+// launchInference projects model-execution choices into the private launch contract.
+func launchInference(input inferencev1alpha1.InferenceParameters) LaunchInference {
+	output := LaunchInference{
+		MaxModelLen: input.MaxModelLen, DType: input.DType,
+		Quantization: input.Quantization, KVCacheDType: input.KVCacheDType,
+		GPUMemoryUtilization: input.GPUMemoryUtilization, MaxNumSeqs: input.MaxNumSeqs,
+		MaxNumBatchedTokens: input.MaxNumBatchedTokens, EnforceEager: input.EnforceEager,
+	}
+	if input.SpeculativeDecoding != nil {
+		output.SpeculativeDecoding = &LaunchSpeculativeDecoding{Method: input.SpeculativeDecoding.Method, Model: input.SpeculativeDecoding.Model, NumSpeculativeTokens: input.SpeculativeDecoding.NumSpeculativeTokens}
+	}
+	return output
+}
+
 func validateParallelism(parallelism inferencev1alpha1.CompiledParallelism) error {
 	if parallelism.TP < 1 || parallelism.PP < 1 || parallelism.DP < 1 || parallelism.PCP < 1 || parallelism.DCP < 1 {
 		return fmt.Errorf("vLLM topology values must be positive")
@@ -288,29 +325,54 @@ func validateParallelism(parallelism inferencev1alpha1.CompiledParallelism) erro
 	return nil
 }
 
-var allowedExtraArgs = map[string]bool{"--max-model-len": true, "--dtype": true, "--quantization": true, "--gpu-memory-utilization": true, "--max-num-seqs": true, "--max-num-batched-tokens": true, "--limit-mm-per-prompt": true, "--enforce-eager": true, "--disable-log-stats": true}
+var controllerOwnedArgs = []string{
+	"--all2all-backend", "--api-server-count", "--code-revision", "--config", "--convert",
+	"--data-parallel-address", "--data-parallel-backend", "--data-parallel-external-lb",
+	"--data-parallel-hybrid-lb", "--data-parallel-multi-port-external-lb",
+	"--data-parallel-rank", "--data-parallel-rpc-port", "--data-parallel-size",
+	"--data-parallel-size-local", "--data-parallel-start-rank", "--decode-context-parallel-size",
+	"--distributed-executor-backend", "--download-dir", "--ec-manager-config", "--ec-transfer-config",
+	"--enable-elastic-ep", "--enable-eplb", "--enable-expert-parallel", "--enable-prefix-caching",
+	"--grpc", "--headless", "--hf-token", "--host", "--kv-events-config", "--kv-transfer-config",
+	"--master-addr", "--master-port", "--model", "--nnodes", "--node-rank",
+	"--pipeline-parallel-size", "--port", "--prefill-context-parallel-size", "--profiler-config", "--revision",
+	"--runner", "--served-model-name", "--tensor-parallel-size", "--tokenizer", "--tokenizer-revision",
+}
 
-// validateExtraArgs accepts only non-overriding vLLM flags supported by the launch contract.
-func validateExtraArgs(args []inferencev1alpha1.BackendArg) error {
-	seen := map[string]bool{}
+var extraArgName = regexp.MustCompile(`^--[a-z][a-z0-9_-]*(\.[A-Za-z0-9_-]+\+?)*$`)
+
+// validateExtraArgs protects launch ownership and explicit YAML choices without parsing engine values.
+func validateExtraArgs(args []inferencev1alpha1.BackendArg, inference inferencev1alpha1.InferenceParameters) error {
+	explicit := map[string]bool{
+		"--dtype": inference.DType != "", "--quantization": inference.Quantization != "",
+		"--kv-cache-dtype": inference.KVCacheDType != "", "--max-model-len": inference.MaxModelLen != nil,
+		"--gpu-memory-utilization": inference.GPUMemoryUtilization != nil,
+		"--max-num-seqs":           inference.MaxNumSeqs != nil, "--max-num-batched-tokens": inference.MaxNumBatchedTokens != nil,
+		"--enforce-eager":      inference.EnforceEager != nil,
+		"--speculative-config": inference.SpeculativeDecoding != nil,
+		"--spec-method":        inference.SpeculativeDecoding != nil,
+		"--spec-model":         inference.SpeculativeDecoding != nil,
+		"--spec-tokens":        inference.SpeculativeDecoding != nil,
+	}
 	for _, raw := range args {
-		argument := string(raw)
-		if argument == "" || strings.ContainsAny(argument, " \t\r\n") || !strings.HasPrefix(argument, "--") || argument == "--" {
-			return fmt.Errorf("vLLM extraArgs must be one nonempty --long-name token")
+		name, _, hasValue := strings.Cut(string(raw), "=")
+		if !extraArgName.MatchString(name) || (strings.Contains(name, ".") && !hasValue) {
+			return fmt.Errorf("vLLM extraArgs entry must use --flag or --flag=value; nested fields require a value")
 		}
-		name, value, hasValue := strings.Cut(argument, "=")
-		if strings.Count(argument, "=") > 1 || strings.Contains(name, "_") || !allowedExtraArgs[name] || seen[name] {
-			return fmt.Errorf("vLLM extraArgs flag %q is not allowed", name)
-		}
-		seen[name] = true
-		if name == "--enforce-eager" || name == "--disable-log-stats" {
-			if hasValue {
-				return fmt.Errorf("vLLM extraArgs flag %q does not take a value", name)
+		// vLLM accepts underscore spellings, dotted JSON fields, negated booleans,
+		// and argparse abbreviations. All must retain the same ownership boundary.
+		root, _, _ := strings.Cut(name, ".")
+		root = strings.ReplaceAll(root, "_", "-")
+		root = "--" + strings.TrimPrefix(strings.TrimPrefix(root, "--"), "no-")
+		for _, owned := range controllerOwnedArgs {
+			if strings.HasPrefix(owned, root) {
+				return fmt.Errorf("vLLM extraArgs flag %q is owned by Foretoken", name)
 			}
-			continue
 		}
-		if !hasValue || value == "" {
-			return fmt.Errorf("vLLM extraArgs flag %q requires a value", name)
+		for flag, configured := range explicit {
+			if configured && strings.HasPrefix(flag, root) {
+				return fmt.Errorf("vLLM extraArgs flag %q conflicts with spec.inference; configure it in only one place", name)
+			}
 		}
 	}
 	return nil
