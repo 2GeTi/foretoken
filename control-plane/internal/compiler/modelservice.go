@@ -55,7 +55,6 @@ func CompileModelService(spec inferencev1alpha1.ModelServiceSpec) ([]ModelPool, 
 	if err := validateAutoscalingConfig(spec.Autoscaling); err != nil {
 		return nil, err
 	}
-
 	internalGenerateRequestBodyLimitBytes := valueOrDefaultInt64(spec.InternalGenerateRequestBodyLimitBytes, inferencev1alpha1.DefaultInternalGenerateRequestBodyLimitBytes)
 	if internalGenerateRequestBodyLimitBytes < inferencev1alpha1.MinInternalGenerateRequestBodyLimitBytes || internalGenerateRequestBodyLimitBytes > inferencev1alpha1.MaxInternalGenerateRequestBodyLimitBytes {
 		return nil, fmt.Errorf("internalGenerateRequestBodyLimitBytes must be between %d and %d", inferencev1alpha1.MinInternalGenerateRequestBodyLimitBytes, inferencev1alpha1.MaxInternalGenerateRequestBodyLimitBytes)
@@ -180,6 +179,7 @@ func compilePool(spec inferencev1alpha1.ModelServiceSpec, source inferencev1alph
 			Tokenizer:                             tokenizer,
 			TokenizerRevision:                     artifactRevision,
 			Backend:                               spec.Backend,
+			Inference:                             *spec.InferenceParameters.DeepCopy(),
 			Role:                                  role,
 			NodeCount:                             nodes,
 			MemberCount:                           nodes,
@@ -192,7 +192,7 @@ func compilePool(spec inferencev1alpha1.ModelServiceSpec, source inferencev1alph
 			Timeouts:                              timeouts,
 			KVCache:                               normalizedKVCache,
 			Features:                              normalizedFeatures,
-			ExtraArgs:                             append([]inferencev1alpha1.BackendArg(nil), spec.ExtraArgs...),
+			EngineArgs:                            spec.EngineArgs.DeepCopy(),
 		},
 	}, nil
 }

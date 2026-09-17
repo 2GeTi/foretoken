@@ -158,7 +158,7 @@ func ResolveModelPool(template inferencev1alpha1.NormalizedPoolTemplate, profile
 			Backend:                               template.Backend,
 			Image:                                 profile.Image,
 			Port:                                  profile.ModelServerPort,
-			Args:                                  append([]inferencev1alpha1.BackendArg(nil), effective.ExtraArgs...),
+			EngineArgs:                            effective.EngineArgs,
 			InternalGenerateRequestBodyLimitBytes: template.InternalGenerateRequestBodyLimitBytes,
 		},
 		PDRuntime:      pdRuntime,

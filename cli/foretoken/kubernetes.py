@@ -91,6 +91,12 @@ class Kubectl:
             raise DeploymentError(f"{' '.join(command)} failed: {detail}")
         return completed
 
+    def get_raw(self, path: str, request_timeout: str) -> str:
+        """Return a bounded Kubernetes API or resource-proxy response as text."""
+        return self.run(
+            ["get", f"--request-timeout={request_timeout}", "--raw", path]
+        ).stdout
+
     def kustomize(self, path: Path) -> str:
         """Render a Kustomize root through the installed kubectl."""
         return self.run(["kustomize", str(path)]).stdout
@@ -113,6 +119,19 @@ class Kubectl:
                 f"--timeout={timeout}",
             ],
             input_text=rendered,
+        )
+
+    def rollout_status(self, resource: ResourceRef, timeout: str) -> None:
+        """Wait for one namespaced workload to become ready."""
+        self.run(
+            [
+                "rollout",
+                "status",
+                f"{resource.kind.lower()}/{resource.name}",
+                "--namespace",
+                resource.namespace,
+                f"--timeout={timeout}",
+            ]
         )
 
     def wait_for_crds(self, names: tuple[str, ...], timeout: str) -> None:

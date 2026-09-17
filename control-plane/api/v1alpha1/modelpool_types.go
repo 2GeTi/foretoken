@@ -119,6 +119,9 @@ type NormalizedPoolTemplate struct {
 	// +kubebuilder:validation:Enum=vllm
 	Backend string `json:"backend"`
 
+	// Inference is the normalized model-execution configuration compiled from ModelService.
+	Inference InferenceParameters `json:"inference,omitempty"`
+
 	Role ModelRole `json:"role"`
 
 	// +kubebuilder:validation:Minimum=1
@@ -163,11 +166,9 @@ type NormalizedPoolTemplate struct {
 	// +optional
 	ECProfile string `json:"ecProfile,omitempty"`
 
-	// ExtraArgs are inference-engine flags that the concrete adapter must validate before Group creation.
+	// EngineArgs contains native backend options before common fields are applied.
 	// +optional
-	// +listType=atomic
-	// +kubebuilder:validation:MaxItems=256
-	ExtraArgs []BackendArg `json:"extraArgs,omitempty"`
+	EngineArgs EngineArguments `json:"engineArgs,omitempty"`
 }
 
 // ModelPoolSpec is the controller-owned desired state compiled from ModelService.

@@ -27,7 +27,6 @@ spec:
     pp: 1
     pcp: 1
     dcp: 1
-  extraArgs:
-    - --quantization=awq
-    - --dtype=half
-    - --max-model-len=4096
+  quantization: awq
+  dtype: half
+  maxModelLen: 4096

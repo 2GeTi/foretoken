@@ -31,8 +31,7 @@ spec:
     mooncakeStore:
       kvServiceRef:
         name: shared-kv
-  extraArgs:
-    - --max-model-len=8192
+  maxModelLen: 8192
 ---
 apiVersion: inference.foretoken.io/v1alpha1
 kind: ModelService
@@ -64,5 +63,4 @@ spec:
     mooncakeStore:
       kvServiceRef:
         name: shared-kv
-  extraArgs:
-    - --max-model-len=8192
+  maxModelLen: 8192
