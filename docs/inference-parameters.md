@@ -39,15 +39,15 @@ Precision, quantization and speculative methods must match the engine image, mod
 
 ```yaml
 spec:
-  model: meta-llama/Meta-Llama-3.1-8B-Instruct
+  model: Qwen/Qwen3-0.6B
   backend: vllm
   speculativeDecoding:
-    method: eagle3
-    model: yuhuili/EAGLE3-LLaMA3.1-Instruct-8B
+    method: ngram
     num_speculative_tokens: 2
+    prompt_lookup_max: 4
 ```
 
-Child fields follow engine naming. `method` uses a native strategy name such as `draft_model`, `eagle3`, `ngram`, or `mtp`; `num_speculative_tokens` sets the maximum proposal length. Methods without separate draft weights can omit `model`.
+`speculativeDecoding` accepts the complete native engine dictionary without a Foretoken field allowlist. `method` uses a native strategy name such as `draft_model`, `eagle3`, `ngram`, or `mtp`; `num_speculative_tokens` sets the maximum proposal length. Methods without separate draft weights can omit `model`.
 
 vLLM downloads, loads and caches draft models. `model` accepts a Hub ID or an absolute directory visible inside the container. Selecting `spec.source: modelscope` applies to both target and draft Hub IDs.
 
@@ -63,16 +63,18 @@ spec:
   speculativeDecoding:
     method: ngram
     num_speculative_tokens: 2
+    prompt_lookup_max: 4
   engineArgs:
     max-model-len: 4096
     enforce-eager: true
     limit-mm-per-prompt:
       image: 2
     speculative-config:
+      method: ngram
       num_speculative_tokens: 5
-      prompt_lookup_max: 4
+      prompt_lookup_max: 8
 ```
 
-Explicit `spec` fields take precedence: this example uses an 8192-token context, `enforceEager: false`, and two speculative tokens. Other options, including `prompt_lookup_max: 4`, remain in effect. A `null` value omits the option.
+Explicit `spec` fields take precedence: this example uses an 8192-token context and `enforceEager: false`. `speculativeDecoding` replaces the entire `engineArgs.speculative-config` dictionary, using two speculative tokens and `prompt_lookup_max: 4`; the dictionaries are not merged. A `null` value omits a native option.
 
 Native options belong to the selected backend and may need changing when switching engines. Foretoken manages model identity, launch endpoints, parallel topology, transfer connectors and profiling. The current backend is vLLM; see its [engine argument reference](https://docs.vllm.ai/en/latest/configuration/engine_args/) for available options.

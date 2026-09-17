@@ -17,8 +17,10 @@ func TestCompileEngineArgsBoundary(t *testing.T) {
 	eager := false
 	template.Inference = inferencev1alpha1.InferenceParameters{
 		MaxModelLen: &maxModelLen, DType: "bfloat16", EnforceEager: &eager,
-		SpeculativeDecoding: &inferencev1alpha1.SpeculativeDecoding{
-			Method: "eagle3", Model: "draft/model", NumSpeculativeTokens: 2,
+		SpeculativeDecoding: &inferencev1alpha1.EngineArguments{
+			"method":                 {Raw: []byte(`"ngram"`)},
+			"num_speculative_tokens": {Raw: []byte(`2`)},
+			"prompt_lookup_max":      {Raw: []byte(`4`)},
 		},
 	}
 	if err := json.Unmarshal([]byte(`{"dtype":"float16","enforce-eager":true,"max_model_len":1024,"speculative-config":{"method":"ngram","num_speculative_tokens":5,"draft_tensor_parallel_size":1}}`), &template.EngineArgs); err != nil {
@@ -34,7 +36,7 @@ func TestCompileEngineArgsBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	speculative := got["speculative-config"].(map[string]any)
-	if got["dtype"] != "bfloat16" || got["enforce-eager"] != false || got["max-model-len"] != float64(32768) || speculative["method"] != "eagle3" || speculative["num_speculative_tokens"] != float64(2) || speculative["draft_tensor_parallel_size"] != float64(1) {
+	if got["dtype"] != "bfloat16" || got["enforce-eager"] != false || got["max-model-len"] != float64(32768) || speculative["method"] != "ngram" || speculative["num_speculative_tokens"] != float64(2) || speculative["prompt_lookup_max"] != float64(4) || speculative["draft_tensor_parallel_size"] != nil {
 		t.Fatalf("effective arguments = %s", encoded)
 	}
 	for _, name := range []string{"tensor_parallel_s", "--dtype", "kv-transfer-config", "nnodes", "profiler-config"} {

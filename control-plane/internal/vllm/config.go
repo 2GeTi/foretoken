@@ -354,31 +354,13 @@ func compileEngineArgs(input inferencev1alpha1.EngineArguments, inference infere
 		args[name] = apiextensionsv1.JSON{Raw: encoded}
 	}
 	if speculative := inference.SpeculativeDecoding; speculative != nil {
-		config := map[string]json.RawMessage{}
-		if value, ok := args["speculative-config"]; ok && string(value.Raw) != "null" {
-			if err := json.Unmarshal(value.Raw, &config); err != nil {
-				return nil, fmt.Errorf("engineArgs.speculative-config must be a YAML object: %w", err)
-			}
-		}
-		for flag, field := range map[string]string{"spec-method": "method", "spec-model": "model", "spec-tokens": "num_speculative_tokens"} {
-			if value, ok := args[flag]; ok {
-				config[field] = value.Raw
-			}
-		}
-		fields, err := json.Marshal(speculative)
-		if err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal(fields, &config); err != nil {
-			return nil, err
-		}
 		// Remove equivalent CLI spellings so the merged configuration has one owner.
 		for key := range args {
 			if strings.HasPrefix("speculative-config", key) || strings.HasPrefix("spec-method", key) || strings.HasPrefix("spec-model", key) || strings.HasPrefix("spec-tokens", key) {
 				delete(args, key)
 			}
 		}
-		encoded, err := json.Marshal(config)
+		encoded, err := json.Marshal(speculative)
 		if err != nil {
 			return nil, err
 		}

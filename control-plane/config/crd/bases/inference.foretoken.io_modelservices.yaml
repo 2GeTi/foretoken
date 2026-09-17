@@ -874,29 +874,11 @@ spec:
                 - modelscope
                 type: string
               speculativeDecoding:
-                description: SpeculativeDecoding defines the common speculative decoding
-                  controls passed to the inference engine.
-                properties:
-                  method:
-                    description: Method uses the engine's strategy name, such as draft_model,
-                      eagle3, ngram, or mtp.
-                    minLength: 1
-                    type: string
-                  model:
-                    description: |-
-                      Model is a draft model identifier or a directory visible inside the engine container.
-                      Methods that do not load separate draft weights may omit it.
-                    minLength: 1
-                    type: string
-                  num_speculative_tokens:
-                    description: NumSpeculativeTokens is the maximum number of tokens
-                      proposed per decoding step.
-                    format: int32
-                    minimum: 1
-                    type: integer
-                required:
-                - method
-                - num_speculative_tokens
+                additionalProperties:
+                  x-kubernetes-preserve-unknown-fields: true
+                description: |-
+                  SpeculativeDecoding is the complete native speculative configuration for the selected backend.
+                  It replaces the corresponding engineArgs option when present.
                 type: object
               timeouts:
                 description: ModelTimeouts defines ModelService lifecycle budgets.

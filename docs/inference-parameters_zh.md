@@ -39,15 +39,15 @@ spec:
 
 ```yaml
 spec:
-  model: meta-llama/Meta-Llama-3.1-8B-Instruct
+  model: Qwen/Qwen3-0.6B
   backend: vllm
   speculativeDecoding:
-    method: eagle3
-    model: yuhuili/EAGLE3-LLaMA3.1-Instruct-8B
+    method: ngram
     num_speculative_tokens: 2
+    prompt_lookup_max: 4
 ```
 
-子字段沿用引擎命名。`method` 使用原生方法名，例如 `draft_model`、`eagle3`、`ngram` 或 `mtp`；`num_speculative_tokens` 是每轮最多提出的草稿 token 数。不需要独立草稿权重时可以省略 `model`。
+`speculativeDecoding` 接受完整的引擎原生字典，子字段不设 Foretoken 白名单。`method` 使用原生方法名，例如 `draft_model`、`eagle3`、`ngram` 或 `mtp`；`num_speculative_tokens` 是每轮最多提出的草稿 token 数。不需要独立草稿权重时可以省略 `model`。
 
 草稿模型由 vLLM 下载、加载和缓存。`model` 可填写 Hub 模型 ID 或容器内可见的绝对目录；`spec.source: modelscope` 同时适用于主模型和草稿模型的 Hub ID。
 
@@ -63,16 +63,18 @@ spec:
   speculativeDecoding:
     method: ngram
     num_speculative_tokens: 2
+    prompt_lookup_max: 4
   engineArgs:
     max-model-len: 4096
     enforce-eager: true
     limit-mm-per-prompt:
       image: 2
     speculative-config:
+      method: ngram
       num_speculative_tokens: 5
-      prompt_lookup_max: 4
+      prompt_lookup_max: 8
 ```
 
-`spec` 中显式填写的字段优先，因此上例使用 8192 的上下文、`enforceEager: false` 和每轮 2 个推测 token；`prompt_lookup_max: 4` 等未被覆盖的选项仍然保留。`null` 表示不传该选项。
+`spec` 中显式填写的字段优先，因此上例使用 8192 的上下文和 `enforceEager: false`。`speculativeDecoding` 整体替换 `engineArgs.speculative-config`，使用每轮 2 个推测 token 和 `prompt_lookup_max: 4`，不合并两份字典。`null` 表示不传该原生选项。
 
 原生选项只由对应 backend 解释，切换引擎时需调整。模型标识、启动端点、并行拓扑、传输连接器和性能剖析仍由 Foretoken 管理。当前支持 vLLM，完整参数见 [vLLM engine arguments](https://docs.vllm.ai/en/latest/configuration/engine_args/)。

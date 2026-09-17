@@ -301,23 +301,6 @@ const (
 	ModelSourceModelScope ModelSource = "modelscope"
 )
 
-// SpeculativeDecoding defines the common speculative decoding controls passed to the inference engine.
-type SpeculativeDecoding struct {
-	// Method uses the engine's strategy name, such as draft_model, eagle3, ngram, or mtp.
-	// +kubebuilder:validation:MinLength=1
-	Method string `json:"method"`
-
-	// Model is a draft model identifier or a directory visible inside the engine container.
-	// Methods that do not load separate draft weights may omit it.
-	// +optional
-	// +kubebuilder:validation:MinLength=1
-	Model string `json:"model,omitempty"`
-
-	// NumSpeculativeTokens is the maximum number of tokens proposed per decoding step.
-	// +kubebuilder:validation:Minimum=1
-	NumSpeculativeTokens int32 `json:"num_speculative_tokens"`
-}
-
 // InferenceParameters contains common model-execution choices shared by every Pool.
 type InferenceParameters struct {
 	// MaxModelLen limits the combined prompt and generated sequence length.
@@ -361,8 +344,10 @@ type InferenceParameters struct {
 	// +optional
 	EnforceEager *bool `json:"enforceEager,omitempty"`
 
+	// SpeculativeDecoding is the complete native speculative configuration for the selected backend.
+	// It replaces the corresponding engineArgs option when present.
 	// +optional
-	SpeculativeDecoding *SpeculativeDecoding `json:"speculativeDecoding,omitempty"`
+	SpeculativeDecoding *EngineArguments `json:"speculativeDecoding,omitempty"`
 }
 
 // ModelServiceSpec defines the desired state of a model service.
