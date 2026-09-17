@@ -186,11 +186,9 @@ type ModelGroupRuntime struct {
 	// +kubebuilder:validation:Maximum=65535
 	Port int32 `json:"port"`
 
-	// Args contains inference-engine flags not represented by the typed Group specification.
+	// EngineArgs is the effective backend configuration after applying common fields.
 	// +optional
-	// +listType=atomic
-	// +kubebuilder:validation:MaxItems=256
-	Args []BackendArg `json:"args,omitempty"`
+	EngineArgs EngineArguments `json:"engineArgs,omitempty"`
 
 	// InternalGenerateRequestBodyLimitBytes is the group-local generate request
 	// body limit resolved from the ModelService specification.
