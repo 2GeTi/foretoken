@@ -5,37 +5,47 @@
 
 English | [简体中文](inference-parameters_zh.md)
 
-Set common options directly in `ModelService.spec`. For example, configure an AWQ checkpoint:
+Configure the selected engine through `ModelService.spec.engineArgs`, using native option names without `--`:
 
 ```yaml
 spec:
-  model: Qwen/Qwen2.5-7B-Instruct-AWQ
+  model: Qwen/Qwen2.5-0.5B-Instruct-AWQ
   backend: vllm
-  maxModelLen: 8192
-  dtype: float16
-  quantization: awq
-  gpuMemoryUtilization: 0.85
+  engineArgs:
+    quantization: awq
+    dtype: half
+    max-model-len: 8192
+    tensor-parallel-size: 1
+    gpu-memory-utilization: 0.85
 ```
 
-Omitted options retain engine defaults.
+Values are YAML booleans, numbers, strings, lists or objects. Omitted options retain engine defaults; `null` omits a native option. Supported values depend on the backend image, model and hardware.
 
-## Common options
+## Common vLLM options
 
-| Field | Purpose |
+| Engine option | Purpose |
 | --- | --- |
-| `maxModelLen` | Maximum combined input and output token count |
-| `dtype` | Model compute precision, such as `auto`, `float16`, or `bfloat16` |
-| `quantization` | Weight quantization method; engines can usually detect prequantized checkpoints |
-| `kvCacheDType` | KV cache precision, such as `auto` or `fp8`, configured separately from weight quantization |
-| `gpuMemoryUtilization` | Fraction of device memory per engine instance, greater than 0 and at most 1 |
-| `maxNumSeqs` | Maximum sequences scheduled per iteration |
-| `maxNumBatchedTokens` | Maximum tokens scheduled per iteration |
-| `enforceEager` | `true` disables graph capture; `false` allows the engine to use graphs |
-| `speculativeDecoding` | Speculative decoding settings, shown below |
+| `max-model-len` | Maximum combined input and output token count |
+| `dtype` | Model compute precision |
+| `quantization` | Weight quantization method |
+| `kv-cache-dtype` | KV cache precision, separate from weight quantization |
+| `gpu-memory-utilization` | Fraction of device memory per engine instance |
+| `max-num-seqs` | Maximum sequences scheduled per iteration |
+| `max-num-batched-tokens` | Maximum tokens scheduled per iteration |
+| `enforce-eager` | Disable graph capture when `true` |
+| `tensor-parallel-size` | Tensor parallelism |
+| `pipeline-parallel-size` | Pipeline parallelism |
+| `data-parallel-size` | Data parallelism within one model replica |
+| `prefill-context-parallel-size` | Prefill context parallelism |
+| `decode-context-parallel-size` | Decode context parallelism, reusing existing ranks |
 
-Precision, quantization and speculative methods must match the engine image, model and hardware.
+Request GPUs through `resources.requests.gpu.count` to match the engine worker count: TP × PP × DP × PCP for vLLM. DCP does not add GPUs. Replicas currently run on one node; split serving requires single-rank execution. Expert parallelism uses native `enable-expert-parallel`, `all2all-backend` and `enable-eplb` options.
+
+`modelPools[].engineArgs`, when supplied, replaces the service-level native options for that Pool. Service replica counts remain separate from engine data parallelism.
 
 ## Speculative decoding
+
+Keep the complete native dictionary together:
 
 ```yaml
 spec:
@@ -47,26 +57,10 @@ spec:
     prompt_lookup_max: 4
 ```
 
-`speculativeDecoding` uses native engine fields. `method` uses a native strategy name such as `draft_model`, `eagle3`, `ngram`, or `mtp`; `num_speculative_tokens` sets the maximum proposal length. Methods without separate draft weights can omit `model`.
+Methods and child fields follow vLLM. For methods using draft weights, `model` accepts a Hub ID or a container-visible absolute directory. vLLM downloads, loads and caches the draft; `spec.source: modelscope` applies to both target and draft Hub IDs.
 
-vLLM downloads, loads and caches draft models. `model` accepts a Hub ID or an absolute directory visible inside the container. Selecting `spec.source: modelscope` applies to both target and draft Hub IDs.
+## Explicit service fields
 
-## Native engine options
+The convenience fields `maxModelLen`, `dtype`, `quantization`, `kvCacheDType`, `gpuMemoryUtilization`, `maxNumSeqs`, `maxNumBatchedTokens` and `enforceEager` also work directly under `spec`. Explicit values, including `false`, override their native equivalents. `speculativeDecoding` replaces the whole `engineArgs.speculative-config` dictionary rather than merging child fields.
 
-`engineArgs` uses option names from the selected backend without `--`. Supply YAML booleans, numbers, strings, lists and objects directly rather than embedding JSON strings:
-
-```yaml
-spec:
-  backend: vllm
-  maxModelLen: 8192
-  enforceEager: false
-  engineArgs:
-    max-model-len: 4096
-    enforce-eager: true
-    limit-mm-per-prompt:
-      image: 2
-```
-
-Explicit `spec` values win, including `false`: this example uses an 8192-token context and disables eager mode. `speculativeDecoding` replaces the whole `engineArgs.speculative-config` dictionary without merging child fields. A `null` native option is omitted.
-
-Native options belong to the selected backend and may need changing when switching engines. Foretoken manages model identity, launch endpoints, parallel topology, transfer connectors and profiling. The current backend is vLLM; see its [engine argument reference](https://docs.vllm.ai/en/latest/configuration/engine_args/) for available options.
+Foretoken manages model identity, startup endpoints, transfer connectors and profiling. Other native options are interpreted by the selected engine. See the [vLLM argument reference](https://docs.vllm.ai/en/latest/configuration/engine_args/); vLLM is the currently implemented backend.

@@ -23,7 +23,7 @@ func TestCompileEngineArgsBoundary(t *testing.T) {
 			"prompt_lookup_max":      {Raw: []byte(`4`)},
 		},
 	}
-	if err := json.Unmarshal([]byte(`{"dtype":"float16","enforce-eager":true,"max_model_len":1024,"speculative-config":{"method":"ngram","num_speculative_tokens":5,"draft_tensor_parallel_size":1}}`), &template.EngineArgs); err != nil {
+	if err := json.Unmarshal([]byte(`{"tensor-parallel-size":1,"decode-context-parallel-size":1,"data-parallel-size":1,"dtype":"float16","enforce-eager":true,"max_model_len":1024,"speculative-config":{"method":"ngram","num_speculative_tokens":5,"draft_tensor_parallel_size":1}}`), &template.EngineArgs); err != nil {
 		t.Fatal(err)
 	}
 	config, err := Compile(template)
@@ -103,7 +103,6 @@ func testVLLMTemplate(gpus int32) inferencev1alpha1.NormalizedPoolTemplate {
 		Model: "model", Source: inferencev1alpha1.ModelSourceHF, ModelRevision: "main", Tokenizer: "model", TokenizerRevision: "main",
 		Backend: "vllm", Role: inferencev1alpha1.ModelRoleAggregate, NodeCount: 1, MemberCount: 1,
 		Resources:                             inferencev1alpha1.ModelResources{Requests: inferencev1alpha1.ModelResourceRequests{GPU: inferencev1alpha1.GPURequest{Count: gpus}}},
-		Parallelism:                           inferencev1alpha1.CompiledParallelism{TP: 1, PP: 1, DP: 1, PCP: 1, DCP: 1},
 		Timeouts:                              inferencev1alpha1.ModelTimeouts{Startup: "10m", Drain: "2m"},
 		InternalGenerateRequestBodyLimitBytes: inferencev1alpha1.DefaultInternalGenerateRequestBodyLimitBytes,
 	}
