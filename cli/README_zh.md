@@ -147,13 +147,7 @@ FORETOKEN_REQUEST_HOST="$(foretoken endpoint examples/multi-model-quickstart --h
 
 ## 采集诊断 Profile
 
-该实验性命令要求平台通过源码安装，并可对使用持久 RuntimeCache 的已有 ModelService 采集一次 PyTorch profile：
-
-```bash
-foretoken profile examples/quickstart --profile-engine pytorch --profile-duration 15s
-```
-
-该命令不会生成流量。前提条件、结果位置和随 benchmark 采集的用法见[性能剖析指南](../observability/profiling_zh.md)。
+使用 `foretoken profile` 采集已有服务的流量，或用 `foretoken bench --profile` 在评测时采集。命令和结果查看见[性能剖析指南](../observability/profiling_zh.md)。
 
 ## 清理
 

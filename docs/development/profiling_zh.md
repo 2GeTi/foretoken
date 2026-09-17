@@ -3,68 +3,33 @@ SPDX-License-Identifier: Apache-2.0
 SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 -->
 
-# 服务拥有的 Profiling 生命周期
+# Profiling 生命周期
 
 [English](profiling.md) | 简体中文
 
-当前实验实现对已有诊断 ModelService 执行一次有时长上限的 Torch 采集，不依赖 benchmark 或监控功能。执行命令和取得产物，请先看[操作指南](../../observability/profiling_zh.md)。
+`ProfileRun` 管理一次限时采集，独立于发起命令的进程。操作方法和结果查看见[性能剖析](../../observability/profiling_zh.md)。
 
-## 职责与执行路径
+## 执行与恢复
 
-发起命令断线后，采集仍须停止并保留结果。因此，一次采集的身份和生命周期属于命名空间内的 `ProfileRun`，不属于命令进程，也不放进长期服务配置 `ModelService.spec`。
+控制器在采集开始前持久化服务版本、参与实例身份和 RuntimeCache 绑定，重启后继续使用同一份计划。参与实例被替换或服务实例集合改变时，取消本次采集。ProfileRun 操作受 Kubernetes RBAC 控制，原生采集通过已有的内部 HTTP 接口调用。
 
-ProfileRun 操作使用 Kubernetes RBAC，内部 HTTP 沿用已有平台网络信任边界。
+model-server supervisor 负责原生 profiler 的启动、记录、停止和导出。同时只允许一次采集，同一运行的重试保持幂等，取消不可撤销。记录时长从原生启动成功后计算；启动和停止导出分别有 30 秒、120 秒的时限，`Finish` 可提前结束记录。
 
-## 在采集前准备运行环境
+全部参与实例开始记录后才发布 `Capturing`，全部结果导出后才能成功。删除活动的 ProfileRun 会请求取消，确认停止后才释放 finalizer。原生停止失败时，supervisor 关闭新请求准入并终止引擎进程组，可能中断推理。
 
-Profiling 使用 ModelService 已解析的 RuntimeCache 绑定。ModelGroup 控制器将其 PVC 挂载为数据根目录，runtime 在该根目录下派生 `profiles/`。Profiling 不使用 KV offload 或 connector 卷，ProfileRun 也不拥有工作负载或存储。
+## 存储
 
-没有持久 RuntimeCache 的 serving Group 不能参与采集，控制器会在启动原生 profiler 前报告错误。RuntimeCache 已回退到 Pod 本地临时目录时，runtime 会报告 profiling 不可用。这两种情况都不会创建其他卷，也不会把结果改写到临时存储。
+采集使用 ModelService 的持久 RuntimeCache，回退到 Pod 临时存储的 runtime 无法参与。各实例在停止导出后校验预期 worker 的 trace，写入 manifest，再在同一文件系统内将暂存目录原子重命名为 `profiles/runs/<run-uid>/<runtime-id>/`。GPU 活动与 trace 有效性分别报告。
 
-Model-server 镜像内建 PyTorch 采集支持，[vLLM 补丁](../../data-plane/patches/vllm-python-profiling.patch)会报告原生启停错误，并允许后续再次采集。只有收到采集请求后才启动 profiler。
-
-## 采集身份与恢复
-
-API 在创建后固定目标、采集工具和时长。动作从 `Capture` 推进到 `Finish` 或 `Cancel`，取消不可撤销。即使资源同名，Kubernetes UID 也能区分不同采集。
-
-启动原生采集前，控制器先持久化删除 finalizer，并在 ProfileRun status 中保存执行计划。计划固定 serving generation、RuntimeCache claim、Group、Pod 和 runtime 参与者。控制器重启后读取原计划，不重新选择替代实例或存储。
-
-状态依次经过 `Starting`、`Capturing`、`Stopping`，最终为 `Succeeded`、`Failed` 或 `Cancelled`。只有全部参与实例都在采集时，运行才报告 `Capturing`；成功也需要核对全部预期参与者。发出 HTTP 操作不代表采集完成。Runtime 拒绝竞争采集，同一 UID 的重试不重启窗口，也不延长时限。
-
-参与实例失联、被替换或服务实例集合改变时，控制器取消剩余工作，报告覆盖范围或停止确认问题。Pod 消失不等于引擎已停止；无法确认时保留 finalizer 和恢复计划供管理员诊断。删除活动运行也会请求取消。已封存产物不以 ProfileRun 为 owner，不随运行记录被垃圾回收。
-
-## Runtime 时限
-
-原生 utility 在 supervisor 拥有的任务中运行，不依赖 HTTP 请求存活。取消只改变期望动作，不丢弃正在执行的 utility。
-
-调用者显式指定采集时长；原生启动成功后，runtime 才开始计时。原生启动和停止/flush 分别使用 30 秒、120 秒预算。提前 `Finish` 可以结束较短窗口。CLI 默认等待 10 分钟，这个观察期限不会改变 runtime 的时限。
-
-没有活动采集时，runtime 保持正常的请求排空和退出顺序。原生 utility 失败或超时后，profiler 状态可能不确定。诊断 runtime 先关闭新请求准入，再沿已有引擎进程组关闭流程确认退出，之后释放 utility 任务。这可能中断该诊断服务的推理请求。不能确认终止时报告问题，不声称采集成功；部分输出保留供存储管理者排查。
-
-## 先封存，再发布结果
-
-每个 runtime 都在 RuntimeCache PVC 提供的持久数据根目录下写入：
-
-```text
-<data-root>/profiles/.staging/<runtime-id>/
-<data-root>/profiles/runs/<run-uid>/<runtime-id>/
-```
-
-开始前要求 staging 为空，不删除尚未处理的残留输出。原生停止/flush 完成后，成功采集必须为每个预期 worker 提供一份合法 Torch trace。GPU 活动单独报告，合法的空闲窗口不导致发布失败。取消时保留已有输出，但不将其视为完整采集。
-
-停止和 flush 完成后，supervisor 写入 manifest，在同一文件系统内原子重命名 staging 目录，再发布结果引用。原子性属于单个参与者，不是分布式事务。后续采集使用不同的 run 目录。封存失败不发布成功，也不删除可恢复数据。
-
-Manifest 的 `startedAtUnixMs` 在原生启动后记录，`recordingEndedAtUnixMs` 表示发起停止，`exportedAtUnixMs` 表示停止/flush 返回。不同 worker 的实际停止时间可能略有差异，这些控制时间戳不代表精确的 GPU 事件边界。ProfileRun 的 `finishedAt` 是控制器观察到完成的时间。
+ProfileRun 只发布结果位置，不拥有结果文件；删除运行记录不删除文件。model-server adapter 通过 [vLLM profiling 补丁](../../data-plane/patches/vllm-python-profiling.patch)处理原生错误上报和重复采集。
 
 ## Benchmark 集成
 
-`foretoken bench --profile` 在常规 benchmark 部署流程内复用 `foretoken profile` 的服务采集生命周期，自动部署尚不存在的服务或复用已有部署；两种情况都要求持久 RuntimeCache。Benchmark 负责调度请求；采集实例、时限、导出和产物仍由控制器与 runtime 负责。
+采集复用普通评测的服务解析和 EvalScope 执行器。请求准备好后等待采集就绪；负载完成时请求 `Finish`，失败或中断时请求 `Cancel`。确认采集结束后才清理临时服务；停止未确认时保留服务，供控制器继续恢复。
 
-采集开始后才发送请求。负载正常完成时，benchmark 会提前结束采集并等待导出；中断或请求失败时则请求取消，并观察到终态后才清理部署。无法确认停止时，采集清理错误会让临时服务资源保留下来，供控制器恢复处理。
+评测仅清理自己创建的资源。带采集的评测在服务就绪后保留命名空间和存储，供用户读取结果；就绪前的部署失败沿用普通清理流程。已有部署保持不变。
 
-部署上下文负责资源清理。普通 benchmark 删除自身创建的资源；带 profiling 且已达到服务就绪的 benchmark 会清理临时服务资源，但保留 Namespace、RuntimeCache 和 PersistentVolumeClaim 对象，让输出和 ProfileRun 记录独立于 runtime Pod 保留。服务就绪前的部署失败沿用普通清理方式。复用的已有资源不进入清理集合。
+## 参考
 
-## 上游参考
-
-- [vLLM profiling](https://docs.vllm.ai/en/stable/contributing/profiling/)：引擎配置、输出和诊断开销。
-- [PyTorch profiler](https://docs.pytorch.org/docs/stable/profiler.html)：原生采集与 trace 导出。
+- [vLLM profiling](https://docs.vllm.ai/en/stable/contributing/profiling/)
+- [PyTorch profiler](https://docs.pytorch.org/docs/stable/profiler.html)

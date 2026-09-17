@@ -72,7 +72,7 @@ foretoken bench examples/quickstart \
 
 ### Capture while benchmarking
 
-Add a short PyTorch capture to the benchmark; the command deploys missing services or reuses an existing deployment:
+Record a PyTorch profile during the benchmark:
 
 ```bash
 foretoken bench examples/quickstart \
@@ -80,9 +80,7 @@ foretoken bench examples/quickstart \
   --number 2 --max-tokens 128 --output local
 ```
 
-Profiling requires a source-installed platform and persistent RuntimeCache storage, already declared by the Quick Start. Requests start after capture is active, and the command waits for trace export before removing temporary serving resources. It retains the profile storage and its namespace; existing deployments are reused unchanged. This mode supports one generated workload with the default `--rate -1`; it does not support `--url`, trace replay, sweeps or multiple datasets.
-
-Profiling adds overhead, so use a separate run without `--profile` for latency and throughput measurements. See [Profiling](../observability/profiling.md) for prerequisites, cancellation and result access.
+See [Profiling](../observability/profiling.md) for setup and trace viewing.
 
 ### Trace replay
 

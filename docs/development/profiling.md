@@ -3,68 +3,33 @@ SPDX-License-Identifier: Apache-2.0
 SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 -->
 
-# Service-owned profiling
+# Profiling lifecycle
 
 English | [简体中文](profiling_zh.md)
 
-The experimental implementation captures one time-bounded Torch window on an existing diagnostic ModelService. It is independent of benchmark execution and monitoring. Start with the [operator guide](../../observability/profiling.md) for the command and result access.
+`ProfileRun` owns a bounded capture independently of the initiating command. Usage and result access are covered in [Profiling](../../observability/profiling.md).
 
-## Ownership and execution
+## Execution and recovery
 
-A capture must stop and retain results even when its initiating command disconnects. Its identity and lifetime belong to a namespaced `ProfileRun`, not to the command process or `ModelService.spec`.
+The controller persists the serving generation, participant identities and RuntimeCache binding before starting capture. Reconciliation resumes that fixed plan after a restart; a replaced participant or changed serving cohort cancels the run. Kubernetes RBAC governs ProfileRun operations, and runtime control uses the existing internal HTTP boundary.
 
-ProfileRun operations use Kubernetes RBAC. Internal HTTP follows the existing platform network trust boundary.
+The model-server supervisor owns native start, recording, stop and export. It accepts one active capture, makes same-run retries idempotent and keeps cancellation irreversible. The recording timer starts after native startup; startup and stop/export have separate 30-second and 120-second budgets. `Finish` ends the recording early.
 
-## Prepare before capture
+`Capturing` requires all selected participants to be recording; success requires every participant's exported result. A live run's deletion requests cancellation, and its finalizer remains until stop is confirmed. If native shutdown fails, the supervisor closes admission and terminates its engine process group, which can interrupt inference.
 
-Profiling uses the ModelService's resolved RuntimeCache binding. The ModelGroup controller mounts its PVC as the data root, and the runtime derives `profiles/` below that root. Profiling does not use KV offload or connector volumes, and ProfileRun does not own workloads or storage.
+## Storage
 
-A serving Group without a persistent RuntimeCache cannot participate in capture. The controller reports this before starting native work, while a runtime that has fallen back to Pod-local temporary cache storage reports profiling unavailable. Neither case creates another volume or redirects results to temporary storage.
+Each participant writes to the ModelService's persistent RuntimeCache. A runtime using Pod-local fallback storage cannot capture. After stop/export, it validates the expected worker traces, writes a manifest and atomically renames its staging directory into `profiles/runs/<run-uid>/<runtime-id>/` on the same filesystem. GPU activity is reported separately from trace validity.
 
-The model-server image includes PyTorch capture support. The [vLLM backport](../../data-plane/patches/vllm-python-profiling.patch) reports native start/stop failures and allows subsequent captures. Profiling begins only when a capture is requested.
-
-## Identity and recovery
-
-The API fixes target, engine and duration at creation. Actions move from `Capture` to `Finish` or `Cancel`; cancellation cannot be reversed. The Kubernetes UID distinguishes runs even when a resource name is reused.
-
-Before native work starts, reconciliation persists a deletion finalizer and an execution plan in ProfileRun status. The plan fixes the serving generation, RuntimeCache claim, Groups, Pods and runtime participants. Controller restart reads the same plan rather than selecting replacement instances or storage.
-
-Status progresses through `Starting`, `Capturing` and `Stopping` to `Succeeded`, `Failed` or `Cancelled`. All selected participants must be capturing before the run reports `Capturing`; success requires every expected participant's result. Sending an HTTP operation alone is not completion. The runtime rejects competing captures and handles same-run retries without restarting or extending the window.
-
-An unreachable or replaced participant or changed serving cohort causes cancellation of remaining work and a coverage or stop error. A missing Pod is not proof that its engine stopped. Unconfirmed stop retains the finalizer and plan for operator diagnosis. Deleting a live run also requests cancellation; sealed artifacts are not owned by the run and are not garbage-collected with it.
-
-## Runtime deadlines
-
-Native utilities run in supervisor-owned tasks independently of HTTP request lifetime. Cancellation changes the desired action; it does not abandon an in-flight utility.
-
-The caller specifies the duration; the runtime starts that timer after native start succeeds. Native start and stop/flush have separate 30-second and 120-second budgets. Early `Finish` stops a shorter window. The CLI's default 10-minute observation timeout changes none of these deadlines.
-
-Without an active capture, the runtime retains its normal request-drain and shutdown order. A failed or timed-out utility leaves native profiler state uncertain. The diagnostic runtime closes admission and follows its existing engine process-group shutdown path before releasing the utility task. This can interrupt inference on that service. Failure to confirm termination is reported rather than represented as success. Partial output remains for storage-owner diagnosis.
-
-## Seal before publication
-
-Each runtime writes below the persistent data root supplied by its RuntimeCache PVC:
-
-```text
-<data-root>/profiles/.staging/<runtime-id>/
-<data-root>/profiles/runs/<run-uid>/<runtime-id>/
-```
-
-Before starting, staging must be empty; unhandled output is not erased. After native stop/flush, success requires one valid Torch trace per expected worker. GPU activity is reported separately, and a valid idle window does not fail publication. Cancellation retains available output without claiming completeness.
-
-After stop/flush, the supervisor writes the manifest and atomically renames the staging directory on the same filesystem before publishing the artifact reference. Atomicity is per participant, not a distributed transaction. Later captures use a different run path. Publication failure neither produces success nor deletes recoverable data.
-
-The manifest's `startedAtUnixMs` follows native start, `recordingEndedAtUnixMs` marks the stop request, and `exportedAtUnixMs` follows stop/flush. Native workers may stop at slightly different times; these control timestamps do not claim exact GPU event boundaries. ProfileRun `finishedAt` is controller-observed completion.
+ProfileRun publishes the result location but does not own the stored files. Deleting the run record preserves them. The model-server adapter supplies the [vLLM profiling backport](../../data-plane/patches/vllm-python-profiling.patch) for native error reporting and repeated captures.
 
 ## Benchmark integration
 
-`foretoken bench --profile` uses the same service-owned capture lifecycle as `foretoken profile` within the ordinary benchmark deployment lifecycle. It deploys missing services or reuses an existing deployment; both require persistent RuntimeCache storage. The benchmark owns request scheduling; the controller and runtime continue to own capture participants, deadlines, export and retained artifacts.
+Benchmark profiling reuses the ordinary service resolver and EvalScope executor. Prepared requests wait for capture readiness; completion requests `Finish`, while failures and interruption request `Cancel`. Capture must reach a terminal state before temporary serving resources are removed; an unconfirmed stop leaves them available for recovery.
 
-Requests start only after capture is active. A completed workload requests early capture completion and waits for export. Interruption or request failure requests cancellation and observes a terminal phase before deployment cleanup. An unconfirmed stop raises a cleanup error that preserves temporary serving resources for controller recovery.
+The benchmark removes only resources it created. Once serving is ready, profiled runs retain the namespace and storage for result access; setup failures use ordinary cleanup. Existing deployments remain untouched.
 
-The deployment context owns resource cleanup. Ordinary benchmarks remove all resources they created. For profiled benchmarks that reached serving readiness, cleanup removes temporary serving resources but excludes Namespace, RuntimeCache and PersistentVolumeClaim objects, retaining output and the ProfileRun record independently of runtime Pods. Setup failures before serving readiness follow ordinary cleanup. Reused resources are never added to the cleanup set.
+## References
 
-## Upstream references
-
-- [vLLM profiling](https://docs.vllm.ai/en/stable/contributing/profiling/): engine setup, output and diagnostic overhead.
-- [PyTorch profiler](https://docs.pytorch.org/docs/stable/profiler.html): native capture and trace export.
+- [vLLM profiling](https://docs.vllm.ai/en/stable/contributing/profiling/)
+- [PyTorch profiler](https://docs.pytorch.org/docs/stable/profiler.html)
