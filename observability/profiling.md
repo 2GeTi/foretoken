@@ -35,7 +35,7 @@ This command does not generate requests. Use `--model MODEL_ID` for a multi-mode
 
 ## Inspect results
 
-Open the `.pt.trace.json` files at the printed location in [Perfetto](https://ui.perfetto.dev/). The Quick Start stores results under the repository-root `data/profiles/runs/` directory; see [Model storage](../docs/model-storage.md) for other storage options.
+Download the captured `.pt.trace.json` files to your computer and drag them into [Perfetto](https://ui.perfetto.dev/) to view the execution timeline.
 
 Profiled benchmarks retain results and their storage. After saving the traces you need, clean up with:
 
