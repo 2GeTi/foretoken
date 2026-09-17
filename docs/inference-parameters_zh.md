@@ -32,7 +32,7 @@ spec:
 | `enforceEager` | `true` 使用 eager 执行并禁用计算图捕获；`false` 允许引擎使用计算图 |
 | `speculativeDecoding` | 推测解码方法、草稿模型及每轮推测长度 |
 
-精度、量化方法和推测解码的可用取值由所选引擎镜像决定，并需与模型和硬件匹配。`dtype: float16` 不表示启用 INT4 等权重量化。
+精度、量化方法和推测解码的可用取值由所选引擎镜像决定，并需与模型和硬件匹配。
 
 ## 推测解码
 
@@ -64,7 +64,7 @@ spec:
     - '--limit-mm-per-prompt={"image": 2}'
 ```
 
-同一选项可使用结构化字段或透传，但不能在两处同时配置。例如，填写 `inference.gpuMemoryUtilization` 后，就不要再传 `--gpu-memory-utilization`。模型标识、启动端点、并行拓扑和传输连接器仍由 Foretoken 管理。
+同一选项选择结构化字段或透传配置，不在两处重复填写。模型标识、启动端点、并行拓扑、传输连接器和性能剖析由 Foretoken 管理。
 
 需要更多推测解码选项时，省略 `inference.speculativeDecoding`，改为传递完整的引擎配置：
 

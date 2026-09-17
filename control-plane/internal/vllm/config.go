@@ -31,16 +31,16 @@ type EffectiveConfig struct {
 // LaunchPlanV1 is the versioned, private Go-to-Rust launch contract. Rust is
 // the only component that renders this contract into vLLM command-line flags.
 type LaunchPlanV1 struct {
-	Version                               int               `json:"version"`
-	NodeCount                             int32             `json:"nodeCount"`
-	Artifacts                             LaunchArtifacts   `json:"artifacts"`
-	Parallelism                           LaunchParallelism `json:"parallelism"`
-	Inference                             LaunchInference   `json:"inference,omitempty"`
-	KV                                    LaunchKVPlan      `json:"kv"`
-	EC                                    *LaunchECPlan     `json:"ec,omitempty"`
-	Lifecycle                             LaunchLifecycle   `json:"lifecycle"`
-	InternalGenerateRequestBodyLimitBytes int64             `json:"internalGenerateRequestBodyLimitBytes"`
-	ExtraArgs                             []string          `json:"extraArgs"`
+	Version                               int                                   `json:"version"`
+	NodeCount                             int32                                 `json:"nodeCount"`
+	Artifacts                             LaunchArtifacts                       `json:"artifacts"`
+	Parallelism                           LaunchParallelism                     `json:"parallelism"`
+	Inference                             inferencev1alpha1.InferenceParameters `json:"inference,omitempty"`
+	KV                                    LaunchKVPlan                          `json:"kv"`
+	EC                                    *LaunchECPlan                         `json:"ec,omitempty"`
+	Lifecycle                             LaunchLifecycle                       `json:"lifecycle"`
+	InternalGenerateRequestBodyLimitBytes int64                                 `json:"internalGenerateRequestBodyLimitBytes"`
+	ExtraArgs                             []string                              `json:"extraArgs"`
 }
 
 type LaunchArtifacts struct {
@@ -58,25 +58,6 @@ type LaunchParallelism struct {
 	PCP int32             `json:"pcp"`
 	DCP int32             `json:"dcp"`
 	EP  *LaunchExpertPlan `json:"ep,omitempty"`
-}
-
-// LaunchInference carries common execution choices without exposing vLLM CLI spelling.
-type LaunchInference struct {
-	MaxModelLen          *int32                     `json:"maxModelLen,omitempty"`
-	DType                string                     `json:"dtype,omitempty"`
-	Quantization         string                     `json:"quantization,omitempty"`
-	KVCacheDType         string                     `json:"kvCacheDType,omitempty"`
-	GPUMemoryUtilization *float64                   `json:"gpuMemoryUtilization,omitempty"`
-	MaxNumSeqs           *int32                     `json:"maxNumSeqs,omitempty"`
-	MaxNumBatchedTokens  *int32                     `json:"maxNumBatchedTokens,omitempty"`
-	EnforceEager         *bool                      `json:"enforceEager,omitempty"`
-	SpeculativeDecoding  *LaunchSpeculativeDecoding `json:"speculativeDecoding,omitempty"`
-}
-
-type LaunchSpeculativeDecoding struct {
-	Method               string `json:"method"`
-	Model                string `json:"model,omitempty"`
-	NumSpeculativeTokens int32  `json:"numSpeculativeTokens"`
 }
 
 type LaunchExpertPlan struct {
@@ -195,7 +176,7 @@ func BuildLaunchPlan(group inferencev1alpha1.ModelGroupSpec) (LaunchPlanV1, erro
 	for i := range group.Runtime.Args {
 		extra[i] = string(group.Runtime.Args[i])
 	}
-	return LaunchPlanV1{Version: 1, NodeCount: group.NodeCount, Artifacts: LaunchArtifacts{Model: group.Artifacts.Model, Source: group.Artifacts.Source, Revision: group.Artifacts.ModelRevision, Tokenizer: group.Artifacts.Tokenizer, TokenizerRevision: group.Artifacts.TokenizerRevision}, Parallelism: parallelism, Inference: launchInference(group.Runtime.Inference), KV: kv, EC: ec, Lifecycle: LaunchLifecycle{StartupSeconds: startup, DrainSeconds: drain}, InternalGenerateRequestBodyLimitBytes: group.Runtime.InternalGenerateRequestBodyLimitBytes, ExtraArgs: extra}, nil
+	return LaunchPlanV1{Version: 1, NodeCount: group.NodeCount, Artifacts: LaunchArtifacts{Model: group.Artifacts.Model, Source: group.Artifacts.Source, Revision: group.Artifacts.ModelRevision, Tokenizer: group.Artifacts.Tokenizer, TokenizerRevision: group.Artifacts.TokenizerRevision}, Parallelism: parallelism, Inference: *group.Runtime.Inference.DeepCopy(), KV: kv, EC: ec, Lifecycle: LaunchLifecycle{StartupSeconds: startup, DrainSeconds: drain}, InternalGenerateRequestBodyLimitBytes: group.Runtime.InternalGenerateRequestBodyLimitBytes, ExtraArgs: extra}, nil
 }
 
 // JSON returns deterministic output because LaunchPlanV1 uses only ordered structs and slices.
@@ -287,20 +268,6 @@ func copyParallelism(input inferencev1alpha1.CompiledParallelism) inferencev1alp
 	if input.EP != nil {
 		copied := *input.EP
 		output.EP = &copied
-	}
-	return output
-}
-
-// launchInference projects model-execution choices into the private launch contract.
-func launchInference(input inferencev1alpha1.InferenceParameters) LaunchInference {
-	output := LaunchInference{
-		MaxModelLen: input.MaxModelLen, DType: input.DType,
-		Quantization: input.Quantization, KVCacheDType: input.KVCacheDType,
-		GPUMemoryUtilization: input.GPUMemoryUtilization, MaxNumSeqs: input.MaxNumSeqs,
-		MaxNumBatchedTokens: input.MaxNumBatchedTokens, EnforceEager: input.EnforceEager,
-	}
-	if input.SpeculativeDecoding != nil {
-		output.SpeculativeDecoding = &LaunchSpeculativeDecoding{Method: input.SpeculativeDecoding.Method, Model: input.SpeculativeDecoding.Model, NumSpeculativeTokens: input.SpeculativeDecoding.NumSpeculativeTokens}
 	}
 	return output
 }

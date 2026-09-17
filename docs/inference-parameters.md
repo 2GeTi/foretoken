@@ -32,7 +32,7 @@ Set only the options you need to change. Omitted options retain the engine's def
 | `enforceEager` | `true` disables graph capture and uses eager execution; `false` allows the engine to use graphs |
 | `speculativeDecoding` | Speculative method, draft model, and proposal length |
 
-Available precision, quantization, and speculative decoding settings depend on the engine image, model, and hardware. Setting `dtype: float16` does not enable weight quantization such as INT4.
+Available precision, quantization, and speculative decoding settings depend on the engine image, model, and hardware.
 
 ## Speculative decoding
 
@@ -64,7 +64,7 @@ spec:
     - '--limit-mm-per-prompt={"image": 2}'
 ```
 
-An option can use either its structured field or passthrough, but not both. For example, omit `--gpu-memory-utilization` when setting `inference.gpuMemoryUtilization`. Foretoken retains control of model identity, launch endpoints, parallel topology, and transfer connectors.
+Configure each option in either its structured field or passthrough, not both. Foretoken manages model identity, launch endpoints, parallel topology, transfer connectors, and profiling.
 
 For additional speculative options, omit `inference.speculativeDecoding` and pass the complete engine configuration instead:
 
