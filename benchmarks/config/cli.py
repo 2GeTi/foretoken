@@ -94,7 +94,7 @@ def _add_benchmark_arguments(parser: argparse.ArgumentParser) -> None:
     # Service-owned capture
     parser.add_argument(
         "--profile", action="store_true",
-        help="Capture one profile on the existing service while sending requests",
+        help="Capture one profile while benchmarking a deployed or temporary service",
     )
     parser.add_argument(
         "--profile-engine", choices=("pytorch",),

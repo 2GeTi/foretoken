@@ -58,9 +58,11 @@ Manifest 的 `startedAtUnixMs` 在原生启动后记录，`recordingEndedAtUnixM
 
 ## Benchmark 集成
 
-`foretoken bench --profile` 与 `foretoken profile` 使用同一套由服务负责的采集生命周期，只接受已部署且使用持久 RuntimeCache 的服务。Benchmark 负责调度请求；采集实例、时限、导出和产物仍由控制器与 runtime 负责。
+`foretoken bench --profile` 在常规 benchmark 部署流程内复用 `foretoken profile` 的服务采集生命周期，自动部署尚不存在的服务或复用已有部署；两种情况都要求持久 RuntimeCache。Benchmark 负责调度请求；采集实例、时限、导出和产物仍由控制器与 runtime 负责。
 
-采集开始后才发送请求。负载正常完成时，benchmark 会提前结束采集并等待导出；中断或请求失败时则请求取消。Benchmark 的清理流程不会删除已有服务或 RuntimeCache 中的结果。
+采集开始后才发送请求。负载正常完成时，benchmark 会提前结束采集并等待导出；中断或请求失败时则请求取消，并观察到终态后才清理部署。无法确认停止时，采集清理错误会让临时服务资源保留下来，供控制器恢复处理。
+
+部署上下文负责资源清理。普通 benchmark 删除自身创建的资源；带 profiling 且已达到服务就绪的 benchmark 会清理临时服务资源，但保留 Namespace、RuntimeCache 和 PersistentVolumeClaim 对象，让输出和 ProfileRun 记录独立于 runtime Pod 保留。服务就绪前的部署失败沿用普通清理方式。复用的已有资源不进入清理集合。
 
 ## 上游参考
 

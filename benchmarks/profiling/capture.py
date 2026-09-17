@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from foretoken.manifest import DeploymentError
 from foretoken.profiling import ProfileRun
 
+from benchmarks.profiling import CaptureCleanupError
 from benchmarks.results.output import write_json
 
 
@@ -75,21 +76,23 @@ class BenchmarkProfile:
         self.failed_requests += int(not succeeded)
 
     def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
-        """Finish after normal workload completion, cancel on failure, and retain the run reference."""
+        """Confirm stop/export before workload cleanup and retain capture evidence on every exit."""
         try:
             if exc_type is not None:
-                self.run.cancel()
+                self._cancel_and_wait()
                 return
             if self.successful_requests == 0:
                 raise DeploymentError("no successful benchmark request accompanied the capture")
             if self.failed_requests:
-                self.run.cancel()
+                self._cancel_and_wait()
                 return
             self.run.observe()
             self.run.request("Finish")
             self.run.wait()
+        except CaptureCleanupError:
+            raise
         except BaseException:
-            self.run.cancel()
+            self._cancel_and_wait()
             raise
         finally:
             if self.run.uid:
@@ -104,3 +107,16 @@ class BenchmarkProfile:
                     "successful_requests": self.successful_requests,
                     "failed_requests": self.failed_requests,
                 })
+
+    def _cancel_and_wait(self) -> None:
+        """Keep serving resources until cancellation and artifact publication are observed."""
+        if not self.run.uid or self.run.terminal:
+            return
+        try:
+            self.run.request("Cancel")
+            self.run.wait(require_success=False)
+        except (DeploymentError, KeyboardInterrupt) as error:
+            raise CaptureCleanupError(
+                f"could not confirm capture cleanup: {error}; inspect ProfileRun "
+                f"{self.run.namespace}/{self.run.name} before deleting the deployment"
+            ) from error

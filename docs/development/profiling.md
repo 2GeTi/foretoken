@@ -58,9 +58,11 @@ The manifest's `startedAtUnixMs` follows native start, `recordingEndedAtUnixMs` 
 
 ## Benchmark integration
 
-`foretoken bench --profile` uses the same service-owned capture lifecycle as `foretoken profile`. It accepts only an existing deployment with persistent RuntimeCache storage. The benchmark owns request scheduling; the controller and runtime continue to own capture participants, deadlines, export and retained artifacts.
+`foretoken bench --profile` uses the same service-owned capture lifecycle as `foretoken profile` within the ordinary benchmark deployment lifecycle. It deploys missing services or reuses an existing deployment; both require persistent RuntimeCache storage. The benchmark owns request scheduling; the controller and runtime continue to own capture participants, deadlines, export and retained artifacts.
 
-Requests start only after capture is active. A completed workload requests early capture completion and waits for export, while interruption or request failure requests cancellation. Benchmark cleanup never deletes the service or its RuntimeCache output.
+Requests start only after capture is active. A completed workload requests early capture completion and waits for export. Interruption or request failure requests cancellation and observes a terminal phase before deployment cleanup. An unconfirmed stop raises a cleanup error that preserves temporary serving resources for controller recovery.
+
+The deployment context owns resource cleanup. Ordinary benchmarks remove all resources they created. For profiled benchmarks that reached serving readiness, cleanup removes temporary serving resources but excludes Namespace, RuntimeCache and PersistentVolumeClaim objects, retaining output and the ProfileRun record independently of runtime Pods. Setup failures before serving readiness follow ordinary cleanup. Reused resources are never added to the cleanup set.
 
 ## Upstream references
 

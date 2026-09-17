@@ -321,7 +321,7 @@ class BenchmarkConfig:
         self.service.validate()
         if self.profile is not None:
             if not self.service.kustomize_path:
-                raise ValueError("--profile requires an existing Foretoken Kustomize deployment")
+                raise ValueError("--profile requires a Foretoken Kustomize deployment")
             if (
                 self.trace.trace_selector or self.sweep.path
                 or self.resolved_workload.has_multiple_datasets

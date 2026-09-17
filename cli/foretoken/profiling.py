@@ -118,13 +118,13 @@ class ProfileRun:
                 file=sys.stderr,
             )
 
-    def wait(self) -> None:
-        """Observe terminal completion for one bounded wait without cancelling on timeout."""
+    def wait(self, *, require_success: bool = True) -> None:
+        """Wait for completion; cleanup callers may accept cancelled or failed captures."""
         deadline = time.monotonic() + self.wait_seconds
         while time.monotonic() < deadline:
             self.observe()
             if self.terminal:
-                if self.status["phase"] != "Succeeded":
+                if require_success and self.status["phase"] != "Succeeded":
                     raise DeploymentError(
                         f"capture {self.status['phase'].lower()}: {self.status.get('message', '')}"
                     )

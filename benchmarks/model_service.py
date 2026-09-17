@@ -16,6 +16,7 @@ import httpx
 import yaml
 
 from benchmarks.config.benchmark import ModelServiceSource
+from benchmarks.profiling import CaptureCleanupError
 from foretoken.kubernetes import (
     Kubectl,
     load_deployment,
@@ -245,15 +246,15 @@ def _created_deployment(
 
 @contextmanager
 def resolve_model_service(
-    source: ModelServiceSource, *, require_existing: bool = False
+    source: ModelServiceSource, *, retain_runtime_cache: bool = False
 ) -> Iterator[ModelService]:
     """Yield the model service selected by the benchmark user.
 
     A URL source is used as given without touching Kubernetes. A Kustomize source
     reuses a complete deployment unchanged, or creates only the missing objects
     and deletes them again after the benchmark; a partially present deployment is
-    rejected. Profiling requires an existing deployment so cleanup cannot delete
-    its retained RuntimeCache artifacts.
+    rejected. Profiling retains RuntimeCache resources and their namespace after
+    serving begins, so temporary workload cleanup cannot delete capture output.
     """
     if source.url:
         yield ModelService(
@@ -271,8 +272,6 @@ def resolve_model_service(
     kubectl = Kubectl()
     deployment = load_deployment(source.kustomize_path, kubectl)
     presence = _service_presence(deployment, kubectl)
-    if require_existing and not all(presence):
-        raise DeploymentError("--profile requires an already deployed service; run foretoken deploy PATH first")
     if any(presence) and not all(presence):
         raise DeploymentError(
             "The Foretoken deployment is only partially present. "
@@ -281,6 +280,7 @@ def resolve_model_service(
 
     volumes = DirectoryVolumes(kubectl)
     created: ForetokenDeployment | None = None
+    serving = False
     try:
         if not any(presence):
             created = _created_deployment(
@@ -289,8 +289,35 @@ def resolve_model_service(
             )
             logger.info("Deploying Foretoken service from %s", deployment.path)
             volumes.apply(created, source.wait_timeout)
-        yield _discover_model_service(deployment, kubectl, source)
+        service = _discover_model_service(deployment, kubectl, source)
+        serving = True
+        yield service
+    except CaptureCleanupError:
+        # Keep participants alive until the controller confirms stop and export.
+        logger.error(
+            "Capture cleanup is unconfirmed; retaining deployment %s for inspection",
+            deployment.path,
+        )
+        created = None
+        raise
     finally:
         if created is not None:
+            if retain_runtime_cache and serving:
+                retained = tuple(
+                    document for document in created.objects
+                    if document["kind"] in {"Namespace", "RuntimeCache", "PersistentVolumeClaim"}
+                )
+                if retained:
+                    logger.info(
+                        "Retaining profile storage and namespace: %s",
+                        ", ".join(
+                            f"{document['kind']}/{document['metadata']['name']}"
+                            for document in retained
+                        ),
+                    )
+                    created = _created_deployment(
+                        created,
+                        tuple(document for document in created.objects if document not in retained),
+                    )
             logger.info("Cleaning up Foretoken service from %s", deployment.path)
             volumes.delete(created, source.wait_timeout)

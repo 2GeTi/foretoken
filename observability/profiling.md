@@ -36,7 +36,7 @@ Ctrl-C requests cancellation and retains available output. After a lost terminal
 
 ## Capture a benchmark workload
 
-To generate requests and capture them in the same command, install the benchmark dependencies from source (`pip install -e '.[bench]'`) and use an already deployed diagnostic service:
+To deploy or reuse a service, generate requests and capture them in one command, install the benchmark dependencies from source (`pip install -e '.[bench]'`):
 
 ```bash
 foretoken bench examples/quickstart \
@@ -44,7 +44,9 @@ foretoken bench examples/quickstart \
   --number 2 --max-tokens 128 --output local
 ```
 
-The service must already be deployed and use persistent RuntimeCache storage. Requests start after capture is active. When the workload finishes, the command ends capture and waits for trace export; if the recording duration ends first, the benchmark continues. Ctrl-C or a workload failure requests cancellation. The existing service and captured files are retained.
+The command deploys missing services or reuses an existing deployment. The service must use persistent RuntimeCache storage. Requests start after capture is active. When the workload finishes, the command ends capture and waits for trace export; if the recording duration ends first, the benchmark continues. Ctrl-C or a workload failure requests cancellation and waits for it to complete before cleanup.
+
+Temporary serving resources are removed after capture completes. Once serving is ready, profiling cleanup retains the deployment's storage resources and namespace so results survive, including cancelled or failed captures. Existing deployments are left unchanged. If capture stop cannot be confirmed, the command fails and retains the deployment for inspection. Use the printed ProfileRun and PVC references to inspect output; after saving the traces you need, run `foretoken delete PATH` to explicitly remove the remaining deployment resources.
 
 This mode supports one generated workload with the default `--rate -1`; it does not support `--url`, trace replay, sweeps or multiple datasets. `--wait-timeout` limits each wait for capture startup and export. Profiling adds overhead, so use a separate benchmark without `--profile` for latency and throughput measurements.
 

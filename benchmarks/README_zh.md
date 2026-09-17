@@ -72,7 +72,7 @@ foretoken bench examples/quickstart \
 
 ### 在评测时采集 Profile
 
-对已部署的诊断服务，添加一次短时 PyTorch 采集：
+为评测添加一次短时 PyTorch 采集；命令会自动部署尚不存在的服务，或复用已有部署：
 
 ```bash
 foretoken bench examples/quickstart \
@@ -80,7 +80,7 @@ foretoken bench examples/quickstart \
   --number 2 --max-tokens 128 --output local
 ```
 
-请先部署服务；该功能要求平台从源码安装，并使用持久 RuntimeCache。采集开始后才发送请求，负载完成后等待 trace 导出。此模式只支持一个生成式负载，并使用默认的 `--rate -1`；不支持 `--url`、轨迹回放、参数扫描或多个数据集。
+该功能要求平台从源码安装，并使用持久 RuntimeCache，Quick Start 已声明此存储。采集开始后才发送请求，负载完成后等待 trace 导出，再清理临时创建的服务资源。采集存储及其命名空间会保留；已有部署原样复用。此模式只支持一个生成式负载，并使用默认的 `--rate -1`；不支持 `--url`、轨迹回放、参数扫描或多个数据集。
 
 Profiling 会增加开销，测量延迟和吞吐量时应另跑一次不带 `--profile` 的评测。前提条件、取消操作和结果位置见[性能剖析](../observability/profiling_zh.md)。
 

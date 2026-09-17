@@ -36,7 +36,7 @@ Ctrl-C 会请求取消并保留已有结果。终端断线或等待超时后，�
 
 ## 同时运行 benchmark 和采集
 
-从源码安装 benchmark 依赖（`pip install -e '.[bench]'`）后，可对已部署的诊断服务用一条命令发请求并采集：
+从源码安装 benchmark 依赖（`pip install -e '.[bench]'`）后，可用一条命令完成服务部署或复用、发送请求和采集：
 
 ```bash
 foretoken bench examples/quickstart \
@@ -44,7 +44,9 @@ foretoken bench examples/quickstart \
   --number 2 --max-tokens 128 --output local
 ```
 
-服务必须已经部署，并使用持久 RuntimeCache。采集开始后才发送请求；负载完成后，命令会结束采集并等待 trace 导出。如果记录时长先结束，benchmark 仍会继续。按 Ctrl-C 或负载执行失败时会请求取消，已有服务和采集文件都会保留。
+命令会自动部署尚不存在的服务，或复用已有部署。服务需要使用持久 RuntimeCache。采集开始后才发送请求；负载完成后，命令会结束采集并等待 trace 导出。如果记录时长先结束，benchmark 仍会继续。按 Ctrl-C 或负载执行失败时会请求取消，并在取消完成后才清理资源。
+
+采集完成后，命令会删除临时创建的服务资源。服务就绪后，profiling 的清理流程会保留部署的存储资源和命名空间，让结果在清理后仍可访问，也包括取消或失败的采集。已有部署保持不变。若无法确认采集已停止，命令会报错并保留部署供排查。按输出的 ProfileRun 和 PVC 信息查看结果；保存所需 trace 后，可运行 `foretoken delete PATH`，明确清理留下的部署资源。
 
 此模式只支持一个生成式负载，并使用默认的 `--rate -1`；不支持 `--url`、轨迹回放、参数扫描或多个数据集。`--wait-timeout` 分别限制等待采集开始和导出的时间。Profiling 会增加开销，测量延迟和吞吐量时应另跑一次不带 `--profile` 的评测。
 
