@@ -15,7 +15,7 @@ from foretoken.accelerators.config import (
     NVIDIA_GPU_RESOURCE,
 )
 from foretoken.accelerators.discovery import ExporterDiscovery
-from foretoken.accelerators.metax import MetaXMetricsDiscovery
+from foretoken.accelerators.metax import MetaXExporterLifecycle, MetaXMetricsDiscovery
 from foretoken.accelerators.nvidia import NvidiaMetricsDiscovery
 from foretoken.arguments import InstallCommand, UninstallCommand
 from foretoken.kubernetes import (
@@ -27,11 +27,7 @@ from foretoken.kubernetes import (
     unmark_managed_metrics_scraper_namespace,
 )
 from foretoken.manifest import DeploymentError
-from foretoken.observability import (
-    PrometheusRef,
-    managed_prometheus_ref,
-    select_prometheus,
-)
+from foretoken.observability import PrometheusRef, select_prometheus
 from foretoken.platform.config import (
     default_platform_config,
     load_platform_values,
@@ -122,6 +118,9 @@ class PlatformLifecycle:
         self._helm = Helm(config)
         self._oci_registry = config.image_registry
         self._kubectl = Kubectl()
+        self._metax_exporter = MetaXExporterLifecycle(
+            self._kubectl, config.management_label, config.metax_exporter_image
+        )
         self._gateway = GatewayControllerLifecycle(self._helm, self._kubectl)
         self._load_balancer = LoadBalancerLifecycle(self._helm, self._kubectl)
 
@@ -131,6 +130,7 @@ class PlatformLifecycle:
         kubectl = self._kubectl
         gateway = self._gateway
         load_balancer = self._load_balancer
+        metax_exporter = self._metax_exporter
         timeout_seconds(command.timeout)
 
         platform = helm.platform_release()
@@ -268,7 +268,15 @@ class PlatformLifecycle:
         nvidia_metrics = NvidiaMetricsDiscovery(exporter_discovery).resolve(
             managed_dcgm if managed_dcgm_exists else None
         )
-        metax_metrics = MetaXMetricsDiscovery(exporter_discovery).resolve()
+        managed_metax_exists = bool(metax_exporter.managed_resources())
+        metax_metrics = MetaXMetricsDiscovery(exporter_discovery).resolve(
+            metax_exporter.daemonset if managed_metax_exists else None
+        )
+        install_managed_metax = (
+            metax_metrics is not None and metax_metrics.exporter is None
+        )
+        if install_managed_metax:
+            metax_exporter.ensure_available()
 
         managed_prometheus = helm.prometheus_release()
         managed_prometheus_exists = helm.release_exists(managed_prometheus)
@@ -304,7 +312,10 @@ class PlatformLifecycle:
                     "DCGM",
                     nvidia_metrics.exporter if nvidia_metrics is not None else None,
                 ),
-                ("mxExporter", metax_metrics),
+                (
+                    "mxExporter",
+                    metax_metrics.exporter if metax_metrics is not None else None,
+                ),
             )
             if exporter is not None
         )
@@ -342,11 +353,14 @@ class PlatformLifecycle:
         if metax_metrics is None:
             metax_action = "Skip"
             metax_detail = f"no allocatable {' or '.join(METAX_GPU_RESOURCES)} resource"
+        elif install_managed_metax:
+            metax_action = "Upgrade" if managed_metax_exists else "Install"
+            metax_detail = f"{metax_exporter.namespace}/{metax_exporter.daemonset.name}"
         else:
             metax_action = "Reuse"
             metax_detail = (
-                f"{metax_metrics.daemonset.namespace}/"
-                f"{metax_metrics.daemonset.display_name}"
+                f"{metax_metrics.exporter.daemonset.namespace}/"
+                f"{metax_metrics.exporter.daemonset.display_name}"
             )
 
         observability_labels = (
@@ -355,6 +369,7 @@ class PlatformLifecycle:
         monitor_namespaces = {
             platform.namespace,
             *(exporter.service_monitor.namespace for _, exporter in exporters),
+            *({metax_exporter.namespace} if install_managed_metax else set()),
         }
 
         platform_action = "Upgrade" if platform_exists else "Install"
@@ -418,11 +433,12 @@ class PlatformLifecycle:
                 managed_dcgm_exists,
                 command.timeout,
             )
-
-        if install_managed_prometheus or install_managed_dcgm:
-            active_prometheus = selected_prometheus or managed_prometheus_ref(
-                kubectl, managed_prometheus.namespace, managed_prometheus.name
+        if install_managed_metax:
+            metax_exporter.install(
+                metax_metrics.node_names, observability_labels, command.timeout
             )
+
+        if install_managed_prometheus or install_managed_dcgm or install_managed_metax:
             verified_discovery = ExporterDiscovery(kubectl, command.timeout)
             verified_nvidia = NvidiaMetricsDiscovery(verified_discovery).resolve()
             verified_metax = MetaXMetricsDiscovery(verified_discovery).resolve()
@@ -435,12 +451,20 @@ class PlatformLifecycle:
                         if verified_nvidia is not None
                         else None,
                     ),
-                    ("mxExporter", verified_metax),
+                    (
+                        "mxExporter",
+                        verified_metax.exporter
+                        if verified_metax is not None
+                        else None,
+                    ),
                 )
                 if exporter is not None
             )
+            verified_discovery.require_prometheus_selection(
+                selected_prometheus, verified_exporters
+            )
             verified_discovery.require_prometheus_targets(
-                active_prometheus,
+                selected_prometheus,
                 verified_exporters,
                 timeout_seconds=timeout_seconds(command.timeout),
             )
@@ -497,6 +521,7 @@ class PlatformLifecycle:
         kubectl = self._kubectl
         gateway = self._gateway
         load_balancer = self._load_balancer
+        metax_exporter = self._metax_exporter
         timeout_seconds(command.timeout)
         platform = helm.platform_release()
         managed_dcgm = helm.dcgm_release()
@@ -515,6 +540,7 @@ class PlatformLifecycle:
         prometheus_managed = (
             prometheus_exists and helm.is_cleanup_managed(managed_prometheus)
         )
+        metax_managed = bool(metax_exporter.managed_resources())
         gateway_plan = gateway.resolve_uninstall(
             platform, platform_exists=platform_exists
         )
@@ -522,6 +548,7 @@ class PlatformLifecycle:
             platform_exists
             or dcgm_managed
             or prometheus_managed
+            or metax_managed
             or gateway_plan.managed
         ):
             resources = platform_service_resources(kubectl)
@@ -551,6 +578,14 @@ class PlatformLifecycle:
             _print_plan("Prometheus", "Preserve", managed_prometheus.display_name)
         else:
             _print_plan("Prometheus", "Skip", "no managed release")
+        if metax_managed:
+            _print_plan(
+                "MetaX mxExporter",
+                "Remove",
+                f"{metax_exporter.namespace}/{metax_exporter.daemonset.name}",
+            )
+        else:
+            _print_plan("MetaX mxExporter", "Preserve", "not CLI-managed")
         _print_plan(
             "Gateway Controller", gateway_plan.action, gateway_plan.detail
         )
@@ -566,6 +601,13 @@ class PlatformLifecycle:
                 kubectl, managed_prometheus.namespace
             )
             _print_plan("Prometheus", "Removed", managed_prometheus.display_name)
+        if metax_managed:
+            metax_exporter.uninstall(command.timeout)
+            _print_plan(
+                "MetaX mxExporter",
+                "Removed",
+                f"{metax_exporter.namespace}/{metax_exporter.daemonset.name}",
+            )
         gateway_result = gateway.finish_uninstall(
             gateway_plan, command.timeout
         )
