@@ -31,7 +31,7 @@ foretoken profile examples/quickstart \
   --profile-engine pytorch --profile-duration 15s
 ```
 
-This command does not generate requests. Use `--model MODEL_ID` for a multi-model deployment. `--profile-duration` controls recording time; `profile --timeout` and `bench --wait-timeout` control how long their commands wait for completion.
+This command does not generate requests. Use `--model MODEL_ID` for a multi-model deployment. `--profile-duration` sets the maximum recording time; benchmark capture also stops when the workload finishes early.
 
 ## Inspect results
 

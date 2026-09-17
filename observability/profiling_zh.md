@@ -31,7 +31,7 @@ foretoken profile examples/quickstart \
   --profile-engine pytorch --profile-duration 15s
 ```
 
-该命令不发送请求。多模型部署用 `--model MODEL_ID` 选择模型。`--profile-duration` 指记录时长；等待完成的时限由 `profile --timeout` 或 `bench --wait-timeout` 设置。
+该命令不发送请求。多模型部署用 `--model MODEL_ID` 选择模型。`--profile-duration` 设置最长记录时间，评测负载提前结束时也会停止采集。
 
 ## 查看结果
 
