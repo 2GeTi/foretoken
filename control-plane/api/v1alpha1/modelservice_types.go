@@ -315,7 +315,7 @@ type SpeculativeDecoding struct {
 
 	// NumSpeculativeTokens is the maximum number of tokens proposed per decoding step.
 	// +kubebuilder:validation:Minimum=1
-	NumSpeculativeTokens int32 `json:"numSpeculativeTokens"`
+	NumSpeculativeTokens int32 `json:"num_speculative_tokens"`
 }
 
 // InferenceParameters contains common model-execution choices shared by every Pool.
@@ -393,9 +393,8 @@ type ModelServiceSpec struct {
 	// +kubebuilder:validation:Enum=vllm
 	Backend string `json:"backend"`
 
-	// Inference contains common model-execution parameters shared by every compiled Pool.
-	// +optional
-	Inference *InferenceParameters `json:"inference,omitempty"`
+	// Common execution choices apply to every Pool; explicit values override EngineArgs.
+	InferenceParameters `json:",inline"`
 
 	// InternalGenerateRequestBodyLimitBytes is the maximum body size accepted by
 	// a group-local generate endpoint. It defaults to 64 MiB.
@@ -459,12 +458,10 @@ type ModelServiceSpec struct {
 	// +kubebuilder:validation:MaxItems=32
 	ModelPools []ModelPoolTemplate `json:"modelPools,omitempty"`
 
-	// ExtraArgs pass advanced inference-engine CLI flags shared by every compiled Pool.
-	// Flags conflict only with explicitly set inference fields or controller-owned launch settings.
+	// EngineArgs uses the selected backend's native option names without leading --.
+	// Explicit common fields in spec take precedence over matching engine options.
 	// +optional
-	// +listType=atomic
-	// +kubebuilder:validation:MaxItems=256
-	ExtraArgs []BackendArg `json:"extraArgs,omitempty"`
+	EngineArgs EngineArguments `json:"engineArgs,omitempty"`
 }
 
 // AutoscalingStageStatus describes one named pipeline stage result.

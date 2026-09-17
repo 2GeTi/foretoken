@@ -98,20 +98,12 @@ spec:
                     description: ECProfile is the controller-owned platform EC profile
                       selected for encoder and prefill Pools.
                     type: string
-                  extraArgs:
-                    description: ExtraArgs are advanced inference-engine flags that
-                      the concrete adapter validates before Group creation.
-                    items:
-                      description: |-
-                        BackendArg is one --flag or --flag=value argv entry, not a shell command.
-                        Values may contain spaces or JSON; the adapter protects platform-owned arguments.
-                      maxLength: 4096
-                      minLength: 3
-                      pattern: ^--[a-z][a-z0-9_-]*(\.[A-Za-z0-9_-]+\+?)*(=[\s\S]*)?$
-                      type: string
-                    maxItems: 256
-                    type: array
-                    x-kubernetes-list-type: atomic
+                  engineArgs:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: EngineArgs contains native backend options before
+                      common fields are applied.
+                    type: object
                   features:
                     description: Features is the normalized explicit capabilities
                       for this Pool.
@@ -220,7 +212,7 @@ spec:
                               Methods that do not load separate draft weights may omit it.
                             minLength: 1
                             type: string
-                          numSpeculativeTokens:
+                          num_speculative_tokens:
                             description: NumSpeculativeTokens is the maximum number
                               of tokens proposed per decoding step.
                             format: int32
@@ -228,7 +220,7 @@ spec:
                             type: integer
                         required:
                         - method
-                        - numSpeculativeTokens
+                        - num_speculative_tokens
                         type: object
                     type: object
                   internalGenerateRequestBodyLimitBytes:

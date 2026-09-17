@@ -169,10 +169,6 @@ func compilePool(spec inferencev1alpha1.ModelServiceSpec, source inferencev1alph
 	if tokenizer == "" {
 		tokenizer = spec.Model
 	}
-	var inference inferencev1alpha1.InferenceParameters
-	if spec.Inference != nil {
-		inference = *spec.Inference.DeepCopy()
-	}
 	return ModelPool{
 		Name:          name,
 		DesiredGroups: replicas,
@@ -183,7 +179,7 @@ func compilePool(spec inferencev1alpha1.ModelServiceSpec, source inferencev1alph
 			Tokenizer:                             tokenizer,
 			TokenizerRevision:                     artifactRevision,
 			Backend:                               spec.Backend,
-			Inference:                             inference,
+			Inference:                             *spec.InferenceParameters.DeepCopy(),
 			Role:                                  role,
 			NodeCount:                             nodes,
 			MemberCount:                           nodes,
@@ -196,7 +192,7 @@ func compilePool(spec inferencev1alpha1.ModelServiceSpec, source inferencev1alph
 			Timeouts:                              timeouts,
 			KVCache:                               normalizedKVCache,
 			Features:                              normalizedFeatures,
-			ExtraArgs:                             append([]inferencev1alpha1.BackendArg(nil), spec.ExtraArgs...),
+			EngineArgs:                            spec.EngineArgs.DeepCopy(),
 		},
 	}, nil
 }

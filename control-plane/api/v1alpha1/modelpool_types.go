@@ -166,11 +166,9 @@ type NormalizedPoolTemplate struct {
 	// +optional
 	ECProfile string `json:"ecProfile,omitempty"`
 
-	// ExtraArgs are advanced inference-engine flags that the concrete adapter validates before Group creation.
+	// EngineArgs contains native backend options before common fields are applied.
 	// +optional
-	// +listType=atomic
-	// +kubebuilder:validation:MaxItems=256
-	ExtraArgs []BackendArg `json:"extraArgs,omitempty"`
+	EngineArgs EngineArguments `json:"engineArgs,omitempty"`
 }
 
 // ModelPoolSpec is the controller-owned desired state compiled from ModelService.

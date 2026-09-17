@@ -3,6 +3,7 @@
 
 //! Private versioned launch contract and the sole vLLM argv renderer.
 
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::Duration;
 
@@ -28,16 +29,14 @@ pub struct LaunchPlanV1 {
     pub node_count: usize,
     pub artifacts: Artifacts,
     pub parallelism: Parallelism,
-    #[serde(default)]
-    pub inference: Inference,
     pub kv: KvPlan,
     #[serde(default)]
     pub ec: EcTransferPlan,
     pub lifecycle: Lifecycle,
     #[serde(rename = "internalGenerateRequestBodyLimitBytes")]
     pub internal_generate_request_body_limit_bytes: usize,
-    #[serde(rename = "extraArgs")]
-    pub extra_args: Vec<String>,
+    #[serde(default, rename = "engineArgs")]
+    pub engine_args: BTreeMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -68,39 +67,6 @@ pub struct ExpertParallelism {
     #[serde(default)]
     pub backend: String,
     pub eplb: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Default, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Inference {
-    #[serde(default, rename = "maxModelLen")]
-    pub max_model_len: Option<usize>,
-    #[serde(default)]
-    pub dtype: String,
-    #[serde(default)]
-    pub quantization: String,
-    #[serde(default, rename = "kvCacheDType")]
-    pub kv_cache_dtype: String,
-    #[serde(default, rename = "gpuMemoryUtilization")]
-    pub gpu_memory_utilization: Option<f64>,
-    #[serde(default, rename = "maxNumSeqs")]
-    pub max_num_seqs: Option<usize>,
-    #[serde(default, rename = "maxNumBatchedTokens")]
-    pub max_num_batched_tokens: Option<usize>,
-    #[serde(default, rename = "enforceEager")]
-    pub enforce_eager: Option<bool>,
-    #[serde(default, rename = "speculativeDecoding")]
-    pub speculative_decoding: Option<SpeculativeDecoding>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SpeculativeDecoding {
-    pub method: String,
-    #[serde(default)]
-    pub model: String,
-    #[serde(rename = "numSpeculativeTokens")]
-    pub num_speculative_tokens: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -450,54 +416,36 @@ impl LaunchPlanV1 {
                 args.push("--enable-eplb".into());
             }
         }
-        if let Some(max_model_len) = self.inference.max_model_len {
-            args.push(format!("--max-model-len={max_model_len}"));
-        }
-        if !self.inference.dtype.is_empty() {
-            args.push(format!("--dtype={}", self.inference.dtype));
-        }
-        if !self.inference.quantization.is_empty() {
-            args.push(format!("--quantization={}", self.inference.quantization));
-        }
-        if !self.inference.kv_cache_dtype.is_empty() {
-            args.push(format!(
-                "--kv-cache-dtype={}",
-                self.inference.kv_cache_dtype
-            ));
-        }
-        if let Some(utilization) = self.inference.gpu_memory_utilization {
-            args.push(format!("--gpu-memory-utilization={utilization}"));
-        }
-        if let Some(max_num_seqs) = self.inference.max_num_seqs {
-            args.push(format!("--max-num-seqs={max_num_seqs}"));
-        }
-        if let Some(max_num_batched_tokens) = self.inference.max_num_batched_tokens {
-            args.push(format!("--max-num-batched-tokens={max_num_batched_tokens}"));
-        }
-        if let Some(enforce_eager) = self.inference.enforce_eager {
-            args.push(if enforce_eager {
-                "--enforce-eager".into()
-            } else {
-                "--no-enforce-eager".into()
-            });
-        }
-        if let Some(speculative) = &self.inference.speculative_decoding {
-            let mut config = serde_json::Map::from_iter([
-                ("method".into(), json!(speculative.method)),
-                (
-                    "num_speculative_tokens".into(),
-                    json!(speculative.num_speculative_tokens),
-                ),
-            ]);
-            if !speculative.model.is_empty() {
-                config.insert("model".into(), json!(speculative.model));
+        // The controller has already merged common fields and native options.
+        // Keep argument values intact: this command never goes through a shell.
+        for (name, value) in &self.engine_args {
+            match value {
+                serde_json::Value::Null => {}
+                serde_json::Value::Bool(enabled) => args.push(if *enabled {
+                    format!("--{name}")
+                } else {
+                    format!("--no-{name}")
+                }),
+                serde_json::Value::String(value) => args.push(format!("--{name}={value}")),
+                serde_json::Value::Array(values) => {
+                    args.push(format!("--{name}"));
+                    for value in values {
+                        let value = match value {
+                            serde_json::Value::String(value) => value.clone(),
+                            value => value.to_string(),
+                        };
+                        // A list item must not become a separate CLI option.
+                        if value.starts_with('-') && value.parse::<f64>().is_err() {
+                            return Err(format!(
+                                "engineArgs.{name} contains an option-like list value"
+                            ));
+                        }
+                        args.push(value);
+                    }
+                }
+                value => args.push(format!("--{name}={value}")),
             }
-            args.push(format!(
-                "--speculative-config={}",
-                serde_json::Value::Object(config)
-            ));
         }
-        args.extend(self.extra_args.clone());
         if matches!(self.ec.role, Some(EcRole::Producer)) {
             args.push("--no-enable-prefix-caching".into());
         }

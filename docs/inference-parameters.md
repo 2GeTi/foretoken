@@ -5,18 +5,19 @@
 
 English | [简体中文](inference-parameters_zh.md)
 
-Use `ModelService.spec.inference` for common precision, context-length, and batching options. For example, configure an AWQ checkpoint with a context limit:
+Set common options directly in `ModelService.spec`. For example, configure an AWQ checkpoint:
 
 ```yaml
 spec:
   model: Qwen/Qwen2.5-7B-Instruct-AWQ
-  inference:
-    maxModelLen: 8192
-    dtype: float16
-    quantization: awq
+  backend: vllm
+  maxModelLen: 8192
+  dtype: float16
+  quantization: awq
+  gpuMemoryUtilization: 0.85
 ```
 
-Set only the options you need to change. Omitted options retain the engine's default behavior. Apply changes with the same `foretoken deploy` command used to deploy the service.
+Omitted options retain engine defaults. Apply changes with the same `foretoken deploy` command used to deploy the service.
 
 ## Common options
 
@@ -25,56 +26,53 @@ Set only the options you need to change. Omitted options retain the engine's def
 | `maxModelLen` | Maximum combined input and output token count |
 | `dtype` | Model compute precision, such as `auto`, `float16`, or `bfloat16` |
 | `quantization` | Weight quantization method; engines can usually detect prequantized checkpoints |
-| `kvCacheDType` | KV cache precision, such as `auto` or `fp8`, independent of weight quantization |
-| `gpuMemoryUtilization` | Fraction of device memory available to each engine instance, greater than 0 and at most 1 |
-| `maxNumSeqs` | Maximum sequences scheduled per engine iteration |
-| `maxNumBatchedTokens` | Maximum tokens scheduled per engine iteration |
-| `enforceEager` | `true` disables graph capture and uses eager execution; `false` allows the engine to use graphs |
-| `speculativeDecoding` | Speculative method, draft model, and proposal length |
+| `kvCacheDType` | KV cache precision, such as `auto` or `fp8` |
+| `gpuMemoryUtilization` | Fraction of device memory per engine instance, greater than 0 and at most 1 |
+| `maxNumSeqs` | Maximum sequences scheduled per iteration |
+| `maxNumBatchedTokens` | Maximum tokens scheduled per iteration |
+| `enforceEager` | `true` disables graph capture; `false` allows the engine to use graphs |
+| `speculativeDecoding` | Speculative decoding settings, shown below |
 
-Available precision, quantization, and speculative decoding settings depend on the engine image, model, and hardware.
+Precision, quantization and speculative methods must match the engine image, model and hardware.
 
 ## Speculative decoding
-
-This fragment pairs Llama 3.1 8B with a matching EAGLE3 draft checkpoint:
 
 ```yaml
 spec:
   model: meta-llama/Meta-Llama-3.1-8B-Instruct
-  inference:
-    speculativeDecoding:
-      method: eagle3
-      model: yuhuili/EAGLE3-LLaMA3.1-Instruct-8B
-      numSpeculativeTokens: 2
+  backend: vllm
+  speculativeDecoding:
+    method: eagle3
+    model: yuhuili/EAGLE3-LLaMA3.1-Instruct-8B
+    num_speculative_tokens: 2
 ```
 
-`method` uses the engine's native name, such as `draft_model`, `eagle3`, `ngram`, or `mtp`. `numSpeculativeTokens` sets the maximum proposal length per decoding step. Methods without separate draft weights can omit `model`.
+Child fields follow engine naming. `method` uses a native strategy name such as `draft_model`, `eagle3`, `ngram`, or `mtp`; `num_speculative_tokens` sets the maximum proposal length. Methods without separate draft weights can omit `model`.
 
-vLLM downloads and loads draft models using the mounted RuntimeCache. Set `model` to a Hub model ID or an absolute directory visible inside the container. Selecting `spec.source: modelscope` applies to both target and draft Hub IDs.
+vLLM downloads, loads and caches draft models. `model` accepts a Hub ID or an absolute directory visible inside the container. Selecting `spec.source: modelscope` applies to both target and draft Hub IDs.
 
-## Argument passthrough
+## Native engine options
 
-Pass advanced engine options through `spec.extraArgs`. Each item is one `--flag` or `--flag=value` argument, without shell splitting. Values may contain spaces, JSON, or line breaks:
+`engineArgs` uses option names from the selected backend without `--`. Supply YAML booleans, numbers, strings, lists and objects directly rather than embedding JSON strings:
 
 ```yaml
 spec:
-  extraArgs:
-    - --gpu-memory-utilization=0.85
-    - --enforce-eager
-    - '--limit-mm-per-prompt={"image": 2}'
+  backend: vllm
+  maxModelLen: 8192
+  enforceEager: false
+  speculativeDecoding:
+    method: ngram
+    num_speculative_tokens: 2
+  engineArgs:
+    max-model-len: 4096
+    enforce-eager: true
+    limit-mm-per-prompt:
+      image: 2
+    speculative-config:
+      num_speculative_tokens: 5
+      prompt_lookup_max: 4
 ```
 
-Configure each option in either its structured field or passthrough, not both. Foretoken manages model identity, launch endpoints, parallel topology, transfer connectors, and profiling.
+Explicit `spec` fields take precedence: this example uses an 8192-token context, `enforceEager: false`, and two speculative tokens. Other options, including `prompt_lookup_max: 4`, remain in effect. A `null` value omits the option.
 
-For additional speculative options, omit `inference.speculativeDecoding` and pass the complete engine configuration instead:
-
-```yaml
-spec:
-  extraArgs:
-    - >-
-      --speculative-config={"method": "eagle3",
-      "model": "yuhuili/EAGLE3-LLaMA3.1-Instruct-8B",
-      "num_speculative_tokens": 2, "draft_tensor_parallel_size": 1}
-```
-
-Passthrough also accepts vLLM's dotted fields, such as `--compilation-config.mode=3`. The engine validates argument names, values, and combinations during startup. See the [vLLM engine argument reference](https://docs.vllm.ai/en/latest/configuration/engine_args/) for available options.
+Native options belong to the selected backend and may need changing when switching engines. Foretoken manages model identity, launch endpoints, parallel topology, transfer connectors and profiling. The current backend is vLLM; see its [engine argument reference](https://docs.vllm.ai/en/latest/configuration/engine_args/) for available options.
