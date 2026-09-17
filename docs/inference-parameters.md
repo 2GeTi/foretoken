@@ -33,11 +33,11 @@ Values are YAML booleans, numbers, strings, lists or objects. Omitted options re
 | `max-num-seqs` | Maximum sequences scheduled per iteration |
 | `max-num-batched-tokens` | Maximum tokens scheduled per iteration |
 | `enforce-eager` | Disable graph capture when `true` |
-| `tensor-parallel-size` | Tensor parallelism |
-| `pipeline-parallel-size` | Pipeline parallelism |
-| `data-parallel-size` | Data parallelism within one model replica |
-| `prefill-context-parallel-size` | Prefill context parallelism |
-| `decode-context-parallel-size` | Decode context parallelism, reusing existing ranks |
+| `tensor-parallel-size` | Tensor parallelism (TP) |
+| `pipeline-parallel-size` | Pipeline parallelism (PP) |
+| `data-parallel-size` | Data parallelism (DP) within one model replica |
+| `prefill-context-parallel-size` | Prefill context parallelism (PCP) |
+| `decode-context-parallel-size` | Decode context parallelism (DCP), reusing existing ranks |
 
 Request GPUs through `resources.requests.gpu.count` to match the engine worker count: TP × PP × DP × PCP for vLLM. DCP does not add GPUs. Replicas currently run on one node; split serving requires single-rank execution. Expert parallelism uses native `enable-expert-parallel`, `all2all-backend` and `enable-eplb` options.
 

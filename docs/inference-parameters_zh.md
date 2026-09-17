@@ -33,11 +33,11 @@ spec:
 | `max-num-seqs` | 每轮调度的最大序列数 |
 | `max-num-batched-tokens` | 每轮调度的最大 token 数 |
 | `enforce-eager` | `true` 时禁用计算图捕获 |
-| `tensor-parallel-size` | 张量并行度 |
-| `pipeline-parallel-size` | 流水线并行度 |
-| `data-parallel-size` | 单个模型副本内的数据并行度 |
-| `prefill-context-parallel-size` | Prefill 上下文并行度 |
-| `decode-context-parallel-size` | Decode 上下文并行度，复用已有 rank |
+| `tensor-parallel-size` | 张量并行度（TP） |
+| `pipeline-parallel-size` | 流水线并行度（PP） |
+| `data-parallel-size` | 单个模型副本内的数据并行度（DP） |
+| `prefill-context-parallel-size` | Prefill 上下文并行度（PCP） |
+| `decode-context-parallel-size` | Decode 上下文并行度（DCP），复用已有 rank |
 
 通过 `resources.requests.gpu.count` 申请与引擎 worker 数量匹配的 GPU。vLLM 的数量为 TP × PP × DP × PCP，DCP 不增加 GPU 数。当前每个副本运行在单节点上，分离式服务要求单 rank 执行。专家并行使用原生 `enable-expert-parallel`、`all2all-backend` 和 `enable-eplb` 参数。
 
