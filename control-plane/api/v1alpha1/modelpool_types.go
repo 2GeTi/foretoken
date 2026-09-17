@@ -85,7 +85,6 @@ type HuggingFaceAccess struct {
 // NormalizedPoolTemplate is the normalized configuration produced from ModelService intent.
 // Platform runtime and accelerator resolution may further constrain it before Groups are created.
 // +kubebuilder:validation:XValidation:rule="self.memberCount == self.nodeCount",message="memberCount must equal nodeCount in v1alpha1"
-// +kubebuilder:validation:XValidation:rule="self.nodeCount * self.resources.requests.gpu.count == self.parallelism.pp * self.parallelism.tp * self.parallelism.pcp * self.parallelism.dp",message="accelerator capacity must equal the compiled worker rank count"
 type NormalizedPoolTemplate struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=1024
@@ -133,8 +132,6 @@ type NormalizedPoolTemplate struct {
 	MemberCount int32 `json:"memberCount"`
 
 	Resources ModelResources `json:"resources"`
-
-	Parallelism CompiledParallelism `json:"parallelism"`
 
 	// MaxInputTokens is the immutable prompt admission limit for this Pool.
 	// +optional

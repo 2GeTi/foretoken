@@ -111,7 +111,6 @@ func Compile(template inferencev1alpha1.NormalizedPoolTemplate) (EffectiveConfig
 	effective := EffectiveConfig{
 		Model: template.Model, Source: template.Source, Revision: template.ModelRevision,
 		Tokenizer: template.Tokenizer, TokenizerRevision: template.TokenizerRevision,
-		Parallelism: copyParallelism(template.Parallelism),
 	}
 	if effective.Tokenizer == "" {
 		effective.Tokenizer = effective.Model
@@ -123,9 +122,19 @@ func Compile(template inferencev1alpha1.NormalizedPoolTemplate) (EffectiveConfig
 	if err != nil {
 		return EffectiveConfig{}, err
 	}
-	effective.EngineArgs = args
+	effective.Parallelism, err = extractParallelism(args)
+	if err != nil {
+		return EffectiveConfig{}, err
+	}
+	if len(args) != 0 {
+		effective.EngineArgs = args
+	}
 	if err := validateParallelism(effective.Parallelism); err != nil {
 		return EffectiveConfig{}, err
+	}
+	p := effective.Parallelism
+	if template.Role != inferencev1alpha1.ModelRoleAggregate && (p.TP != 1 || p.PP != 1 || p.DP != 1 || p.PCP != 1 || p.DCP != 1 || p.EP != nil) {
+		return EffectiveConfig{}, fmt.Errorf("split serving currently requires single-rank engine parallelism")
 	}
 	capacity := int64(template.NodeCount) * int64(template.Resources.Requests.GPU.Count)
 	ranks := int64(effective.Parallelism.PP) * int64(effective.Parallelism.TP) * int64(effective.Parallelism.PCP) * int64(effective.Parallelism.DP)
@@ -256,13 +265,50 @@ func parsePositiveDuration(value inferencev1alpha1.Duration, name string) (int64
 	return seconds, nil
 }
 
-func copyParallelism(input inferencev1alpha1.CompiledParallelism) inferencev1alpha1.CompiledParallelism {
-	output := input
-	if input.EP != nil {
-		copied := *input.EP
-		output.EP = &copied
+// extractParallelism consumes native topology options into the runtime's worker layout.
+// Size defaults match vLLM; EP uses the TP × PCP × DP ranks rather than a separate user size.
+func extractParallelism(args inferencev1alpha1.EngineArguments) (inferencev1alpha1.CompiledParallelism, error) {
+	p := inferencev1alpha1.CompiledParallelism{TP: 1, PP: 1, DP: 1, PCP: 1, DCP: 1}
+	for name, target := range map[string]*int32{
+		"tensor-parallel-size": &p.TP, "pipeline-parallel-size": &p.PP,
+		"data-parallel-size": &p.DP, "prefill-context-parallel-size": &p.PCP,
+		"decode-context-parallel-size": &p.DCP,
+	} {
+		if value, ok := args[name]; ok {
+			if string(value.Raw) != "null" {
+				if err := json.Unmarshal(value.Raw, target); err != nil || *target < 1 {
+					return p, fmt.Errorf("engineArgs.%s must be a positive integer", name)
+				}
+			}
+			delete(args, name)
+		}
 	}
-	return output
+	var ep, eplb bool
+	for name, target := range map[string]*bool{"enable-expert-parallel": &ep, "enable-eplb": &eplb} {
+		if value, ok := args[name]; ok {
+			if err := json.Unmarshal(value.Raw, target); err != nil {
+				return p, fmt.Errorf("engineArgs.%s must be a boolean", name)
+			}
+			delete(args, name)
+		}
+	}
+	if eplb && !ep {
+		return p, fmt.Errorf("enable-eplb requires enable-expert-parallel")
+	}
+	if ep {
+		size := int64(p.TP) * int64(p.PCP) * int64(p.DP)
+		if size > math.MaxInt32 {
+			return p, fmt.Errorf("expert-parallel rank count exceeds supported resource capacity")
+		}
+		p.EP = &inferencev1alpha1.ExpertParallelism{Size: int32(size), EPLB: eplb}
+		if value, ok := args["all2all-backend"]; ok {
+			if err := json.Unmarshal(value.Raw, &p.EP.Backend); err != nil {
+				return p, fmt.Errorf("engineArgs.all2all-backend must be a string")
+			}
+			delete(args, "all2all-backend")
+		}
+	}
+	return p, nil
 }
 
 func validateParallelism(parallelism inferencev1alpha1.CompiledParallelism) error {
@@ -286,17 +332,17 @@ func validateParallelism(parallelism inferencev1alpha1.CompiledParallelism) erro
 }
 
 var controllerOwnedArgs = []string{
-	"--all2all-backend", "--api-server-count", "--code-revision", "--config", "--convert",
+	"--api-server-count", "--code-revision", "--config", "--convert",
 	"--data-parallel-address", "--data-parallel-backend", "--data-parallel-external-lb",
 	"--data-parallel-hybrid-lb", "--data-parallel-multi-port-external-lb",
-	"--data-parallel-rank", "--data-parallel-rpc-port", "--data-parallel-size",
-	"--data-parallel-size-local", "--data-parallel-start-rank", "--decode-context-parallel-size",
+	"--data-parallel-rank", "--data-parallel-rpc-port",
+	"--data-parallel-size-local", "--data-parallel-start-rank",
 	"--distributed-executor-backend", "--download-dir", "--ec-manager-config", "--ec-transfer-config",
-	"--enable-elastic-ep", "--enable-eplb", "--enable-expert-parallel", "--enable-prefix-caching",
+	"--enable-elastic-ep", "--enable-prefix-caching",
 	"--grpc", "--headless", "--hf-token", "--host", "--kv-events-config", "--kv-transfer-config",
 	"--master-addr", "--master-port", "--model", "--nnodes", "--node-rank",
-	"--pipeline-parallel-size", "--port", "--prefill-context-parallel-size", "--profiler-config", "--revision",
-	"--runner", "--served-model-name", "--tensor-parallel-size", "--tokenizer", "--tokenizer-revision",
+	"--port", "--profiler-config", "--revision",
+	"--runner", "--served-model-name", "--tokenizer", "--tokenizer-revision",
 }
 
 var engineArgName = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
@@ -315,8 +361,13 @@ func compileEngineArgs(input inferencev1alpha1.EngineArguments, inference infere
 		if !engineArgName.MatchString(name) || strings.HasPrefix(key, "no-") {
 			return nil, fmt.Errorf("engineArgs key %q must be a full option name without --; use YAML booleans for switches", name)
 		}
+		for _, topology := range []string{"tensor-parallel-size", "pipeline-parallel-size", "data-parallel-size", "prefill-context-parallel-size", "decode-context-parallel-size", "enable-expert-parallel", "enable-eplb", "all2all-backend"} {
+			if key != topology && strings.HasPrefix(topology, key) {
+				return nil, fmt.Errorf("engineArgs.%s must use the full option name %s", name, topology)
+			}
+		}
 		for _, owned := range controllerOwnedArgs {
-			if strings.HasPrefix(owned, "--"+key) {
+			if key != "data-parallel-size" && strings.HasPrefix(owned, "--"+key) {
 				return nil, fmt.Errorf("engineArgs option %q is owned by Foretoken", name)
 			}
 		}

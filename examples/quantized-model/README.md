@@ -31,7 +31,7 @@ curl --fail-with-body "$FRONTEND_URL/v1/chat/completions" \
 
 In Gateway mode, configure the hostname and request Host header as shown in the root Quick Start.
 
-To use another checkpoint, update [`model.yaml`](model.yaml) and the model identifier in requests. Set `quantization`, `dtype` and `maxModelLen` under `spec` to match the checkpoint; see [inference parameters](../../docs/inference-parameters.md) for these fields and native engine options.
+To use another checkpoint, update [`model.yaml`](model.yaml) and the model identifier in requests. Set native `quantization`, `dtype` and `max-model-len` options under `spec.engineArgs` to match the checkpoint; see [inference parameters](../../docs/inference-parameters.md) for these fields and native engine options.
 
 ## Clean up
 

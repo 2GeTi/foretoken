@@ -31,7 +31,7 @@ curl --fail-with-body "$FRONTEND_URL/v1/chat/completions" \
 
 使用 Gateway 模式时，按根目录快速开始配置域名和请求 Host 头。
 
-更换模型时，修改 [`model.yaml`](model.yaml) 和请求中的模型标识，并在 `spec` 下设置匹配的 `quantization`、`dtype` 和 `maxModelLen`。字段含义及原生引擎选项见[推理参数](../../docs/inference-parameters_zh.md)。
+更换模型时，修改 [`model.yaml`](model.yaml) 和请求中的模型标识，并在 `spec.engineArgs` 下设置匹配的原生参数 `quantization`、`dtype` 和 `max-model-len`。字段含义及原生引擎选项见[推理参数](../../docs/inference-parameters_zh.md)。
 
 ## 清理
 

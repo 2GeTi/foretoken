@@ -22,11 +22,8 @@ spec:
   timeouts:
     startup: 5m
     drain: 2m
-  parallelism:
-    tp: 1
-    pp: 1
-    pcp: 1
-    dcp: 1
-  quantization: awq
-  dtype: half
-  maxModelLen: 4096
+  engineArgs:
+    tensor-parallel-size: 1
+    quantization: awq
+    dtype: half
+    max-model-len: 4096
