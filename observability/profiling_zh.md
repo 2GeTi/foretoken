@@ -37,7 +37,7 @@ foretoken profile examples/quickstart \
 
 按命令输出的位置找到 `.pt.trace.json` 文件，用 [Perfetto](https://ui.perfetto.dev/) 打开。快速开始示例将结果保存在项目根目录的 `data/profiles/runs/`；其他存储配置见[模型存储](../docs/model-storage_zh.md)。
 
-评测结束后会清理临时服务，保留采集结果及其存储；已有服务保持运行。保存所需结果后，清理该部署留下的资源：
+带采集的评测会保留结果及其存储。保存所需文件后清理：
 
 ```bash
 foretoken delete examples/quickstart

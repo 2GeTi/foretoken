@@ -37,7 +37,7 @@ This command does not generate requests. Use `--model MODEL_ID` for a multi-mode
 
 Open the `.pt.trace.json` files at the printed location in [Perfetto](https://ui.perfetto.dev/). The Quick Start stores results under the repository-root `data/profiles/runs/` directory; see [Model storage](../docs/model-storage.md) for other storage options.
 
-After benchmarking, temporary services are removed while capture output and its storage are retained. Existing services remain running. Once you have saved the results you need, remove the deployment's remaining resources:
+Profiled benchmarks retain results and their storage. After saving the traces you need, clean up with:
 
 ```bash
 foretoken delete examples/quickstart

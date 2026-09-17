@@ -72,8 +72,6 @@ foretoken bench examples/quickstart \
 
 ### 在评测时采集 Profile
 
-在评测时采集 PyTorch 性能分析数据：
-
 ```bash
 foretoken bench examples/quickstart \
   --profile --profile-engine pytorch --profile-duration 15s \

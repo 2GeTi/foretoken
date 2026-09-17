@@ -72,8 +72,6 @@ foretoken bench examples/quickstart \
 
 ### Capture while benchmarking
 
-Record a PyTorch profile during the benchmark:
-
 ```bash
 foretoken bench examples/quickstart \
   --profile --profile-engine pytorch --profile-duration 15s \
