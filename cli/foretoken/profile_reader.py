@@ -12,8 +12,13 @@ import os
 import shutil
 import stat
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Final
 from urllib.parse import parse_qs, urlsplit
 from uuid import UUID
+
+READER_PORT: Final = 8080
+CAPTURE_MOUNT_PATH: Final = "/captures"
+READER_SECRET_ENV: Final = "FORETOKEN_PROFILE_READER_SECRET"
 
 
 def capture_path(value: str) -> str:
@@ -183,8 +188,8 @@ class CaptureHandler(BaseHTTPRequestHandler):
 
 def main() -> None:
     """Run the packaged reader inside the temporary read-only PVC Pod."""
-    secret = os.environ["FORETOKEN_PROFILE_READER_SECRET"]
-    with CaptureReader(("0.0.0.0", 8080), "/captures", secret) as server:
+    secret = os.environ[READER_SECRET_ENV]
+    with CaptureReader(("0.0.0.0", READER_PORT), CAPTURE_MOUNT_PATH, secret) as server:
         server.serve_forever()
 
 

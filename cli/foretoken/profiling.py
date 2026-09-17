@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import sys
 import time
 from typing import Any, Literal
@@ -68,12 +69,12 @@ class ProfileRun:
         self.name, self.uid = created["metadata"]["name"], created["metadata"]["uid"]
         print(f"ProfileRun {self.namespace}/{self.name}", flush=True)
         print(
-            f"Inspect later: kubectl get profilerun {self.name} -n {self.namespace} -o yaml",
+            f"View captures: foretoken profile view {shlex.quote(self.command.kustomize_path)}",
             flush=True,
         )
 
     def observe(self) -> dict[str, Any]:
-        """Read this capture's status and print progress and retained artifact locations."""
+        """Read this capture's status and print progress changes."""
         run = json.loads(self.kubectl.run([
             "get", "profilerun", self.name, "-n", self.namespace,
             "-o", "json", "--request-timeout=20s",
@@ -84,13 +85,6 @@ class ProfileRun:
         progress = (self.status.get("phase", "Pending"), self.status.get("message", ""))
         if progress != self._previous:
             print(f"{progress[0]}: {progress[1]}".rstrip(": "), flush=True)
-            artifact = self.status.get("artifact")
-            if self.terminal and artifact:
-                print(
-                    f"Artifacts: RuntimeCache PVC {self.namespace}/{artifact['claimName']} "
-                    f"— {artifact['path']}",
-                    flush=True,
-                )
             self._previous = progress
         return self.status
 

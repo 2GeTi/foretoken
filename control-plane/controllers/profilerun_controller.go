@@ -285,7 +285,6 @@ func (r *ProfileRunReconciler) prepareProfile(ctx context.Context, run *api.Prof
 	if !modelServiceReady(service) || !meta.IsStatusConditionTrue(service.Status.Conditions, conditionReady) {
 		return plan, fmt.Errorf("ModelService must already be Ready")
 	}
-	plan.Model = service.Spec.Model
 	plan.ServiceUID, plan.ServingGeneration, plan.Revisions = string(service.UID), service.Status.ServingGeneration, service.Status.ServingPoolRevisions
 	pools, groups := new(api.ModelPoolList), new(api.ModelGroupList)
 	if err := r.APIReader.List(ctx, pools, client.InNamespace(run.Namespace)); err != nil {
@@ -304,6 +303,8 @@ func (r *ProfileRunReconciler) prepareProfile(ctx context.Context, run *api.Prof
 			if !routingGroupOwnedBy(&group, &pool) || group.Spec.Revision != serviceServingRevision(service, &pool) || !routingGroupReady(&group) {
 				continue
 			}
+			// Desired service intent may already name the next model during a rollout.
+			plan.Model = group.Spec.Artifacts.Model
 			cache := group.Spec.Artifacts.Cache
 			if cache == nil {
 				return plan, fmt.Errorf("ModelService %s has no persistent RuntimeCache; add one to the deployment and redeploy before profiling", service.Name)

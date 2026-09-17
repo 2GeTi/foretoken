@@ -86,7 +86,7 @@ class ProfileViewer(ThreadingHTTPServer):
             resources.files("foretoken").joinpath("profile_view.html").read_bytes()
         )
         super().__init__(("127.0.0.1", 0), ProfileHandler)
-        self.origin = f"http://127.0.0.1:{self.server_port}"
+        self.origin = f"http://{self.server_address[0]}:{self.server_port}"
 
     def get_request(self) -> tuple[socket.socket, Any]:
         """Track accepted sockets so idle browser connections cannot prevent shutdown."""

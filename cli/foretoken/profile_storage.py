@@ -20,7 +20,13 @@ from uuid import uuid4
 
 from foretoken.kubernetes import Kubectl, timeout_seconds
 from foretoken.manifest import DeploymentError
-from foretoken.profile_reader import capture_path, capture_token
+from foretoken.profile_reader import (
+    CAPTURE_MOUNT_PATH,
+    READER_PORT,
+    READER_SECRET_ENV,
+    capture_path,
+    capture_token,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +208,7 @@ class ProfileStorage:
                         "command": ["python", "-B", "/reader/profile_reader.py"],
                         "env": [
                             {
-                                "name": "FORETOKEN_PROFILE_READER_SECRET",
+                                "name": READER_SECRET_ENV,
                                 "value": reader.secret,
                             }
                         ],
@@ -211,12 +217,12 @@ class ProfileStorage:
                             "readOnlyRootFilesystem": True,
                             "capabilities": {"drop": ["ALL"]},
                         },
-                        "ports": [{"name": "http", "containerPort": 8080}],
+                        "ports": [{"name": "http", "containerPort": READER_PORT}],
                         "readinessProbe": {"tcpSocket": {"port": "http"}},
                         "volumeMounts": [
                             {
                                 "name": "captures",
-                                "mountPath": "/captures",
+                                "mountPath": CAPTURE_MOUNT_PATH,
                                 "readOnly": True,
                             },
                             {
@@ -272,7 +278,7 @@ class ProfileStorage:
                     "metadata": {**metadata, "ownerReferences": owner},
                     "spec": {
                         "selector": labels,
-                        "ports": [{"port": 8080, "targetPort": "http", "name": "http"}],
+                        "ports": [{"port": READER_PORT, "targetPort": "http", "name": "http"}],
                     },
                 },
                 "services",
