@@ -36,10 +36,10 @@ Capture starts when the service is ready and records externally supplied request
 Run on your local computer with a kubeconfig for the target cluster:
 
 ```bash
-foretoken profile view examples/quickstart
+foretoken profile view
 ```
 
-Open the printed URL. The page lists historical captures, selects the most recent successful run, and opens the chosen trace in Perfetto. Multiple runtime or rank files can be selected individually. The browser needs access to `ui.perfetto.dev`. Press Ctrl+C to close the viewer; retained results remain available.
+Open the printed URL to browse capture directories and their subfolders. Click a trace to view it in Perfetto. The browser needs access to `ui.perfetto.dev`. Press Ctrl+C to close the viewer; files are preserved.
 
 When the deployment and capture records are no longer needed, clean up with:
 

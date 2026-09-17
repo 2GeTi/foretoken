@@ -20,7 +20,7 @@ from uuid import uuid4
 
 from foretoken.kubernetes import Kubectl, timeout_seconds
 from foretoken.manifest import DeploymentError
-from foretoken.profile_reader import (
+from foretoken.profiling.reader import (
     CAPTURE_MOUNT_PATH,
     READER_PORT,
     READER_SECRET_ENV,
@@ -171,16 +171,14 @@ class ProfileStorage:
         metadata = {"name": name, "namespace": namespace, "labels": labels}
         start = len(self._created)
         try:
+            script = resources.files("foretoken.profiling").joinpath("reader.py")
+            script_mount = "/reader"
             config = self._create(
                 {
                     "apiVersion": "v1",
                     "kind": "ConfigMap",
                     "metadata": metadata,
-                    "data": {
-                        "profile_reader.py": resources.files("foretoken")
-                        .joinpath("profile_reader.py")
-                        .read_text()
-                    },
+                    "data": {script.name: script.read_text()},
                 },
                 "configmaps",
             )
@@ -205,7 +203,7 @@ class ProfileStorage:
                     {
                         "name": "reader",
                         "image": self.image,
-                        "command": ["python", "-B", "/reader/profile_reader.py"],
+                        "command": ["python", "-B", f"{script_mount}/{script.name}"],
                         "env": [
                             {
                                 "name": READER_SECRET_ENV,
@@ -227,7 +225,7 @@ class ProfileStorage:
                             },
                             {
                                 "name": "reader",
-                                "mountPath": "/reader",
+                                "mountPath": script_mount,
                                 "readOnly": True,
                             },
                         ],
@@ -278,7 +276,9 @@ class ProfileStorage:
                     "metadata": {**metadata, "ownerReferences": owner},
                     "spec": {
                         "selector": labels,
-                        "ports": [{"port": READER_PORT, "targetPort": "http", "name": "http"}],
+                        "ports": [
+                            {"port": READER_PORT, "targetPort": "http", "name": "http"}
+                        ],
                     },
                 },
                 "services",
@@ -309,22 +309,31 @@ class ProfileStorage:
         return reader
 
     def _path(
-        self, reader: _Reader, namespace: str, action: str, run: str, name: str = ""
+        self,
+        reader: _Reader,
+        namespace: str,
+        action: str,
+        directory: str,
+        name: str = "",
     ) -> str:
-        """Keep remote credentials bound to the catalogue-selected run and out of the browser."""
+        """Keep remote credentials bound to the selected capture directory and out of the browser."""
         query = urlencode(
-            {"run": run, "token": capture_token(reader.secret, run), "name": name}
+            {
+                "root": directory,
+                "token": capture_token(reader.secret, directory),
+                "name": name,
+            }
         )
         return f"/api/v1/namespaces/{quote(namespace, safe='')}/services/{reader.name}:http/proxy/{action}?{query}"
 
     def list_files(
         self, namespace: str, claim_name: str, artifact_path: str
     ) -> list[dict[str, Any]]:
-        """List exported traces relative to a ProfileRun root, distinguishing missing storage."""
+        """List nested traces relative to a capture directory, distinguishing missing storage."""
         try:
             run = capture_path(artifact_path)
         except ValueError as exc:
-            raise DeploymentError("ProfileRun has an invalid artifact path") from exc
+            raise DeploymentError("invalid capture directory") from exc
         reader = self._reader(namespace, claim_name)
         path = self._path(reader, namespace, "list", run)
         try:
@@ -343,7 +352,7 @@ class ProfileStorage:
             token = capture_token(reader.secret, run)
             raise DeploymentError(str(exc).replace(token, "[redacted]")) from None
         if result.get("error") == "not_found":
-            raise FileNotFoundError("capture files no longer exist")
+            raise FileNotFoundError("capture directory was not found")
         if result.get("error"):
             raise DeploymentError("capture files cannot be read by the storage viewer")
         return result["files"]
@@ -362,9 +371,14 @@ class ProfileStorage:
         timed_out = threading.Event()
         with tempfile.TemporaryFile() as errors:
             process = subprocess.Popen(
-                self.kubectl.command([
-                    "get", "--raw", path, f"--request-timeout={self.timeout}",
-                ]),
+                self.kubectl.command(
+                    [
+                        "get",
+                        "--raw",
+                        path,
+                        f"--request-timeout={self.timeout}",
+                    ]
+                ),
                 stdout=subprocess.PIPE,
                 stderr=errors,
             )

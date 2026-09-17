@@ -36,10 +36,10 @@ foretoken deploy examples/quickstart \
 在本地电脑使用目标集群的 kubeconfig 执行：
 
 ```bash
-foretoken profile view examples/quickstart
+foretoken profile view
 ```
 
-打开命令打印的网址，即可浏览历史采集；默认选中最近一次成功记录，在 Perfetto 中打开选定的 trace。多实例、多 rank 文件可分别选择。浏览器需能访问 `ui.perfetto.dev`。按 Ctrl+C 关闭查看器，采集结果会保留。
+打开打印的网址，浏览采集目录及子目录，点击 trace 在 Perfetto 中查看。浏览器需能访问 `ui.perfetto.dev`。按 Ctrl+C 关闭查看器，文件会保留。
 
 不再需要该部署及采集记录时清理：
 

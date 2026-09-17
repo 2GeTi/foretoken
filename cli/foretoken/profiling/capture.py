@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import json
-import shlex
 import sys
 import time
 from typing import Any, Literal
@@ -68,10 +67,7 @@ class ProfileRun:
         ).stdout)
         self.name, self.uid = created["metadata"]["name"], created["metadata"]["uid"]
         print(f"ProfileRun {self.namespace}/{self.name}", flush=True)
-        print(
-            f"View captures: foretoken profile view {shlex.quote(self.command.kustomize_path)}",
-            flush=True,
-        )
+        print("View captures: foretoken profile view", flush=True)
 
     def observe(self) -> dict[str, Any]:
         """Read this capture's status and print progress changes."""

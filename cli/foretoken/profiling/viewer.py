@@ -15,58 +15,115 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 from foretoken.arguments import ProfileViewCommand
-from foretoken.kubernetes import Kubectl, load_deployment, timeout_seconds
+from foretoken.kubernetes import Kubectl, timeout_seconds
 from foretoken.manifest import DeploymentError
-from foretoken.profile_storage import ProfileStorage
+from foretoken.profiling.reader import CAPTURE_DIRECTORY
+from foretoken.profiling.storage import ProfileStorage
 
 
-class ProfileHistory:
-    """Select retained runs by deployment identity without requiring serving Pods."""
+class CaptureDirectories:
+    """Discover capture storage; retained run records enrich files but do not gate access."""
 
-    def __init__(self, kubectl: Kubectl, path: str) -> None:
+    def __init__(self, kubectl: Kubectl, namespace: str | None) -> None:
         self.kubectl = kubectl
-        deployment = load_deployment(path, kubectl)
-        self.namespace = deployment.namespace
-        self.services = frozenset(deployment.models)
-        self.runs: dict[str, dict[str, Any]] = {}
+        self.namespace = namespace
+        self.stores: dict[str, dict[str, str]] = {}
+        self.runs: tuple[dict[str, Any], ...] = ()
 
-    def refresh(self) -> list[dict[str, Any]]:
-        """Return newest-first history; model names come only from capture snapshots."""
-        records = self.kubectl.list_resources(
-            ("profileruns.inference.foretoken.io",), self.namespace
+    def refresh(self) -> dict[str, Any]:
+        """List cache roots and select the latest successful capture's storage."""
+        kinds = (
+            "runtimecaches.inference.foretoken.io",
+            "profileruns.inference.foretoken.io",
         )
-        self.runs = {
-            run["metadata"]["uid"]: run
-            for run in records
-            if run["spec"]["modelServiceRef"]["name"] in self.services
-        }
-        entries = []
-        for uid, run in self.runs.items():
-            metadata, spec, status = run["metadata"], run["spec"], run.get("status", {})
-            entries.append(
-                {
-                    "id": uid,
-                    "name": metadata["name"],
-                    "service": spec["modelServiceRef"]["name"],
-                    "model": (status.get("plan") or {}).get("model"),
-                    "time": status.get("startedAt") or metadata["creationTimestamp"],
-                    "status": status.get("phase", "Pending"),
-                    "has_result": bool(status.get("artifact")),
-                }
+        objects = (
+            self.kubectl.list_resources(kinds, self.namespace)
+            if self.namespace is not None
+            else self.kubectl.list_all_resources(kinds)
+        )
+        stores = {}
+        runs = []
+        for item in objects:
+            metadata, status = item["metadata"], item.get("status", {})
+            namespace = metadata["namespace"]
+            if item["kind"] == "RuntimeCache":
+                claim = status.get("claimName")
+                if claim:
+                    key = f"{namespace}/{claim}"
+                    stores[key] = {
+                        "id": key,
+                        "namespace": namespace,
+                        "claim": claim,
+                        "name": metadata["name"],
+                    }
+            elif status.get("artifact"):
+                runs.append(item)
+        runs.sort(
+            key=lambda run: (
+                run.get("status", {}).get("startedAt")
+                or run["metadata"]["creationTimestamp"]
+            ),
+            reverse=True,
+        )
+        latest = None
+        for run in runs:
+            namespace = run["metadata"]["namespace"]
+            claim = run["status"]["artifact"]["claimName"]
+            key = f"{namespace}/{claim}"
+            stores.setdefault(
+                key, {"id": key, "namespace": namespace, "claim": claim, "name": claim}
             )
-        return sorted(
-            entries, key=lambda entry: (entry["time"], entry["id"]), reverse=True
-        )
+            if latest is None and run["status"].get("phase") == "Succeeded":
+                latest = key
+        self.stores, self.runs = stores, tuple(runs)
+        return {
+            "stores": sorted(stores.values(), key=lambda store: store["id"]),
+            "latest": latest,
+        }
 
-    def artifact(self, uid: str) -> tuple[str, str, str]:
-        """Resolve only runs listed for this deployment, never browser-supplied PVCs."""
-        run = self.runs.get(uid)
-        if run is None:
-            raise FileNotFoundError("Capture is no longer listed; refresh the history.")
-        artifact = run.get("status", {}).get("artifact")
-        if not artifact:
-            raise FileNotFoundError("This capture has no published result.")
-        return self.namespace, artifact["claimName"], artifact["path"]
+    def directory(self, store_id: str) -> tuple[str, str, str]:
+        """Resolve only discovered storage, never a browser-supplied PVC identity."""
+        store = self.stores.get(store_id)
+        if store is None:
+            raise FileNotFoundError(
+                "Capture storage is no longer listed; refresh the page."
+            )
+        return store["namespace"], store["claim"], CAPTURE_DIRECTORY
+
+    def files(self, store_id: str, storage: ProfileStorage) -> list[dict[str, Any]]:
+        """Recursively list saved traces, attaching historical metadata where available."""
+        namespace, claim, root = self.directory(store_id)
+        runs = [
+            run
+            for run in self.runs
+            if run["metadata"]["namespace"] == namespace
+            and run["status"]["artifact"]["claimName"] == claim
+        ]
+        entries = storage.list_files(namespace, claim, root)
+        for entry in entries:
+            path = f"{root}/{entry['name']}"
+            run = next(
+                (
+                    run
+                    for run in runs
+                    if path.startswith(
+                        run["status"]["artifact"]["path"].rstrip("/") + "/"
+                    )
+                ),
+                None,
+            )
+            if run is not None:
+                status = run["status"]
+                entry.update(
+                    {
+                        "model": (status.get("plan") or {}).get("model"),
+                        "service": run["spec"]["modelServiceRef"]["name"],
+                        "status": status.get("phase", "Pending"),
+                        "time": status.get("startedAt")
+                        or run["metadata"]["creationTimestamp"],
+                    }
+                )
+        return entries
 
 
 class ProfileViewer(ThreadingHTTPServer):
@@ -74,7 +131,7 @@ class ProfileViewer(ThreadingHTTPServer):
 
     daemon_threads = False
 
-    def __init__(self, history: ProfileHistory, storage: ProfileStorage) -> None:
+    def __init__(self, history: CaptureDirectories, storage: ProfileStorage) -> None:
         self.cluster_lock = threading.Lock()
         self.connection_lock = threading.Lock()
         self.connections: set[socket.socket] = set()
@@ -83,7 +140,7 @@ class ProfileViewer(ThreadingHTTPServer):
         self.storage = storage
         self.session_path = "/" + secrets.token_urlsafe(24) + "/"
         self.page = (
-            resources.files("foretoken").joinpath("profile_view.html").read_bytes()
+            resources.files("foretoken.profiling").joinpath("viewer.html").read_bytes()
         )
         super().__init__(("127.0.0.1", 0), ProfileHandler)
         self.origin = f"http://{self.server_address[0]}:{self.server_port}"
@@ -170,13 +227,13 @@ class ProfileHandler(BaseHTTPRequestHandler):
             if not route:
                 self._headers(200, "text/html; charset=utf-8")
                 self.wfile.write(self.server.page)
-            elif route == "api/runs":
+            elif route == "api/stores":
                 self._json(200, self.server.history.refresh())
             elif route in {"api/files", "api/trace"}:
                 query = parse_qs(query_string)
-                uid = query.get("run", [""])[0]
-                artifact = self.server.history.artifact(uid)
-                files = self.server.storage.list_files(*artifact)
+                store_id = query.get("store", [""])[0]
+                artifact = self.server.history.directory(store_id)
+                files = self.server.history.files(store_id, self.server.storage)
                 if route == "api/files":
                     self._json(200, files)
                     return
@@ -208,7 +265,7 @@ def view(command: ProfileViewCommand) -> None:
     # A long-lived viewer must not switch clusters when another terminal changes context.
     context = kubectl.run(["config", "current-context"]).stdout.strip()
     kubectl = Kubectl(context=context)
-    history = ProfileHistory(kubectl, command.kustomize_path)
+    history = CaptureDirectories(kubectl, command.namespace)
     history.refresh()
     with (
         ProfileStorage(kubectl, timeout=command.timeout) as storage,

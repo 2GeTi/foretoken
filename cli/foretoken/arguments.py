@@ -90,9 +90,9 @@ class ProfileCommand:
 
 @dataclass(frozen=True)
 class ProfileViewCommand:
-    """Serve retained captures locally using the caller's Kubernetes credentials."""
+    """Browse capture directories in all or one selected Kubernetes namespace."""
 
-    kustomize_path: str
+    namespace: str | None
     timeout: str
 
 
@@ -311,8 +311,8 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     view.add_argument(
-        "kustomize_path", metavar="PATH",
-        help="Kustomize root selecting the services; not applied",
+        "-n", "--namespace",
+        help="limit capture directories to one namespace (default: all namespaces)",
     )
     _add_wait_timeout_argument(view, "capture storage readiness")
 
@@ -383,7 +383,7 @@ def parse_arguments(argv: Sequence[str]) -> ParsedCommand:
     if parsed_args.command == "delete":
         return DeleteCommand(parsed_args.kustomize_path, parsed_args.timeout)
     if parsed_args.command == "profile":
-        return ProfileViewCommand(parsed_args.kustomize_path, parsed_args.timeout)
+        return ProfileViewCommand(parsed_args.namespace, parsed_args.timeout)
     if parsed_args.command == "status":
         if bool(parsed_args.kustomize_path) == bool(parsed_args.namespace):
             parser.error("status requires either PATH or --namespace")

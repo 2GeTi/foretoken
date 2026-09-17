@@ -14,25 +14,36 @@ import stat
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Final
 from urllib.parse import parse_qs, urlsplit
-from uuid import UUID
 
 READER_PORT: Final = 8080
 CAPTURE_MOUNT_PATH: Final = "/captures"
+# Published output only; files in profiles/.staging may still be written.
+CAPTURE_DIRECTORY: Final = "profiles/runs"
 READER_SECRET_ENV: Final = "FORETOKEN_PROFILE_READER_SECRET"
 
 
-def capture_path(value: str) -> str:
-    """Accept only the controller's retained capture root, not arbitrary PVC paths."""
+def _relative_parts(value: str) -> list[str]:
+    """Reject path components that can escape or alias an authenticated directory."""
     parts = value.split("/")
-    if len(parts) != 3 or parts[:2] != ["profiles", "runs"]:
+    if (
+        any(part in {"", ".", ".."} for part in parts)
+        or "\\" in value
+        or "\x00" in value
+    ):
+        raise ValueError("invalid relative path")
+    return parts
+
+
+def capture_path(value: str) -> str:
+    """Accept the capture directory or a child scope, never another part of the PVC."""
+    root = CAPTURE_DIRECTORY.split("/")
+    if _relative_parts(value)[:len(root)] != root:
         raise ValueError("invalid capture path")
-    if str(UUID(parts[2])) != parts[2]:
-        raise ValueError("invalid capture identity")
     return value
 
 
 def capture_token(secret: str, path: str) -> str:
-    """Bind a reader access credential to one controller-selected capture root."""
+    """Bind a reader access credential to one capture-directory scope."""
     return hmac.new(secret.encode(), path.encode(), hashlib.sha256).hexdigest()
 
 
@@ -52,17 +63,12 @@ def _open_directory(root_fd: int, parts: list[str]) -> int:
         raise
 
 
-def _trace_name(value: str) -> tuple[str, str]:
-    """Validate a runtime-relative exported trace or manifest filename."""
-    parts = value.split("/")
-    if len(parts) != 2 or str(UUID(parts[0])) != parts[0]:
-        raise ValueError("invalid trace path")
-    filename = parts[1]
-    if filename in {"", ".", ".."} or "\\" in filename or "\x00" in filename:
-        raise ValueError("invalid trace filename")
-    if filename != "manifest.json" and not filename.endswith(".pt.trace.json"):
+def _trace_name(value: str) -> tuple[list[str], str]:
+    """Validate a trace filename relative to its authenticated directory scope."""
+    parts = _relative_parts(value)
+    if not parts[-1].endswith(".pt.trace.json"):
         raise ValueError("not a capture file")
-    return parts[0], filename
+    return parts[:-1], parts[-1]
 
 
 class CaptureReader(ThreadingHTTPServer):
@@ -86,7 +92,7 @@ class CaptureReader(ThreadingHTTPServer):
 
 
 class CaptureHandler(BaseHTTPRequestHandler):
-    """Expose only run-scoped listings and regular exported files; never log credentials."""
+    """Expose scoped capture listings and regular trace files; never log credentials."""
 
     server: CaptureReader
 
@@ -107,7 +113,7 @@ class CaptureHandler(BaseHTTPRequestHandler):
         request = urlsplit(self.path)
         query = parse_qs(request.query)
         try:
-            path = capture_path(query.get("run", [""])[0])
+            path = capture_path(query.get("root", [""])[0])
         except ValueError:
             self._json(400, {"error": "invalid_capture"})
             return
@@ -137,33 +143,35 @@ class CaptureHandler(BaseHTTPRequestHandler):
         except OSError:
             self._json(200 if request.path == "/list" else 403, {"error": "unreadable"})
 
-    def _files(self, root: int) -> list[dict[str, str | int]]:
-        """List regular PyTorch traces under runtime directories without following links."""
-        files = []
-        for runtime in sorted(os.listdir(root)):
+    def _files(self, root: int) -> list[dict[str, str | int | float]]:
+        """List nested regular traces without following links or holding a descriptor per folder."""
+        files: list[dict[str, str | int | float]] = []
+        pending: list[list[str]] = [[]]
+        while pending:
+            parts = pending.pop()
+            directory = _open_directory(root, parts)
             try:
-                if str(UUID(runtime)) != runtime:
-                    continue
-            except ValueError:
-                continue
-            directory = _open_directory(root, [runtime])
-            try:
-                for name in sorted(os.listdir(directory)):
-                    if not name.endswith(".pt.trace.json"):
-                        continue
+                for name in os.listdir(directory):
                     info = os.stat(name, dir_fd=directory, follow_symlinks=False)
-                    if stat.S_ISREG(info.st_mode):
+                    relative = [*parts, name]
+                    if stat.S_ISDIR(info.st_mode):
+                        pending.append(relative)
+                    elif stat.S_ISREG(info.st_mode) and name.endswith(".pt.trace.json"):
                         files.append(
-                            {"name": f"{runtime}/{name}", "size": info.st_size}
+                            {
+                                "name": "/".join(relative),
+                                "size": info.st_size,
+                                "modified_at": info.st_mtime,
+                            }
                         )
             finally:
                 os.close(directory)
-        return files
+        return sorted(files, key=lambda item: item["name"])
 
     def _file(self, root: int, name: str) -> None:
-        """Stream a regular capture file using descriptors that cannot escape its run."""
-        runtime, filename = _trace_name(name)
-        directory = _open_directory(root, [runtime])
+        """Stream a regular trace using descriptors confined to the authenticated directory."""
+        directories, filename = _trace_name(name)
+        directory = _open_directory(root, directories)
         try:
             descriptor = os.open(
                 filename, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory

@@ -199,7 +199,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         elif isinstance(command, BenchCommand):
             _bench(command.arguments)
         elif isinstance(command, ProfileViewCommand):
-            from foretoken.profile_view import view
+            from foretoken.profiling.viewer import view
 
             view(command)
     except DeploymentError as exc:
