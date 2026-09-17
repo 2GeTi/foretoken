@@ -22,22 +22,26 @@ foretoken bench examples/quickstart \
 
 This mode supports a single generated workload from a Kustomize deployment with the default `--rate -1`.
 
-## Capture
-
-To record traffic on a service that is already running:
+## Deploy and capture external traffic
 
 ```bash
-foretoken profile examples/quickstart \
-  --profile-engine pytorch --profile-duration 15s
+foretoken deploy examples/quickstart \
+  --profile --profile-engine pytorch --profile-duration 15s
 ```
 
-This command does not generate requests. Use `--model MODEL_ID` for a multi-model deployment. `--profile-duration` sets the maximum recording time; benchmark capture also stops when the workload finishes early.
+Capture starts when the service is ready and records externally supplied requests. The service remains running afterwards. Use `--model MODEL_ID` to select the capture target in a multi-model deployment. `--profile-duration` sets the maximum recording time; benchmark capture also stops when the workload finishes early.
 
 ## Inspect results
 
-Download the captured `.pt.trace.json` files to your computer and drag them into [Perfetto](https://ui.perfetto.dev/) to view the execution timeline.
+Run on your local computer with a kubeconfig for the target cluster:
 
-Profiled benchmarks retain results and their storage. After saving the traces you need, clean up with:
+```bash
+foretoken profile view examples/quickstart
+```
+
+Open the printed URL. The page lists historical captures, selects the most recent successful run, and opens the chosen trace in Perfetto. Multiple runtime or rank files can be selected individually. The browser needs access to `ui.perfetto.dev`. Press Ctrl+C to close the viewer; retained results remain available.
+
+When the deployment and capture records are no longer needed, clean up with:
 
 ```bash
 foretoken delete examples/quickstart

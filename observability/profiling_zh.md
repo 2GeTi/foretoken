@@ -22,22 +22,26 @@ foretoken bench examples/quickstart \
 
 此模式支持 Kustomize 部署中的单个生成式负载，使用默认的 `--rate -1`。
 
-## 开始采集
-
-服务已经运行时，可单独采集一段现有流量：
+## 部署并采集外部流量
 
 ```bash
-foretoken profile examples/quickstart \
-  --profile-engine pytorch --profile-duration 15s
+foretoken deploy examples/quickstart \
+  --profile --profile-engine pytorch --profile-duration 15s
 ```
 
-该命令不发送请求。多模型部署用 `--model MODEL_ID` 选择模型。`--profile-duration` 设置最长记录时间，评测负载提前结束时也会停止采集。
+服务就绪后开始采集，请求由外部发送；采集结束后服务继续运行。多模型部署用 `--model MODEL_ID` 选择采集对象。`--profile-duration` 设置最长记录时间，评测负载提前结束时也会停止采集。
 
 ## 查看结果
 
-将采集生成的 `.pt.trace.json` 文件下载到本地，拖入 [Perfetto](https://ui.perfetto.dev/) 查看执行时间线。
+在本地电脑使用目标集群的 kubeconfig 执行：
 
-带采集的评测会保留结果及其存储。保存所需文件后清理：
+```bash
+foretoken profile view examples/quickstart
+```
+
+打开命令打印的网址，即可浏览历史采集；默认选中最近一次成功记录，在 Perfetto 中打开选定的 trace。多实例、多 rank 文件可分别选择。浏览器需能访问 `ui.perfetto.dev`。按 Ctrl+C 关闭查看器，采集结果会保留。
+
+不再需要该部署及采集记录时清理：
 
 ```bash
 foretoken delete examples/quickstart

@@ -134,14 +134,3 @@ class ProfileRun:
             f"stopped waiting after {self.command.timeout}; ProfileRun {self.namespace}/{self.name} "
             "continues independently. Inspect its status with the command above."
         )
-
-
-def capture(command: ProfileCommand) -> None:
-    """Create a retained ProfileRun; the controller owns execution and stop after CLI exit."""
-    run = ProfileRun(command)
-    try:
-        run.start()
-        run.wait()
-    except KeyboardInterrupt:
-        run.cancel()
-        raise

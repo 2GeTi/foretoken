@@ -147,7 +147,7 @@ Use `foretoken bench` to measure model-service performance. Commands and example
 
 ## Capture a diagnostic profile
 
-Use `foretoken profile` to capture existing traffic or `foretoken bench --profile` to generate a workload and capture it. See [Profiling](../observability/profiling.md) for commands and results.
+Add `--profile` to `foretoken deploy` or `foretoken bench` to capture performance data. Use `foretoken profile view PATH` to browse results. See [Profiling](../observability/profiling.md).
 
 ## Clean up
 

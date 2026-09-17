@@ -285,6 +285,7 @@ func (r *ProfileRunReconciler) prepareProfile(ctx context.Context, run *api.Prof
 	if !modelServiceReady(service) || !meta.IsStatusConditionTrue(service.Status.Conditions, conditionReady) {
 		return plan, fmt.Errorf("ModelService must already be Ready")
 	}
+	plan.Model = service.Spec.Model
 	plan.ServiceUID, plan.ServingGeneration, plan.Revisions = string(service.UID), service.Status.ServingGeneration, service.Status.ServingPoolRevisions
 	pools, groups := new(api.ModelPoolList), new(api.ModelGroupList)
 	if err := r.APIReader.List(ctx, pools, client.InNamespace(run.Namespace)); err != nil {
