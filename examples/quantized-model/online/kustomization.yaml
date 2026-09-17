@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+patches:
+  - target:
+      kind: ModelService
+      name: quantized-model
+    patch: |-
+      - op: replace
+        path: /spec/model
+        value: Qwen/Qwen2.5-0.5B-Instruct
+      - op: replace
+        path: /spec/engineArgs
+        value:
+          tensor-parallel-size: 1
+          quantization: fp8_per_tensor
+          dtype: bfloat16
+          max-model-len: 4096
+  - target:
+      kind: RuntimeCache
+      name: models
+    patch: |-
+      - op: replace
+        path: /spec/directory
+        value: ../../../data

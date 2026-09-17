@@ -7,7 +7,7 @@
 
 For two models with autoscaling, see [Multi-Model Quick Start](../multi-model-quickstart/README.md).
 
-For a pre-quantized checkpoint, see [Deploy a quantized model](../quantized-model/README.md).
+For prequantized weights or online quantization, see [Deploy a quantized model](../quantized-model/README.md).
 
 This example deploys one frontend and one `Qwen/Qwen3-0.6B` model replica. The workload requests one GPU, 8 CPU, and 52 GiB memory; allow additional capacity for the platform. Models and runtime caches share the repository-root `data/` directory with the multi-model example, as configured in `cache.yaml`.
 
