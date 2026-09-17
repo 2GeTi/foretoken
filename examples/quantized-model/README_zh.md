@@ -7,7 +7,7 @@
 
 本示例加载 Qwen 官方的 [Qwen2.5-0.5B-Instruct-AWQ](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-AWQ) 预量化模型，使用 AWQ 4-bit 权重、FP16 激活值和 4096-token 上下文。
 
-按仓库[快速开始](../../README_zh.md)安装平台。GPU 需同时受所用 vLLM 运行时及其 [AWQ 实现](https://docs.vllm.ai/en/stable/features/quantization/)支持，例如 NVIDIA A100。示例请求 1 张 GPU、3 核 CPU 和 9 GiB 主机内存；平台需要额外资源。
+使用 `foretoken install -e .` 从当前源码[安装平台](../../docs/custom-deployment_zh.md)。GPU 需同时受所用 vLLM 运行时及其 [AWQ 实现](https://docs.vllm.ai/en/stable/features/quantization/)支持，例如 NVIDIA A100。示例请求 1 张 GPU、3 核 CPU 和 9 GiB 主机内存；平台需要额外资源。
 
 `cache.yaml` 与快速开始共用项目根目录的 `data/`。远程集群需将 `spec.directory` 改为节点可访问的绝对路径，详见[模型存储](../../docs/model-storage_zh.md)。
 

@@ -7,7 +7,7 @@
 
 Serve the official [Qwen2.5-0.5B-Instruct-AWQ](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-AWQ) checkpoint with 4-bit AWQ weights, FP16 activations and a 4096-token context. This example loads prequantized weights.
 
-Install the platform using the repository [Quick Start](../../README.md). Use an NVIDIA GPU supported by the installed vLLM runtime and its [AWQ implementation](https://docs.vllm.ai/en/stable/features/quantization/), such as an A100. The example requests one GPU, 3 CPU and 9 GiB of host memory, plus platform capacity.
+Install the [platform from this source checkout](../../docs/custom-deployment.md) with `foretoken install -e .`. Use an NVIDIA GPU supported by the installed vLLM runtime and its [AWQ implementation](https://docs.vllm.ai/en/stable/features/quantization/), such as an A100. The example requests one GPU, 3 CPU and 9 GiB of host memory, plus platform capacity.
 
 `cache.yaml` shares the repository-root `data/` directory with the Quick Start. For a remote cluster, set `spec.directory` to an absolute path available on its nodes; see [model storage](../../docs/model-storage.md).
 
