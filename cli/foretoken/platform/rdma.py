@@ -27,6 +27,8 @@ class RDMASelection:
     action: str
     detail: str
     managed: bool = False
+    node_names: tuple[str, ...] = ()
+    available: bool = False
 
 
 def shared_rdma_resources(
@@ -101,7 +103,7 @@ def select_rdma(
     supplies resource identity. Neither NIC names nor capacity units are inferred.
     """
     resource: str | None = None
-    managed = False
+    managed: bool | None = None
     for document in values:
         rdma = document.get("rdma", {})
         if not isinstance(rdma, dict):
@@ -133,6 +135,7 @@ def select_rdma(
 
     available: set[str] = set()
     external_plugins = []
+    owned_plugin = False
     for daemonset in daemonsets:
         try:
             resources = shared_rdma_resources(kubectl, daemonset)
@@ -149,6 +152,10 @@ def select_rdma(
             annotations.get("meta.helm.sh/release-namespace"),
         ) != managed_release:
             external_plugins.append(f"{metadata['namespace']}/{metadata['name']}")
+        else:
+            owned_plugin = True
+            if managed is False:
+                continue
         for node in nodes:
             allocatable = node.get("status", {}).get("allocatable", {})
             for name in resources:
@@ -159,16 +166,25 @@ def select_rdma(
                 )[0]
                 if Decimal(coefficient) > 0:
                     available.add(name)
+    if managed is None:
+        managed = not external_plugins
     if managed:
         if external_plugins:
             raise DeploymentError(
                 "reuse the existing RDMA device plugin instead of enabling rdma.managed: "
                 + ", ".join(external_plugins)
             )
-        return RDMASelection(None, "Managed", "shared RDMA device plugin", managed=True)
+        return RDMASelection(
+            None,
+            "Upgrade" if owned_plugin else "Install",
+            "shared InfiniBand device plugin",
+            managed=True,
+            node_names=tuple(sorted(node["metadata"]["name"] for node in nodes)),
+            available=bool(available),
+        )
     if len(available) == 1:
         name = next(iter(available))
-        return RDMASelection(name, "Reuse", name)
+        return RDMASelection(name, "Reuse", name, available=True)
     if available:
         return RDMASelection(
             None, "Selection needed",

@@ -35,11 +35,13 @@ workload:
 loadBalancer:
   managedAddresses: []
 
-# Provision the upstream shared device plugin for InfiniBand nodes without one.
-# RoCE uses the cluster's existing device allocation and network configuration.
+# foretoken install automatically reuses or prepares shared RDMA device allocation.
+# These values also support direct Helm installation.
 rdma:
   managed: false
   image: ghcr.io/mellanox/k8s-rdma-shared-dev-plugin:v1.5.4
+  # Selected GPU nodes, populated by foretoken install.
+  nodeNames: []
 
 # Local mode uses a LoadBalancer Service. Gateway mode attaches an HTTPRoute to a Gateway.
 frontend:

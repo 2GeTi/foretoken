@@ -235,6 +235,10 @@ class PlatformLifecycle:
         if platform_exists and (
             not rdma.managed
             or runtime_scope.gpu_node_selector != stored_runtime.gpu_node_selector
+            or bool(
+                set(stored_values[0].get("rdma", {}).get("nodeNames", []))
+                - set(rdma.node_names)
+            )
         ):
             require_unused_managed_rdma(kubectl, (platform.name, platform.namespace))
 
@@ -499,6 +503,8 @@ class PlatformLifecycle:
             observability_prometheus=f"{selected_prometheus.namespace}/{selected_prometheus.name}",
             gpu_resource_name=gpu_resource_name,
             rdma_resource_name=rdma.resource_name,
+            rdma_managed=rdma.managed,
+            rdma_node_names=rdma.node_names,
             reuse_values=platform_exists,
             timeout=command.timeout,
         )
@@ -514,8 +520,8 @@ class PlatformLifecycle:
             )
             _print_plan(
                 "RDMA",
-                "Available" if allocation.resource_name else "Not available",
-                allocation.resource_name or (
+                "Available" if allocation.available else "Not available",
+                allocation.detail if allocation.available else (
                     "device plugin has no allocatable RDMA pool on the GPU nodes; "
                     "check node drivers and network interfaces"
                 ),

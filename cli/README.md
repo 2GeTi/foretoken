@@ -46,7 +46,7 @@ The default uses release images and local access through a `LoadBalancer` Servic
 foretoken install
 ```
 
-Installation selects the NVIDIA or MetaX runtime from the cluster's GPU resources. Explicit runtime settings in `--values` take precedence; in a mixed-GPU cluster, select a resource with `runtime.vllm.gpu.resourceName` or restrict the nodes with `runtime.vllm.gpu.nodeSelector`.
+Installation selects the NVIDIA or MetaX runtime and automatically reuses or installs the shared RDMA device plugin. Explicit runtime settings in `--values` take precedence; in a mixed-GPU cluster, select a resource with `runtime.vllm.gpu.resourceName` or restrict the nodes with `runtime.vllm.gpu.nodeSelector`.
 
 See [Observability](../observability/README.md) for dashboards and alerts.
 
@@ -88,13 +88,7 @@ Registry login authorizes the local image push. Private registries also need `im
 
 ### Installation options
 
-Repeatable `--values` files provide platform image, runtime, and hardware settings. Use `--oci-registry` for mirrored release images and CLI-managed charts. Save the settings you need below in `platform-values.yaml` and apply them with:
-
-```bash
-foretoken install --values platform-values.yaml
-```
-
-#### LoadBalancer addresses
+Use `--values` only to override platform image, runtime, or hardware settings. Use `--oci-registry` for mirrored release images and CLI-managed charts.
 
 Model services are reached through an IP address outside the cluster. k3d, k3s, and cloud clusters assign one automatically. Clusters built with kubeadm, RKE2, or kubespray have no address assignment by default, so installation there ends with `LoadBalancer support Not verified`. Give Foretoken a range of unused addresses in the nodes' subnet, confirmed with the cluster administrator, and it assigns them to services:
 
@@ -103,17 +97,6 @@ loadBalancer:
   managedAddresses:
     - 192.168.1.240-192.168.1.250
 ```
-
-#### RDMA
-
-For prefill/decode (P/D) serving, installation reuses a unique shared RDMA resource on the selected GPU nodes. Nodes need working RDMA drivers and a reachable RDMA fabric. On InfiniBand nodes without an RDMA device plugin, let Foretoken manage one:
-
-```yaml
-rdma:
-  managed: true
-```
-
-Mooncake selects network adapters by topology. If the cluster has several RDMA pools, set `runtime.vllm.pd.rdmaResourceName` to one of the choices printed during installation. Set it to an empty string to disable automatic P/D resource selection. RoCE allocations and network attachments remain cluster-managed.
 
 ## Deploy and operate model services
 

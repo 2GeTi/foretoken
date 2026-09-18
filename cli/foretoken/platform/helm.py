@@ -297,6 +297,8 @@ class Helm(HelmClient):
         observability_prometheus: str,
         gpu_resource_name: str | None,
         rdma_resource_name: str | None,
+        rdma_managed: bool,
+        rdma_node_names: tuple[str, ...],
         reuse_values: bool,
         timeout: str,
     ) -> None:
@@ -337,6 +339,13 @@ class Helm(HelmClient):
                 [
                     "--set-string",
                     f"runtime.vllm.gpu.resourceName={gpu_resource_name}",
+                ]
+            )
+        if rdma_managed:
+            args.extend(
+                [
+                    "--set", "rdma.managed=true",
+                    "--set-json", "rdma.nodeNames=" + json.dumps(rdma_node_names),
                 ]
             )
         if rdma_resource_name is not None:

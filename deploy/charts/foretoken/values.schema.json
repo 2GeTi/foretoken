@@ -16,10 +16,14 @@
   "properties": {
     "rdma": {
       "type": "object",
-      "required": ["managed", "image"],
+      "required": ["managed", "image", "nodeNames"],
       "properties": {
         "managed": {"type": "boolean"},
-        "image": {"type": "string", "minLength": 1}
+        "image": {"type": "string", "minLength": 1},
+        "nodeNames": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
       },
       "additionalProperties": false
     },
