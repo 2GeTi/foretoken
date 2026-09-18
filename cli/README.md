@@ -46,7 +46,7 @@ The default uses release images and local access through a `LoadBalancer` Servic
 foretoken install
 ```
 
-Installation selects the NVIDIA or MetaX runtime and automatically reuses or installs the shared RDMA device plugin. Explicit runtime settings in `--values` take precedence; in a mixed-GPU cluster, select a resource with `runtime.vllm.gpu.resourceName` or restrict the nodes with `runtime.vllm.gpu.nodeSelector`.
+Installation selects the NVIDIA or MetaX runtime and automatically reuses or installs LeaderWorkerSet and the shared RDMA device plugin. Explicit runtime settings in `--values` take precedence; in a mixed-GPU cluster, select a resource with `runtime.vllm.gpu.resourceName` or restrict the nodes with `runtime.vllm.gpu.nodeSelector`.
 
 See [Observability](../observability/README.md) for dashboards and alerts.
 
@@ -154,4 +154,4 @@ foretoken delete examples/multi-model-quickstart
 foretoken uninstall
 ```
 
-Foretoken CRDs and reused cluster components are retained. Managed MetalLB is also retained while other services depend on it.
+CRDs and reused cluster components are retained. Managed LeaderWorkerSet and MetalLB controllers are also retained while workloads still depend on them.

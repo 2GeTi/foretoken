@@ -451,20 +451,82 @@ index 8118b770e..cab093d56 100644
      pub fn validate(&self) -> Result<()> {
          if self.prompt_embeds.is_some() {
 diff --git a/rust/src/engine-core-client/src/transport.rs b/rust/src/engine-core-client/src/transport.rs
-index 7aac8774c..a27bee516 100644
 --- a/rust/src/engine-core-client/src/transport.rs
 +++ b/rust/src/engine-core-client/src/transport.rs
-@@ -21,7 +21,8 @@ use crate::error::{Error, Result, bail_unexpected_handshake_message};
+@@ -21,8 +21,9 @@
  use crate::protocol::handshake::{
      EngineCoreReadyResponse, HandshakeAddresses, HandshakeInitMessage, ReadyMessage,
  };
 -use crate::protocol::output::{EngineCoreOutputs, decode_engine_core_outputs};
+-use crate::protocol::{decode_msgpack, encode_msgpack};
 +use crate::protocol::output::{EngineCoreOutputs, decode_engine_core_outputs_for};
 +use crate::protocol::request::EngineCoreProtocol;
- use crate::protocol::{decode_msgpack, encode_msgpack};
++use crate::protocol::{OpaqueValue, decode_msgpack, encode_msgpack};
 
  /// Dedicated single-frame sentinel emitted by Python `EngineCoreProc` when the
-@@ -553,6 +554,7 @@ pub async fn send_message(
+ /// engine dies.
+@@ -180,6 +181,35 @@
+     let mut handshake_socket = RouterSocket::new();
+     handshake_socket.bind(handshake_address).await?;
+
++    // Independently launched Python engines pick different DP rendezvous ports.
++    // Match Python's coordinated handshake by distributing one shared allocation.
++    let parallel_config = if coordinator.is_some() && engine_count > 1 {
++        let listeners = (0..5)
++            .map(|_| std::net::TcpListener::bind((local_host, 0)))
++            .collect::<std::io::Result<Vec<_>>>()?;
++        let mut ports = listeners
++            .iter()
++            .map(|listener| listener.local_addr().map(|address| OpaqueValue::from(address.port())))
++            .collect::<std::io::Result<Vec<_>>>()?;
++        let master_port = ports.pop().expect("five rendezvous ports were allocated");
++        BTreeMap::from([
++            (
++                "data_parallel_master_ip".into(),
++                OpaqueValue::from(local_host),
++            ),
++            ("data_parallel_master_port".into(), master_port),
++            (
++                "_data_parallel_master_port_list".into(),
++                OpaqueValue::Array(ports),
++            ),
++            (
++                "data_parallel_size".into(),
++                OpaqueValue::from(engine_count as u64),
++            ),
++        ])
++    } else {
++        BTreeMap::new()
++    };
+     let mut engines = BTreeMap::new();
+
+     // 3. Receive HELLO from every engine and send a matching INIT. When coordinator mode is
+@@ -213,6 +243,7 @@
+                     &input_address,
+                     &output_address,
+                     coordinator.as_ref(),
++                    &parallel_config,
+                 )
+                 .await?;
+                 debug!(handshake_address, ?engine_id, "sent INIT to engine");
+@@ -438,6 +469,7 @@
+     input_address: &str,
+     output_address: &str,
+     coordinator: Option<&CoordinatorBootstrap>,
++    parallel_config: &BTreeMap<String, OpaqueValue>,
+ ) -> Result<()> {
+     let init_message = HandshakeInitMessage {
+         addresses: HandshakeAddresses {
+@@ -447,7 +479,7 @@
+             coordinator_output: coordinator.map(|c| c.output_address.clone()),
+             frontend_stats_publish_address: None,
+         },
+-        parallel_config: Default::default(),
++        parallel_config: parallel_config.clone(),
+     };
+     let payload = encode_msgpack(&init_message)?;
+     let message = ZmqMessage::try_from(vec![engine_id.to_frame(), Bytes::from(payload)])
+@@ -553,6 +585,7 @@
  pub async fn run_output_loop(
      mut output_socket: PullSocket,
      tx: mpsc::Sender<Result<EngineCoreOutputs>>,
@@ -472,7 +534,7 @@ index 7aac8774c..a27bee516 100644
  ) {
      loop {
          let message = match output_socket.recv().await {
-@@ -577,7 +579,7 @@ pub async fn run_output_loop(
+@@ -577,7 +610,7 @@
              let _ = tx.send(Err(Error::EngineCoreDead)).await;
              return;
          }

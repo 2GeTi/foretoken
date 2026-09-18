@@ -46,7 +46,7 @@ uv pip install foretoken
 foretoken install
 ```
 
-安装会自动选择 NVIDIA 或沐曦运行时，并复用或准备 RDMA 设备插件。`--values` 中显式指定的运行时配置优先。混合 GPU 集群通过 `runtime.vllm.gpu.resourceName` 选择资源，或通过 `runtime.vllm.gpu.nodeSelector` 限定节点范围。
+安装会自动选择 NVIDIA 或沐曦运行时，并复用或安装 LeaderWorkerSet 控制器和 RDMA 设备插件。`--values` 中显式指定的运行时配置优先。混合 GPU 集群通过 `runtime.vllm.gpu.resourceName` 选择资源，或通过 `runtime.vllm.gpu.nodeSelector` 限定节点范围。
 
 看板和告警的使用见[可观测性](../observability/README_zh.md)。
 
@@ -154,4 +154,4 @@ foretoken delete examples/multi-model-quickstart
 foretoken uninstall
 ```
 
-卸载保留 Foretoken CRD 和复用的集群组件。如果其他服务仍依赖托管的 MetalLB，也会保留它。
+卸载保留 CRD 和复用的集群组件。仍有工作负载依赖托管的 LeaderWorkerSet 或 MetalLB 时，也会保留对应控制器。

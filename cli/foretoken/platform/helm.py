@@ -71,6 +71,30 @@ class Helm(HelmClient):
             self._config.load_balancer_namespace,
         )
 
+    def leader_worker_release(self) -> ReleaseRef:
+        """Return the LeaderWorkerSet controller release managed with the platform."""
+        return ReleaseRef(self._config.leader_worker.release_name, self._config.namespace)
+
+    def leader_worker_crds(self) -> str:
+        """Read the CRDs shipped with the selected LeaderWorkerSet chart for upgrades."""
+        chart = self._config.leader_worker
+        args = ["show", "crds", chart.source]
+        if chart.version is not None:
+            args.extend(["--version", chart.version])
+        return self.run(args).stdout
+
+    def install_leader_worker(self, release: ReleaseRef, timeout: str) -> None:
+        """Install or upgrade the CLI-owned LeaderWorkerSet controller."""
+        chart = self._config.leader_worker
+        args = self._upgrade_install_args(release, chart.source, chart.version)
+        if self._config.image_registry is not None:
+            args.extend([
+                "--set-string",
+                f"image.manager.repository={self._config.image_registry}/lws/lws",
+            ])
+        self._finish_upgrade(args, timeout)
+        self.run(args)
+
     @property
     def platform_selector_labels(self) -> tuple[tuple[str, str], ...]:
         """Return labels shared by resources in the platform release."""
@@ -299,7 +323,7 @@ class Helm(HelmClient):
         rdma_resource_name: str | None,
         rdma_managed: bool,
         rdma_node_names: tuple[str, ...],
-        reuse_values: bool,
+        stored_values: dict[str, Any] | None,
         timeout: str,
     ) -> None:
         """Install or update the CLI-owned Foretoken platform release."""
@@ -321,8 +345,10 @@ class Helm(HelmClient):
                 ),
             ),
         )
-        if reuse_values:
-            args.append("--reset-then-reuse-values")
+        if stored_values is not None:
+            # Restored user values have already been migrated. Reusing Helm's
+            # original values would resurrect keys removed from the chart schema.
+            args.extend(["--reset-values", "--values", "-"])
         self._add_platform_values(
             args,
             values,
@@ -350,7 +376,7 @@ class Helm(HelmClient):
             )
         if rdma_resource_name is not None:
             args.extend(
-                ["--set-string", f"runtime.vllm.pd.rdmaResourceName={rdma_resource_name}"]
+                ["--set-string", f"rdma.resourceName={rdma_resource_name}"]
             )
         image_registry = self._config.image_registry if source_images is None else None
         args.extend(
@@ -363,7 +389,7 @@ class Helm(HelmClient):
             control_plane_image = source_images.control_plane
             frontend_image = source_images.frontend
             model_server_image = source_images.model_server
-            if reuse_values and not all(
+            if stored_values is not None and not all(
                 (
                     source_images.control_plane_changed,
                     source_images.frontend_changed,
@@ -400,7 +426,10 @@ class Helm(HelmClient):
                 ]
             )
         self._finish_upgrade(args, timeout)
-        self.run(args)
+        self.run(
+            args,
+            input_text=yaml.safe_dump(stored_values) if stored_values is not None else None,
+        )
 
     def install_metallb(
         self,
