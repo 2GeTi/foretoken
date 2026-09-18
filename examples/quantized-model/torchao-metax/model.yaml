@@ -26,7 +26,6 @@ spec:
     tensor-parallel-size: 1
     quantization: torchao
     dtype: float16
-    max-model-len: 4096
     enforce-eager: true
     hf-overrides:
       quantization_config_dict_json: '{"_type":"Int8WeightOnlyConfig","_version":2,"_data":{"set_inductor_config":false}}'

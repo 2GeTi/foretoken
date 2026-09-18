@@ -26,4 +26,3 @@ spec:
     tensor-parallel-size: 1
     quantization: awq
     dtype: half
-    max-model-len: 4096

@@ -35,7 +35,7 @@ MODEL=Qwen/Qwen2.5-0.5B-Instruct-AWQ
 # MODEL=Qwen/Qwen2.5-0.5B-Instruct
 ```
 
-Each choice uses a 4096-token context and requests one GPU, 3 CPU and 9 GiB of host memory including the frontend, plus platform capacity. The configurations are alternatives for the same service, not concurrent deployments.
+Each choice uses the context length from the model configuration and requests one GPU, 3 CPU and 9 GiB of host memory including the frontend, plus platform capacity. The configurations are alternatives for the same service, not concurrent deployments.
 
 All choices use the repository-root `data/` directory. For remote clusters, set an absolute node-visible path in [`shared/cache.yaml`](shared/cache.yaml); see [model storage](../../docs/model-storage.md).
 

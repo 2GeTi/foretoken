@@ -35,7 +35,7 @@ MODEL=Qwen/Qwen2.5-0.5B-Instruct-AWQ
 # MODEL=Qwen/Qwen2.5-0.5B-Instruct
 ```
 
-各方案的上下文长度均为 4096 tokens，模型与前端合计申请 1 张 GPU、3 核 CPU 和 9 GiB 主机内存，平台另需资源。它们用于切换同一个服务，不同时部署。
+各方案沿用模型配置中的上下文长度，模型与前端合计申请 1 张 GPU、3 核 CPU 和 9 GiB 主机内存，平台另需资源。它们用于切换同一个服务，不同时部署。
 
 所有方案共用项目根目录的 `data/`。远程集群在 [`shared/cache.yaml`](shared/cache.yaml) 中填写节点可访问的绝对路径，详见[模型存储](../../docs/model-storage_zh.md)。
 
