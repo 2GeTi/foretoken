@@ -674,9 +674,9 @@ async fn detect_engine_protocol(
         (Some(0), Some(20)) => Ok(EngineCoreProtocol::V0_20),
         (Some(0), Some(21..=25)) => Ok(EngineCoreProtocol::V0_21ToV0_25),
         (Some(0), Some(26..=27)) => Ok(EngineCoreProtocol::V0_26ToV0_27),
-        (Some(0), Some(28)) => Ok(EngineCoreProtocol::V0_28),
+        (Some(0), Some(28..=30)) => Ok(EngineCoreProtocol::V0_28ToV0_30),
         _ => Err(format!(
-            "unsupported vLLM version `{version}`; supported versions are 0.20 through 0.28"
+            "unsupported vLLM version `{version}`; supported versions are 0.20 through 0.30"
         )
         .into()),
     }
