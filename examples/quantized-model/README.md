@@ -3,31 +3,41 @@
 
 # Deploy a quantized model
 
-[English](README.md) | [中文](README_zh.md)
+English | [简体中文](README_zh.md)
 
-Choose prequantized AWQ weights or online FP8 conversion of an ordinary checkpoint. Both configurations serve Qwen2.5-0.5B-Instruct with a 4096-token context and request one GPU, 3 CPU and 9 GiB of host memory, plus platform capacity.
+Serve Qwen2.5-0.5B-Instruct using a prequantized checkpoint or quantize ordinary weights during loading. Each configuration has a complete `model.yaml`; namespace, frontend and cache resources are shared under `shared/`.
 
-Install the [platform from this source checkout](../../docs/custom-deployment.md) with `foretoken install -e .`.
+| Configuration | Weight loading | Hardware |
+| --- | --- | --- |
+| [`awq/`](awq/model.yaml) | Prequantized AWQ checkpoint, FP16 activations | NVIDIA A100 |
+| [`bitsandbytes/`](bitsandbytes/model.yaml) | Ordinary checkpoint, 4-bit quantization during loading | NVIDIA A100 |
+| [`torchao-metax/`](torchao-metax/model.yaml) | Ordinary checkpoint, INT8 weight storage with floating-point linear execution | MetaX C500 |
 
-## Choose a configuration
+The MetaX configuration dequantizes each linear layer for execution; it reduces stored weight memory rather than providing INT8 GEMM acceleration. Loading-time quantization does not export a new checkpoint.
 
-Run from the repository root. The default loads the official AWQ checkpoint with FP16 activations on a GPU supported by vLLM's [AWQ implementation](https://docs.vllm.ai/en/stable/features/quantization/), such as an A100:
+## Install and choose a configuration
+
+Install the [platform from this source checkout](../../docs/custom-deployment.md) with `foretoken install -e .`. The model-server build prepares the quantization dependencies for the selected accelerator. MetaX setup follows the [MetaX deployment guide](../../docs/metax-deployment.md).
+
+Run from the repository root and choose one pair:
 
 ```bash
-EXAMPLE=examples/quantized-model
+# Prequantized AWQ
+EXAMPLE=examples/quantized-model/awq
 MODEL=Qwen/Qwen2.5-0.5B-Instruct-AWQ
+
+# Or: BitsAndBytes 4-bit on A100
+# EXAMPLE=examples/quantized-model/bitsandbytes
+# MODEL=Qwen/Qwen2.5-0.5B-Instruct
+
+# Or: TorchAO INT8 on C500
+# EXAMPLE=examples/quantized-model/torchao-metax
+# MODEL=Qwen/Qwen2.5-0.5B-Instruct
 ```
 
-Alternatively, [online FP8](online/kustomization.yaml) loads the ordinary BF16 checkpoint and converts weights during loading using `quantization: fp8_per_tensor`. Use a vLLM image exposing that option and a GPU supported by its FP8 kernels, such as an H100; see [online quantization](https://docs.vllm.ai/en/latest/features/quantization/online/).
+Each choice uses a 4096-token context and requests one GPU, 3 CPU and 9 GiB of host memory including the frontend, plus platform capacity. The configurations are alternatives for the same service, not concurrent deployments.
 
-```bash
-EXAMPLE=examples/quantized-model/online
-MODEL=Qwen/Qwen2.5-0.5B-Instruct
-```
-
-These are alternatives for the same service, not two concurrent deployments. Online conversion does not export a new checkpoint.
-
-Both configurations share the repository-root `data/` directory. For a remote cluster, set an absolute node-visible directory in [`base/cache.yaml`](base/cache.yaml), or in the cache patch in [`online/kustomization.yaml`](online/kustomization.yaml) when using online FP8. See [model storage](../../docs/model-storage.md).
+All choices use the repository-root `data/` directory. For remote clusters, set an absolute node-visible path in [`shared/cache.yaml`](shared/cache.yaml); see [model storage](../../docs/model-storage.md).
 
 ## Deploy and send a request
 
@@ -47,7 +57,7 @@ curl --fail-with-body "$FRONTEND_URL/v1/chat/completions" \
 EOF
 ```
 
-In Gateway mode, configure the hostname and request Host header as shown in the root Quick Start. Native engine settings are described in [inference parameters](../../docs/inference-parameters.md).
+For Gateway access, follow the hostname and Host-header example in the root Quick Start. Configure the model directly in the selected `model.yaml`; native options are described in [inference parameters](../../docs/inference-parameters.md).
 
 ## Clean up
 

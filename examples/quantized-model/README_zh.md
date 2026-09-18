@@ -3,31 +3,41 @@
 
 # 部署量化模型
 
-[English](README.md) | [中文](README_zh.md)
+[English](README.md) | 简体中文
 
-可选择加载预量化 AWQ 权重，或将普通 checkpoint 在线转换为 FP8。两种配置均提供 Qwen2.5-0.5B-Instruct 服务，使用 4096-token 上下文，请求 1 张 GPU、3 核 CPU 和 9 GiB 主机内存；平台需要额外资源。
+使用预量化 checkpoint，或在加载普通权重时进行量化，部署 Qwen2.5-0.5B-Instruct。每种方案都有完整的 `model.yaml`，命名空间、前端和缓存配置共用 `shared/`。
 
-使用 `foretoken install -e .` 从当前源码[安装平台](../../docs/custom-deployment_zh.md)。
+| 配置目录 | 权重加载方式 | 硬件 |
+| --- | --- | --- |
+| [`awq/`](awq/model.yaml) | 加载预量化 AWQ checkpoint，使用 FP16 激活值 | NVIDIA A100 |
+| [`bitsandbytes/`](bitsandbytes/model.yaml) | 加载普通 checkpoint，加载时进行 4-bit 量化 | NVIDIA A100 |
+| [`torchao-metax/`](torchao-metax/model.yaml) | 加载普通 checkpoint，以 INT8 保存权重，线性层使用浮点计算 | MetaX C500 |
 
-## 选择配置
+沐曦配置在执行每个线性层时反量化，减少的是权重存储，而非提供 INT8 矩阵运算加速。加载时量化不会导出新的 checkpoint。
 
-在仓库根目录执行。默认配置加载官方 AWQ checkpoint，使用 FP16 激活值。GPU 需受 vLLM 的 [AWQ 实现](https://docs.vllm.ai/en/stable/features/quantization/)支持，例如 NVIDIA A100：
+## 安装与选择配置
+
+使用 `foretoken install -e .` 从当前源码[安装平台](../../docs/custom-deployment_zh.md)。model-server 构建会为所选加速器准备量化依赖。沐曦环境参照[沐曦部署指南](../../docs/metax-deployment_zh.md)。
+
+在仓库根目录选择一组配置：
 
 ```bash
-EXAMPLE=examples/quantized-model
+# 预量化 AWQ
+EXAMPLE=examples/quantized-model/awq
 MODEL=Qwen/Qwen2.5-0.5B-Instruct-AWQ
+
+# 或：A100 上的 BitsAndBytes 4-bit
+# EXAMPLE=examples/quantized-model/bitsandbytes
+# MODEL=Qwen/Qwen2.5-0.5B-Instruct
+
+# 或：C500 上的 TorchAO INT8
+# EXAMPLE=examples/quantized-model/torchao-metax
+# MODEL=Qwen/Qwen2.5-0.5B-Instruct
 ```
 
-也可选择[在线 FP8 配置](online/kustomization.yaml)：加载普通 BF16 checkpoint，由 `quantization: fp8_per_tensor` 在加载阶段转换权重。需要提供该选项的 vLLM 镜像，以及其 FP8 算子支持的 GPU，例如 H100，详见[在线量化](https://docs.vllm.ai/en/latest/features/quantization/online/)。
+各方案的上下文长度均为 4096 tokens，模型与前端合计申请 1 张 GPU、3 核 CPU 和 9 GiB 主机内存，平台另需资源。它们用于切换同一个服务，不同时部署。
 
-```bash
-EXAMPLE=examples/quantized-model/online
-MODEL=Qwen/Qwen2.5-0.5B-Instruct
-```
-
-两种配置用于切换同一个服务，不同时部署。在线转换不会导出新的 checkpoint。
-
-两种配置共用项目根目录的 `data/`。远程集群需填写节点可访问的绝对目录：AWQ 修改 [`base/cache.yaml`](base/cache.yaml)，在线 FP8 修改 [`online/kustomization.yaml`](online/kustomization.yaml) 中的缓存补丁。详见[模型存储](../../docs/model-storage_zh.md)。
+所有方案共用项目根目录的 `data/`。远程集群在 [`shared/cache.yaml`](shared/cache.yaml) 中填写节点可访问的绝对路径，详见[模型存储](../../docs/model-storage_zh.md)。
 
 ## 部署并发送请求
 
@@ -47,7 +57,7 @@ curl --fail-with-body "$FRONTEND_URL/v1/chat/completions" \
 EOF
 ```
 
-使用 Gateway 模式时，按根目录快速开始配置域名和请求 Host 头。原生引擎设置见[推理参数](../../docs/inference-parameters_zh.md)。
+Gateway 模式的域名和 Host 请求头配置见根目录快速开始。模型参数直接修改所选方案的 `model.yaml`，原生参数用法见[推理参数](../../docs/inference-parameters_zh.md)。
 
 ## 清理
 
