@@ -13,7 +13,7 @@ Send Foretoken alerts to a Lark group through its custom bot and the cluster's A
 
 Enable [Foretoken alerts](../../README.md#alerts) and obtain a custom bot webhook from the destination Lark group. The installed Prometheus Operator and Alertmanager must support `webhookConfigs.payload`.
 
-The CLI-managed Alertmanager selects configurations in `foretoken-platform` and allows them to receive alerts from workload namespaces. Use that namespace below when using the CLI-managed stack.
+The CLI-managed Alertmanager selects configurations in `foretoken-platform` and allows them to receive alerts from workload namespaces.
 
 For an existing Alertmanager, its administrator must select `foretoken-lark` through `alertmanagerConfigSelector` and allow workload namespaces. For the same-namespace installation below, `spec.alertmanagerConfigMatcherStrategy.type: OnNamespaceExceptForAlertmanagerNamespace` provides this behavior on supported versions. See [Alertmanager configuration](https://prometheus-operator.dev/docs/developer/alerting/).
 
@@ -21,10 +21,10 @@ For an existing Alertmanager, its administrator must select `foretoken-lark` thr
 
 In [alertmanagerconfig.yaml](alertmanagerconfig.yaml), set `$language` to `zh` (the default), `en`, or `bilingual`. `$timezone` defaults to `Local`, using the Alertmanager container's time zone; an IANA name such as `Europe/Berlin` overrides it. Messages include the UTC offset.
 
-Run from the repository root. Replace `monitoring` with the Alertmanager namespace and the webhook placeholder with the bot's URL:
+Run from the repository root. For an existing Alertmanager, set `ALERTMANAGER_NAMESPACE` to its namespace. Replace the webhook placeholder with the bot's URL:
 
 ```bash
-ALERTMANAGER_NAMESPACE=monitoring
+ALERTMANAGER_NAMESPACE=foretoken-platform
 
 # Store the webhook in a Secret.
 kubectl create secret generic foretoken-lark-webhook \

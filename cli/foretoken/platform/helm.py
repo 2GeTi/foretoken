@@ -296,6 +296,9 @@ class Helm(HelmClient):
         observability_labels: tuple[tuple[str, str], ...],
         observability_prometheus: str,
         gpu_resource_name: str | None,
+        rdma_resource_name: str | None,
+        rdma_managed: bool,
+        rdma_node_names: tuple[str, ...],
         reuse_values: bool,
         timeout: str,
     ) -> None:
@@ -337,6 +340,17 @@ class Helm(HelmClient):
                     "--set-string",
                     f"runtime.vllm.gpu.resourceName={gpu_resource_name}",
                 ]
+            )
+        if rdma_managed:
+            args.extend(
+                [
+                    "--set", "rdma.managed=true",
+                    "--set-json", "rdma.nodeNames=" + json.dumps(rdma_node_names),
+                ]
+            )
+        if rdma_resource_name is not None:
+            args.extend(
+                ["--set-string", f"runtime.vllm.pd.rdmaResourceName={rdma_resource_name}"]
             )
         image_registry = self._config.image_registry if source_images is None else None
         args.extend(
@@ -514,12 +528,25 @@ class Helm(HelmClient):
                 "prometheus.prometheusSpec.ruleSelector="
                 + json.dumps(rule_selector, separators=(",", ":")),
                 "--set-json",
-                "prometheus.prometheusSpec.ruleNamespaceSelector={}",
+                "prometheus.prometheusSpec.ruleNamespaceSelector="
+                + json.dumps(namespace_selector, separators=(",", ":")),
                 # Receivers beside the managed Alertmanager route workload alerts;
                 # configurations in other namespaces retain namespace isolation.
                 "--set-string",
                 "alertmanager.alertmanagerSpec.alertmanagerConfigMatcherStrategy.type="
                 "OnNamespaceExceptForAlertmanagerNamespace",
+                "--set-string",
+                "grafana.sidecar.datasources.defaultDatasourceScrapeInterval=5s",
+                "--set-json",
+                "kube-state-metrics.metricLabelsAllowlist="
+                + json.dumps(
+                    [
+                        "pods=[inference.foretoken.io/model-group,"
+                        "inference.foretoken.io/model-role,"
+                        "inference.foretoken.io/pd-pipeline-scope]"
+                    ],
+                    separators=(",", ":"),
+                ),
             ]
         )
         self.run(args)
@@ -545,6 +572,10 @@ class Helm(HelmClient):
             [
                 "--set",
                 "serviceMonitor.enabled=true",
+                "--set-string",
+                "serviceMonitor.interval=5s",
+                "--set-string",
+                "serviceMonitor.scrapeTimeout=4s",
                 "--set",
                 "kubernetes.enablePodLabels=true",
                 "--set-json",

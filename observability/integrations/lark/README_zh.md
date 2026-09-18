@@ -13,7 +13,7 @@ SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 
 启用 [Foretoken 告警](../../README_zh.md#告警)，并取得目标 Lark 群的自定义机器人 webhook。已安装的 Prometheus Operator 和 Alertmanager 需要支持 `webhookConfigs.payload`。
 
-CLI 管理的 Alertmanager 会选中 `foretoken-platform` 中的配置，并允许这些配置接收工作负载命名空间的告警。使用 CLI 管理的监控栈时，下文使用这个命名空间。
+CLI 管理的 Alertmanager 会选中 `foretoken-platform` 中的配置，并允许这些配置接收工作负载命名空间的告警。
 
 对于已有 Alertmanager，管理员需要通过 `alertmanagerConfigSelector` 选中 `foretoken-lark`，并允许工作负载命名空间。按下文将配置安装到 Alertmanager 所在命名空间时，支持的版本可使用 `spec.alertmanagerConfigMatcherStrategy.type: OnNamespaceExceptForAlertmanagerNamespace`。参阅 [Alertmanager 配置指南](https://prometheus-operator.dev/docs/developer/alerting/)。
 
@@ -21,10 +21,10 @@ CLI 管理的 Alertmanager 会选中 `foretoken-platform` 中的配置，并允�
 
 在 [alertmanagerconfig.yaml](alertmanagerconfig.yaml) 中将 `$language` 设为 `zh`（默认）、`en` 或 `bilingual`。`$timezone` 默认使用 `Local`，跟随 Alertmanager 容器的时区；可改为 `Europe/Berlin` 等 IANA 时区名称。消息中的时间包含 UTC 偏移。
 
-在仓库根目录执行。将 `monitoring` 替换为 Alertmanager 所在命名空间，将 webhook 占位符替换为机器人的 URL：
+在仓库根目录执行。复用已有 Alertmanager 时，将 `ALERTMANAGER_NAMESPACE` 设为它所在的命名空间。将 webhook 占位符替换为机器人的 URL：
 
 ```bash
-ALERTMANAGER_NAMESPACE=monitoring
+ALERTMANAGER_NAMESPACE=foretoken-platform
 
 # 将 webhook 保存到 Secret。
 kubectl create secret generic foretoken-lark-webhook \

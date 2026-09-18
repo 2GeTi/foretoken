@@ -8,5 +8,4 @@
 {{ end }}Summary: {{ .Annotations.summary }}
 Details: {{ .Annotations.description }}
 {{ with .Annotations.runbook_url }}Runbook: {{ . }}
-{{ end }}{{ if and (eq .Status "resolved") (eq .Labels.alertname "ForetokenMetricsTargetDown") }}Note: a resolved scrape failure may mean that scraping recovered or that the old target disappeared; it does not prove that the original Pod or node recovered.
 {{ end }}{{ end }}
