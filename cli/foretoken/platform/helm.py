@@ -296,6 +296,7 @@ class Helm(HelmClient):
         observability_labels: tuple[tuple[str, str], ...],
         observability_prometheus: str,
         gpu_resource_name: str | None,
+        rdma_resource_name: str | None,
         reuse_values: bool,
         timeout: str,
     ) -> None:
@@ -337,6 +338,10 @@ class Helm(HelmClient):
                     "--set-string",
                     f"runtime.vllm.gpu.resourceName={gpu_resource_name}",
                 ]
+            )
+        if rdma_resource_name is not None:
+            args.extend(
+                ["--set-string", f"runtime.vllm.pd.rdmaResourceName={rdma_resource_name}"]
             )
         image_registry = self._config.image_registry if source_images is None else None
         args.extend(

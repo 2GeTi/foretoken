@@ -88,7 +88,13 @@ foretoken install -e . --registry ghcr.io/example/foretoken
 
 ### 安装选项
 
-重复使用 `--values` 可提供平台镜像、runtime 和硬件配置。发布镜像和 CLI 管理的 Chart 镜像使用 `--oci-registry`。
+重复使用 `--values` 可提供平台镜像、runtime 和硬件配置。发布镜像和 CLI 管理的 Chart 镜像使用 `--oci-registry`。将下面需要的配置保存到 `platform-values.yaml`，然后执行：
+
+```bash
+foretoken install --values platform-values.yaml
+```
+
+#### LoadBalancer 地址
 
 模型服务通过一个集群外可访问的 IP 提供服务。k3d、k3s 和云上集群会自动分配这个 IP；用 kubeadm、RKE2 或 kubespray 搭建的集群默认没有地址分配能力，安装结尾会提示 `LoadBalancer support Not verified`。此时向集群管理员确认一段节点网段内未被占用的 IP 交给 Foretoken，由它分配给服务：
 
@@ -98,9 +104,16 @@ loadBalancer:
     - 192.168.1.240-192.168.1.250
 ```
 
-```bash
-foretoken install --values platform-values.yaml
+#### RDMA
+
+安装器会自动复用所选 GPU 节点上唯一的共享 RDMA 资源，用于预填充/解码（P/D）分离部署。节点需要可用的 RDMA 驱动和互通的 RDMA 网络；InfiniBand 节点尚未安装 RDMA 设备插件时，可交给 Foretoken 管理：
+
+```yaml
+rdma:
+  managed: true
 ```
+
+Mooncake 按拓扑自动选择网卡。集群有多个 RDMA 资源池时，从安装输出的候选项中选择一个，填写到 `runtime.vllm.pd.rdmaResourceName`；将其设为空字符串可关闭 P/D 资源自动选择。RoCE 设备分配和网络接入配置继续由集群管理。
 
 ## 部署和管理模型服务
 

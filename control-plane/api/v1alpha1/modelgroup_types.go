@@ -82,9 +82,10 @@ type ModelGroupPDRuntimeConfig struct {
 	// +kubebuilder:validation:Minimum=1
 	AbortRequestTimeoutSeconds int32 `json:"abortRequestTimeoutSeconds"`
 
-	// RDMADeviceName selects the platform-verified HCA shared by both P/D roles.
-	// +kubebuilder:validation:MinLength=1
-	RDMADeviceName string `json:"rdmaDeviceName"`
+	// RDMADeviceName optionally limits Mooncake to a comma-separated HCA list.
+	// When omitted, Mooncake selects from the devices allocated to the Pod.
+	// +optional
+	RDMADeviceName string `json:"rdmaDeviceName,omitempty"`
 
 	// RDMAResourceName is the platform-owned Kubernetes extended resource
 	// whose device plugin injects the P/D transport devices.
