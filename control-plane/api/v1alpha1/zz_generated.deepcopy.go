@@ -541,7 +541,11 @@ func (in *KVGroupClientConfig) DeepCopyInto(out *KVGroupClientConfig) {
 		**out = **in
 	}
 	in.Resources.DeepCopyInto(&out.Resources)
-	out.Disk = in.Disk
+	if in.Disk != nil {
+		in, out := &in.Disk, &out.Disk
+		*out = new(KVGroupDisk)
+		**out = **in
+	}
 	if in.NodeSelector != nil {
 		in, out := &in.NodeSelector, &out.NodeSelector
 		*out = make(map[string]string, len(*in))

@@ -25,6 +25,19 @@ pub struct MemberContext {
     pub leader_address: String,
 }
 
+impl MemberContext {
+    /// Resolves a member through LWS's leader/worker DNS naming within the same group.
+    pub fn node_address(&self, index: usize) -> String {
+        if index == 0 {
+            return self.leader_address.clone();
+        }
+        match self.leader_address.split_once('.') {
+            Some((leader, domain)) => format!("{leader}-{index}.{domain}"),
+            None => format!("{}-{index}", self.leader_address),
+        }
+    }
+}
+
 impl RuntimeConfig {
     /// Reads the controller-projected launch and listen settings for model-server bootstrap.
     ///

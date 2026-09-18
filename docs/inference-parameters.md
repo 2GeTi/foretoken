@@ -46,7 +46,7 @@ Aggregated replicas can span nodes. Foretoken places one member on each node and
 
 `modelPools[].engineArgs`, when supplied, replaces the service-level native options for that Pool. Service replica counts remain separate from engine data parallelism.
 
-With EP enabled, attention can use TP × DP while routed experts span the corresponding EP group. Sharing experts does not share attention KV caches: routing selects a model group and a DP rank, using rank-local prefix-cache observations. Missing or interrupted KV event streams are treated as unknown locality, not cache hits; other ranks retain their observations. Load statistics currently describe the whole model group, not individual DP queues.
+With EP enabled, attention can use TP × DP while routed experts span the corresponding EP group. Sharing experts does not share attention KV caches: routing selects a model group and a DP rank, using rank-local prefix-cache observations. Missing or interrupted KV event streams are treated as unknown locality, not cache hits; other ranks retain their observations. Load scoring uses each DP rank's running requests, waiting requests and KV utilization from the same telemetry snapshot; group totals remain available for autoscaling. With Mooncake Store enabled, the selected rank's native connector checks shared prefixes across all required cache shards.
 
 ## Speculative decoding
 

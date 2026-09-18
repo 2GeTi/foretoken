@@ -236,6 +236,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         app_state = app_state.with_shared_kv(shared_kv::SharedKvLookup::new(
             required_env(MODEL_GROUP_UID_ENV)?,
             required_env(KV_SCOPE_ENV)?,
+            &config,
         ));
     }
     if let Some(cache_config) = cache_config {
@@ -494,7 +495,7 @@ async fn spawn_engine_attempt(
         ));
         environment.push((
             shared_kv::LOOKUP_ENDPOINT_ENV.into(),
-            shared_kv::LOOKUP_ENDPOINT.into(),
+            shared_kv::lookup_endpoint("*", 0),
         ));
     }
     let model_root = cache

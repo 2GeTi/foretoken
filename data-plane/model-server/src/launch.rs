@@ -482,13 +482,12 @@ impl LaunchPlanV1 {
 }
 
 impl LaunchPlanV1 {
-    /// Reports whether the Pod-local Store query bridge supports this execution layout.
+    /// Reports whether the selected connector exposes live shared-prefix observations.
     pub fn shared_prefix_lookup(&self) -> bool {
-        self.parallelism.dp == 1
-            && matches!(
-                self.kv,
-                KvPlan::MooncakeStore { .. } | KvPlan::MultiConnector { .. }
-            )
+        matches!(
+            self.kv,
+            KvPlan::MooncakeStore { .. } | KvPlan::MultiConnector { .. }
+        )
     }
 }
 
