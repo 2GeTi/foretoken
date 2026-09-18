@@ -87,7 +87,7 @@ pub enum KvPlan {
     Pd {
         role: KvRole,
         protocol: MooncakeProtocol,
-        #[serde(rename = "deviceName")]
+        #[serde(default, rename = "deviceName")]
         device_name: String,
         events: bool,
     },
@@ -112,7 +112,7 @@ pub enum KvPlan {
     MultiConnector {
         role: KvRole,
         protocol: MooncakeProtocol,
-        #[serde(rename = "deviceName")]
+        #[serde(default, rename = "deviceName")]
         device_name: String,
         events: bool,
     },
@@ -308,11 +308,6 @@ impl LaunchPlanV1 {
                 return Err(
                     "filesystemOffload storagePath must be an absolute mounted directory".into(),
                 );
-            }
-            KvPlan::Pd { device_name, .. } | KvPlan::MultiConnector { device_name, .. }
-                if device_name.trim().is_empty() =>
-            {
-                return Err("P/D KV plans require a platform-owned RDMA device name".into());
             }
             KvPlan::Pd {
                 role: KvRole::KvBoth,
