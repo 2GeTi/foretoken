@@ -18,6 +18,6 @@ Select rules in the owning service's `spec.observability.alerts.rules`. An empty
 
 GPU temperature and power rules use only recording series attributed to the selected ModelService's ModelGroups. GPU utilization and memory-occupancy alerts are not provided, but their metrics remain available in the dashboard.
 
-`ForetokenMetricsTargetDown` resolves when scraping resumes or the target leaves service discovery. Check the target's current state before closing an incident.
+`ForetokenMetricsTargetDown` resolves when scraping resumes or the target leaves service discovery.
 
 For delivery, configure a [Lark](../integrations/lark/README.md) or [Slack](../integrations/slack/README.md) receiver.

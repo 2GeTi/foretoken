@@ -15,13 +15,11 @@ Enable [Foretoken alerts](../../README.md#alerts) and obtain a custom bot webhoo
 
 The CLI-managed Alertmanager selects configurations in `foretoken-platform` and allows them to receive alerts from workload namespaces.
 
-For an existing Alertmanager, its administrator must select `foretoken-lark` through `alertmanagerConfigSelector` and allow workload namespaces. For the same-namespace installation below, `spec.alertmanagerConfigMatcherStrategy.type: OnNamespaceExceptForAlertmanagerNamespace` provides this behavior on supported versions. See [Alertmanager configuration](https://prometheus-operator.dev/docs/developer/alerting/).
-
 ## Connect the bot
 
 In [alertmanagerconfig.yaml](alertmanagerconfig.yaml), set `$language` to `zh` (the default), `en`, or `bilingual`. `$timezone` defaults to `Local`, using the Alertmanager container's time zone; an IANA name such as `Europe/Berlin` overrides it. Messages include the UTC offset.
 
-Run from the repository root. For an existing Alertmanager, set `ALERTMANAGER_NAMESPACE` to its namespace. Replace the webhook placeholder with the bot's URL:
+Run from the repository root. For an [existing monitoring stack](#use-an-existing-monitoring-stack), set `ALERTMANAGER_NAMESPACE` to its Alertmanager namespace. Replace the webhook placeholder with the bot's URL:
 
 ```bash
 ALERTMANAGER_NAMESPACE=foretoken-platform
@@ -37,13 +35,11 @@ kubectl apply \
   --filename observability/integrations/lark/alertmanagerconfig.yaml
 ```
 
-If the Secret already exists, update it through your usual secret-management process. Keep its value out of version control.
+The group receives a notification when a selected service alert fires or resolves.
 
-## Verify delivery
+## Use an existing monitoring stack
 
-In Alertmanager, confirm that the configuration is loaded and routes to Lark. Use a test alert with `service=foretoken` and an actual Foretoken workload namespace, then confirm that the Lark group receives both firing and resolved notifications.
-
-If no message arrives, check the configuration selector, namespace matching, and Alertmanager delivery logs.
+The monitoring administrator must select `foretoken-lark` through `alertmanagerConfigSelector` and allow alerts from Foretoken workload namespaces. For a receiver in Alertmanager's own namespace, `spec.alertmanagerConfigMatcherStrategy.type: OnNamespaceExceptForAlertmanagerNamespace` provides this behavior. See the [Operator API reference](https://prometheus-operator.dev/docs/api-reference/api/#monitoring.coreos.com/v1.AlertmanagerConfigMatcherStrategy).
 
 ## Remove the integration
 
