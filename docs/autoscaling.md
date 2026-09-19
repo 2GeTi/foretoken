@@ -28,7 +28,7 @@ spec:
       interval: 5s
     decision:
       algorithm: queue
-      queue:
+      parameters:
         targetAverageQueuedRequests: 1
     adjustment:
       algorithm: step
@@ -43,6 +43,18 @@ spec:
 `queue` calculates capacity from the average queued requests per replica. `queue_threshold` instead changes capacity by one replica at configured total-backlog boundaries. `direct` applies a recommendation after min/max bounds; `step` applies at most one replica per evaluation and supports independent stabilization windows.
 
 The scale-down window uses recent recommendations held by the current controller process. A controller restart or leadership change does not preserve that history, so it can shorten a pending scale-down delay.
+
+## Decision parameters
+
+`decision.parameters` is required. Use `parameters: {}` to accept the selected policy's defaults. Parameters belong to that policy; the controller rejects unknown names, non-integer values, and invalid ranges before writing capacity.
+
+| Algorithm | Parameter | Default | Constraint |
+| --- | --- | --- | --- |
+| `queue` | `targetAverageQueuedRequests` | `1` | Positive integer |
+| `queue_threshold` | `scaleUpQueuedRequests` | `1` | Non-negative integer |
+| `queue_threshold` | `scaleDownQueuedRequests` | `0` | Non-negative integer, no greater than `scaleUpQueuedRequests` |
+
+The controller must contain the named algorithm. Unknown algorithm names or invalid parameters produce a `ScalingFailed` condition on the ModelService; Kubernetes validates the parameters object shape, while the selected algorithm validates its contents.
 
 ## Observe a decision
 
@@ -71,6 +83,19 @@ For aggregate services, `kind` is `Pool`. For E/P/D services, `kind` is `EPDPipe
 ## Try the maintained example
 
 The [multi-model example](../examples/multi-model-quickstart/README.md) deploys one queue-autoscaled Qwen service and one fixed-capacity Llama service. It includes a bounded concurrent workload and status commands for observing capacity changes.
+
+## Migrate the previous decision format
+
+The `v1alpha1` decision configuration now uses `parameters` instead of the algorithm-specific `queue` and `queueThreshold` blocks. Move the contents of the selected block into `parameters` and remove the old block; keep the algorithm name and parameter values unchanged. For example:
+
+```yaml
+decision:
+  algorithm: queue
+  parameters:
+    targetAverageQueuedRequests: 2
+```
+
+Update the controller and CRDs together, then reapply the migrated service manifests. Until migration, existing services keep their current Pool capacity and report `ScalingFailed`; missing `parameters` is rejected rather than silently applying algorithm defaults. New manifests using the old shape fail schema validation. Before rolling back the controller and CRDs, restore the corresponding old decision block in the manifests.
 
 ## Maintainer architecture
 

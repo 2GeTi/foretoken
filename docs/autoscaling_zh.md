@@ -28,7 +28,7 @@ spec:
       interval: 5s
     decision:
       algorithm: queue
-      queue:
+      parameters:
         targetAverageQueuedRequests: 1
     adjustment:
       algorithm: step
@@ -43,6 +43,18 @@ spec:
 `queue` 根据每个副本的平均等待请求数计算容量。`queue_threshold` 则在配置的服务总积压边界按一次一个副本调整容量。`direct` 在应用最小和最大副本数限制后直接应用建议；`step` 每次评估最多调整一个副本，并可分别配置扩容和缩容稳定窗口。
 
 缩容稳定窗口使用当前控制器进程保存的近期建议。控制器重启或 leader 切换不会保留这些历史，因此可能缩短等待缩容的延迟。
+
+## 决策参数
+
+`decision.parameters` 必须提供。使用 `parameters: {}` 可以接受所选算法的默认值。参数由该算法负责；控制器会在写入容量前拒绝未知字段、非整数值和不合法的范围。
+
+| 算法 | 参数 | 默认值 | 约束 |
+| --- | --- | --- | --- |
+| `queue` | `targetAverageQueuedRequests` | `1` | 正整数 |
+| `queue_threshold` | `scaleUpQueuedRequests` | `1` | 非负整数 |
+| `queue_threshold` | `scaleDownQueuedRequests` | `0` | 非负整数，不超过 `scaleUpQueuedRequests` |
+
+控制器必须包含对应名称的算法。未知算法名称或无效参数会使 ModelService 出现 `ScalingFailed` condition；Kubernetes 校验参数必须为对象，由选中的算法校验对象内容。
 
 ## 查看扩缩容决策
 
@@ -71,6 +83,19 @@ kubectl get modelservice multi-model-qwen3-0.6b \
 ## 使用维护中的示例
 
 [多模型示例](../examples/multi-model-quickstart/README_zh.md)部署一个按队列自动扩缩的 Qwen 服务和一个固定容量的 Llama 服务，其中包含有界并发负载和观察容量变化的状态命令。
+
+## 迁移旧版决策配置
+
+`v1alpha1` 决策配置现使用 `parameters`，替代算法专属的 `queue` 和 `queueThreshold` 块。将所选块中的内容移入 `parameters`，删除旧块；算法名称和参数值保持不变。例如：
+
+```yaml
+decision:
+  algorithm: queue
+  parameters:
+    targetAverageQueuedRequests: 2
+```
+
+控制器和 CRD 需要配套更新，再重新提交迁移后的服务配置。迁移完成前，已有服务保持当前 Pool 容量并报告 `ScalingFailed`；缺少 `parameters` 会被拒绝，避免静默使用算法默认值。新提交的旧格式配置会被 schema 拒绝。回退控制器和 CRD 前，需要将配置恢复为对应的旧决策块。
 
 ## 维护者架构
 

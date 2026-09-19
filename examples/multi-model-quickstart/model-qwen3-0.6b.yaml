@@ -20,7 +20,7 @@ spec:
       interval: 5s
     decision:
       algorithm: queue
-      queue:
+      parameters:
         targetAverageQueuedRequests: 1
     adjustment:
       algorithm: step

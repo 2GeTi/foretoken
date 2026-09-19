@@ -2,7 +2,7 @@
 
 [English](README.md) | [中文](README_zh.md)
 
-本包将控制器拥有的观测转换为 `ModelPool` 容量。用户通过 `ModelService.spec.autoscaling` 配置自动扩缩容；配置和状态使用方式见[自动扩缩容指南](../../../docs/autoscaling_zh.md)。
+本包将控制器拥有的观测转换为 `ModelPool` 容量。用户通过 `ModelService.spec.autoscaling` 配置自动扩缩容；配置和状态使用方式见[自动扩缩容指南](../../../../docs/autoscaling_zh.md)。
 
 ## 职责归属
 
@@ -30,7 +30,11 @@
 
 内置算法位于 `algorithm/`。Trigger、Decision 和 Adjustment 实现返回领域结果，不读取 Kubernetes 资源、不修改容量，也不调度工作。新增实现只有在它代表当前独立负责的建议策略时才有意义；控制器生命周期行为保留在 `core` 和 ModelService reconciler 中。
 
-修改本包时，同步核对用户可见算法名称、默认值、校验、状态 reason 和自动扩缩容指南。
+`algorithm/registry.go` 在一个静态注册表中声明全部内置构造函数，实现文件不再通过 `init()` 自注册。新增决策策略时，实现容量建议和参数构造函数，再将构造函数加入决策注册表。构造函数接收 `decision.parameters` JSON 对象，负责显式解码、默认值和校验，返回使用后端中立快照的策略对象。现有整数参数策略共用显式字段解码器；其他参数类型由实际使用它的策略负责。
+
+CRD 只携带算法名称和必填的参数对象，不列举策略专属字段。控制器每轮协调只构造一次所选流水线，并复用解析后的轮询配置，在写入 Pool 前拒绝无效配置；compiler 只编译模型部署意图。新增决策策略不需要增加 API、compiler 或控制器分发分支，但需要在用户指南中说明参数和行为。
+
+触发调度与调整历史继续由现有控制器和流水线负责，它们的通用配置独立于决策参数。
 
 ## 验证
 

@@ -6,6 +6,7 @@
 package v1alpha1
 
 import (
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -134,15 +135,6 @@ type ModelPoolTemplate struct {
 	Features *ModelFeatures `json:"features,omitempty"`
 }
 
-// AutoscalingDecisionAlgorithm selects how observed demand is converted into desired replica capacity.
-// +kubebuilder:validation:Enum=queue;queue_threshold
-type AutoscalingDecisionAlgorithm string
-
-const (
-	AutoscalingDecisionAlgorithmQueue          AutoscalingDecisionAlgorithm = "queue"
-	AutoscalingDecisionAlgorithmQueueThreshold AutoscalingDecisionAlgorithm = "queue_threshold"
-)
-
 // AutoscalingTriggerAlgorithm selects how observations enter automatic capacity evaluation.
 // +kubebuilder:validation:Enum=periodic
 type AutoscalingTriggerAlgorithm string
@@ -161,41 +153,17 @@ type ModelAutoscalingTriggerConfig struct {
 	Interval Duration `json:"interval,omitempty"`
 }
 
-// ModelAutoscalingQueueDecisionConfig configures HPA-style average queue capacity.
-type ModelAutoscalingQueueDecisionConfig struct {
-	// TargetAverageQueuedRequests is the desired average waiting requests per replica.
-	// +optional
-	// +kubebuilder:default=1
-	// +kubebuilder:validation:Minimum=1
-	TargetAverageQueuedRequests *int64 `json:"targetAverageQueuedRequests,omitempty"`
-}
-
-// ModelAutoscalingQueueThresholdDecisionConfig configures absolute backlog boundaries.
-// +kubebuilder:validation:XValidation:rule="self.scaleDownQueuedRequests <= self.scaleUpQueuedRequests",message="scaleDownQueuedRequests must not exceed scaleUpQueuedRequests"
-type ModelAutoscalingQueueThresholdDecisionConfig struct {
-	// ScaleUpQueuedRequests is the queue depth above which one additional replica is recommended.
-	// +optional
-	// +kubebuilder:default=1
-	// +kubebuilder:validation:Minimum=0
-	ScaleUpQueuedRequests *int64 `json:"scaleUpQueuedRequests,omitempty"`
-
-	// ScaleDownQueuedRequests is the queue depth at or below which one fewer idle replica is recommended.
-	// +optional
-	// +kubebuilder:default=0
-	// +kubebuilder:validation:Minimum=0
-	ScaleDownQueuedRequests *int64 `json:"scaleDownQueuedRequests,omitempty"`
-}
-
-// ModelAutoscalingDecisionConfig configures desired-capacity calculation.
-// +kubebuilder:validation:XValidation:rule="self.algorithm == 'queue' ? has(self.queue) && !has(self.queueThreshold) : has(self.queueThreshold) && !has(self.queue)",message="autoscaling decision must configure exactly the selected algorithm"
+// ModelAutoscalingDecisionConfig selects a registered policy and its algorithm-owned parameters.
 type ModelAutoscalingDecisionConfig struct {
-	Algorithm AutoscalingDecisionAlgorithm `json:"algorithm"`
+	// Algorithm identifies a decision policy compiled into the controller.
+	// +kubebuilder:validation:MinLength=1
+	Algorithm string `json:"algorithm"`
 
-	// +optional
-	Queue *ModelAutoscalingQueueDecisionConfig `json:"queue,omitempty"`
-
-	// +optional
-	QueueThreshold *ModelAutoscalingQueueThresholdDecisionConfig `json:"queueThreshold,omitempty"`
+	// Parameters is an object decoded and validated by the selected policy.
+	// Use an empty object to accept that policy's defaults.
+	// +kubebuilder:validation:Type=object
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Parameters *apiextensionsv1.JSON `json:"parameters"`
 }
 
 // AutoscalingAdjustmentAlgorithm selects how a desired replica count is stabilized before lifecycle resolution.

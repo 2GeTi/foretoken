@@ -28,14 +28,27 @@ type modelScalingConfig struct {
 // scalingConfig resolves one ModelService autoscaling configuration into runtime algorithms and limits.
 func (reconciler *ModelServiceReconciler) scalingConfig(service *inferencev1alpha1.ModelService) (modelScalingConfig, error) {
 	config := modelScalingConfig{
-		Autoscaler:      autoscaling.Manual(),
 		Limits:          core.ReplicaLimits{MinReplicas: 0, MaxReplicas: maxDesiredReplicas},
 		PollingInterval: defaultScalingPollInterval,
 		MetricsMaxAge:   3 * defaultScalingPollInterval,
 	}
 	autoscalingConfig := service.Spec.Autoscaling
 	if autoscalingConfig == nil {
+		config.Autoscaler = autoscaling.Manual()
 		return config, nil
+	}
+
+	if autoscalingConfig.MinReplicas < 1 || autoscalingConfig.MaxReplicas < autoscalingConfig.MinReplicas {
+		return modelScalingConfig{}, fmt.Errorf("autoscaling group bounds are invalid")
+	}
+	if autoscalingConfig.Decision.Algorithm == "" || autoscalingConfig.Decision.Algorithm == string(autoscaling.DecisionAlgorithmManual) {
+		return modelScalingConfig{}, fmt.Errorf("autoscaling decision.algorithm must select an automatic policy; omit autoscaling for fixed capacity")
+	}
+	if autoscalingConfig.Decision.Parameters == nil {
+		return modelScalingConfig{}, fmt.Errorf("autoscaling decision.parameters is required; move queue or queueThreshold fields into parameters")
+	}
+	if adjustment := autoscalingConfig.Adjustment; adjustment != nil && adjustment.Algorithm == inferencev1alpha1.AutoscalingAdjustmentAlgorithmDirect && (adjustment.ScaleUp != nil || adjustment.ScaleDown != nil) {
+		return modelScalingConfig{}, fmt.Errorf("autoscaling direct adjustment does not accept scaleUp or scaleDown configuration")
 	}
 
 	pollingInterval, err := durationOrDefault(triggerInterval(autoscalingConfig.Trigger), defaultScalingPollInterval)
@@ -56,7 +69,7 @@ func (reconciler *ModelServiceReconciler) scalingConfig(service *inferencev1alph
 		DecisionAlgorithm:   autoscaling.DecisionAlgorithmName(autoscalingConfig.Decision.Algorithm),
 		TriggerAlgorithm:    autoscaling.TriggerAlgorithmName(triggerAlgorithm(autoscalingConfig.Trigger)),
 		AdjustmentAlgorithm: autoscaling.AdjustmentAlgorithmName(adjustmentAlgorithm(autoscalingConfig.Adjustment)),
-		Decision:            decisionConfig(autoscalingConfig.Decision),
+		Decision:            autoscalingConfig.Decision.Parameters.Raw,
 		Adjustment: core.AdjustmentConfig{
 			ScaleUpStabilizationWindow:   scaleUpWindow,
 			ScaleDownStabilizationWindow: scaleDownWindow,
@@ -87,18 +100,6 @@ func triggerInterval(config *inferencev1alpha1.ModelAutoscalingTriggerConfig) in
 	return config.Interval
 }
 
-func decisionConfig(config inferencev1alpha1.ModelAutoscalingDecisionConfig) core.DecisionConfig {
-	decision := core.DecisionConfig{}
-	if config.Queue != nil {
-		decision.TargetAverageQueuedRequests = int64OrDefault(config.Queue.TargetAverageQueuedRequests, 1)
-	}
-	if config.QueueThreshold != nil {
-		decision.ScaleUpQueuedRequests = int64OrDefault(config.QueueThreshold.ScaleUpQueuedRequests, 1)
-		decision.ScaleDownQueuedRequests = int64OrDefault(config.QueueThreshold.ScaleDownQueuedRequests, 0)
-	}
-	return decision
-}
-
 func adjustmentAlgorithm(config *inferencev1alpha1.ModelAutoscalingAdjustmentConfig) inferencev1alpha1.AutoscalingAdjustmentAlgorithm {
 	if config == nil {
 		return ""
@@ -118,20 +119,6 @@ func scaleDownStabilizationWindow(config *inferencev1alpha1.ModelAutoscalingAdju
 		return ""
 	}
 	return config.ScaleDown.StabilizationWindow
-}
-
-func int32OrDefault(value *int32, fallback int32) int32 {
-	if value == nil {
-		return fallback
-	}
-	return *value
-}
-
-func int64OrDefault(value *int64, fallback int64) int64 {
-	if value == nil {
-		return fallback
-	}
-	return *value
 }
 
 func durationOrDefault(value inferencev1alpha1.Duration, fallback time.Duration) (time.Duration, error) {
@@ -157,7 +144,7 @@ func nonNegativeDurationOrDefault(value inferencev1alpha1.NonNegativeDuration, f
 }
 
 // applyScaling evaluates autoscaling targets and returns compiled pools with applied capacity.
-func (reconciler *ModelServiceReconciler) applyScaling(ctx context.Context, service *inferencev1alpha1.ModelService, compiledPools []compiler.ModelPool) ([]compiler.ModelPool, []inferencev1alpha1.AutoscalingTargetStatus, error) {
+func (reconciler *ModelServiceReconciler) applyScaling(ctx context.Context, service *inferencev1alpha1.ModelService, compiledPools []compiler.ModelPool, scaling modelScalingConfig) ([]compiler.ModelPool, []inferencev1alpha1.AutoscalingTargetStatus, error) {
 	owned, err := reconciler.ownedPools(ctx, service)
 	if err != nil {
 		return nil, nil, err
@@ -171,11 +158,6 @@ func (reconciler *ModelServiceReconciler) applyScaling(ctx context.Context, serv
 	if err := reconciler.List(ctx, &groupList, client.InNamespace(service.Namespace)); err != nil {
 		return nil, nil, fmt.Errorf("list ModelGroups: %w", err)
 	}
-	scaling, err := reconciler.scalingConfig(service)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	// Ordinary Pools scale independently. Encoder, prefill, and decode instead share one
 	// E/P/D pipeline-scope decision, which is applied back to all three Pool intents together.
 	evaluatedAt := metav1.Now()

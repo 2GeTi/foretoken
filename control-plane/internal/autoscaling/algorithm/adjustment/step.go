@@ -2,10 +2,7 @@
 // SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 package adjustment
 
-import (
-	"github.com/shiweijiezero/foretoken/control-plane/internal/autoscaling/algorithm"
-	"github.com/shiweijiezero/foretoken/control-plane/internal/autoscaling/core"
-)
+import "github.com/shiweijiezero/foretoken/control-plane/internal/autoscaling/core"
 
 type Step struct{ config core.AdjustmentConfig }
 
@@ -66,10 +63,7 @@ func clip(value, minimum, maximum int32) int32 {
 	return value
 }
 
-func init() {
-	if err := algorithm.RegisterAdjustmentAlgorithm("step", func(config core.AdjustmentConfig) (core.AdjustmentAlgorithm, error) {
-		return Step{config: config}, nil
-	}); err != nil {
-		panic(err)
-	}
+// NewStep binds the controller-owned recommendation history and windows to the step policy.
+func NewStep(config core.AdjustmentConfig) (core.AdjustmentAlgorithm, error) {
+	return Step{config: config}, nil
 }

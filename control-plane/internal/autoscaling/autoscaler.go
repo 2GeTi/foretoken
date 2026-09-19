@@ -8,9 +8,6 @@ import (
 	"errors"
 
 	"github.com/shiweijiezero/foretoken/control-plane/internal/autoscaling/algorithm"
-	_ "github.com/shiweijiezero/foretoken/control-plane/internal/autoscaling/algorithm/adjustment"
-	_ "github.com/shiweijiezero/foretoken/control-plane/internal/autoscaling/algorithm/decision"
-	_ "github.com/shiweijiezero/foretoken/control-plane/internal/autoscaling/algorithm/trigger"
 	"github.com/shiweijiezero/foretoken/control-plane/internal/autoscaling/core"
 )
 

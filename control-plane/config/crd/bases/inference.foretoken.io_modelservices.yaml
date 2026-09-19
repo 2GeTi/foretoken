@@ -109,58 +109,24 @@ spec:
                         configuration
                       rule: self.algorithm != 'direct' || (!has(self.scaleUp) && !has(self.scaleDown))
                   decision:
-                    description: ModelAutoscalingDecisionConfig configures desired-capacity
-                      calculation.
+                    description: ModelAutoscalingDecisionConfig selects a registered
+                      policy and its algorithm-owned parameters.
                     properties:
                       algorithm:
-                        description: AutoscalingDecisionAlgorithm selects how observed
-                          demand is converted into desired replica capacity.
-                        enum:
-                        - queue
-                        - queue_threshold
+                        description: Algorithm identifies a decision policy compiled
+                          into the controller.
+                        minLength: 1
                         type: string
-                      queue:
-                        description: ModelAutoscalingQueueDecisionConfig configures
-                          HPA-style average queue capacity.
-                        properties:
-                          targetAverageQueuedRequests:
-                            default: 1
-                            description: TargetAverageQueuedRequests is the desired
-                              average waiting requests per replica.
-                            format: int64
-                            minimum: 1
-                            type: integer
+                      parameters:
+                        description: |-
+                          Parameters is an object decoded and validated by the selected policy.
+                          Use an empty object to accept that policy's defaults.
                         type: object
-                      queueThreshold:
-                        description: ModelAutoscalingQueueThresholdDecisionConfig
-                          configures absolute backlog boundaries.
-                        properties:
-                          scaleDownQueuedRequests:
-                            default: 0
-                            description: ScaleDownQueuedRequests is the queue depth
-                              at or below which one fewer idle replica is recommended.
-                            format: int64
-                            minimum: 0
-                            type: integer
-                          scaleUpQueuedRequests:
-                            default: 1
-                            description: ScaleUpQueuedRequests is the queue depth
-                              above which one additional replica is recommended.
-                            format: int64
-                            minimum: 0
-                            type: integer
-                        type: object
-                        x-kubernetes-validations:
-                        - message: scaleDownQueuedRequests must not exceed scaleUpQueuedRequests
-                          rule: self.scaleDownQueuedRequests <= self.scaleUpQueuedRequests
+                        x-kubernetes-preserve-unknown-fields: true
                     required:
                     - algorithm
+                    - parameters
                     type: object
-                    x-kubernetes-validations:
-                    - message: autoscaling decision must configure exactly the selected
-                        algorithm
-                      rule: 'self.algorithm == ''queue'' ? has(self.queue) && !has(self.queueThreshold)
-                        : has(self.queueThreshold) && !has(self.queue)'
                   maxReplicas:
                     format: int32
                     minimum: 1

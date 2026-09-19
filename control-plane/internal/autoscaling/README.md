@@ -2,7 +2,7 @@
 
 [English](README.md) | [中文](README_zh.md)
 
-This package turns controller-owned observations into `ModelPool` capacity. Users configure autoscaling through `ModelService.spec.autoscaling`; configuration and status usage are documented in the [autoscaling guide](../../../docs/autoscaling.md).
+This package turns controller-owned observations into `ModelPool` capacity. Users configure autoscaling through `ModelService.spec.autoscaling`; configuration and status usage are documented in the [autoscaling guide](../../../../docs/autoscaling.md).
 
 ## Ownership
 
@@ -30,7 +30,11 @@ The controller supplies complete, fresh observations to the pipeline. `periodic`
 
 Built-in algorithms live under `algorithm/`. Trigger, decision, and adjustment implementations return domain results and do not read Kubernetes resources, mutate capacity, or schedule work. Add a new implementation only when it represents a current, independently owned recommendation policy; controller lifecycle behavior remains in `core` and the ModelService reconciler.
 
-Keep user-visible algorithm names, defaults, validation, status reasons, and the autoscaling guide synchronized with the API and controller.
+`algorithm/registry.go` declares all built-in factories in one static registry. Implementations do not self-register through `init()`. To add a decision policy, implement its recommendation and parameter constructor, then add its factory to the decision registry. The constructor receives the `decision.parameters` JSON object, owns explicit parameter decoding, defaults and validation, and returns a policy using backend-neutral snapshots. Existing integer policies share an explicit field decoder; other parameter types belong to the policy that consumes them.
+
+The CRD carries an algorithm name and a required parameters object without listing policy-specific fields. The controller constructs the selected pipeline once per reconciliation and reuses its resolved polling configuration. It rejects invalid configuration before writing Pools; the compiler only compiles model deployment intent. Adding a decision policy does not require API, compiler or controller dispatch branches. Update the user guide with the policy's parameters and behavior.
+
+Trigger scheduling and adjustment history remain owned by the existing controller and pipeline boundaries. Their common configuration is independent of decision parameters.
 
 ## Validation
 

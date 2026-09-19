@@ -2,7 +2,11 @@
 // SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 package autoscaling
 
-import "github.com/shiweijiezero/foretoken/control-plane/internal/autoscaling/core"
+import (
+	"encoding/json"
+
+	"github.com/shiweijiezero/foretoken/control-plane/internal/autoscaling/core"
+)
 
 type DecisionAlgorithmName string
 type TriggerAlgorithmName string
@@ -21,6 +25,6 @@ type Configuration struct {
 	DecisionAlgorithm   DecisionAlgorithmName
 	TriggerAlgorithm    TriggerAlgorithmName
 	AdjustmentAlgorithm AdjustmentAlgorithmName
-	Decision            core.DecisionConfig
+	Decision            json.RawMessage
 	Adjustment          core.AdjustmentConfig
 }
