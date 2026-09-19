@@ -8,23 +8,16 @@ import (
 	"github.com/shiweijiezero/foretoken/control-plane/internal/autoscaling/core"
 )
 
-type DecisionAlgorithmName string
-type TriggerAlgorithmName string
-type AdjustmentAlgorithmName string
+// AlgorithmConfiguration carries the selected stage name and its optional parameter object.
+type AlgorithmConfiguration struct {
+	Algorithm  string
+	Parameters json.RawMessage
+}
 
-const (
-	DecisionAlgorithmManual         DecisionAlgorithmName   = "manual"
-	DecisionAlgorithmQueue          DecisionAlgorithmName   = "queue"
-	DecisionAlgorithmQueueThreshold DecisionAlgorithmName   = "queue_threshold"
-	TriggerAlgorithmPeriodic        TriggerAlgorithmName    = "periodic"
-	AdjustmentAlgorithmDirect       AdjustmentAlgorithmName = "direct"
-	AdjustmentAlgorithmStep         AdjustmentAlgorithmName = "step"
-)
-
+// Configuration combines stage choices with controller-owned recommendation history.
 type Configuration struct {
-	DecisionAlgorithm   DecisionAlgorithmName
-	TriggerAlgorithm    TriggerAlgorithmName
-	AdjustmentAlgorithm AdjustmentAlgorithmName
-	Decision            json.RawMessage
-	Adjustment          core.AdjustmentConfig
+	Decision   AlgorithmConfiguration
+	Trigger    AlgorithmConfiguration
+	Adjustment AlgorithmConfiguration
+	History    *core.RecommendationHistory
 }

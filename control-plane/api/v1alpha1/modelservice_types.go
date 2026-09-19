@@ -135,72 +135,17 @@ type ModelPoolTemplate struct {
 	Features *ModelFeatures `json:"features,omitempty"`
 }
 
-// AutoscalingTriggerAlgorithm selects how observations enter automatic capacity evaluation.
-// +kubebuilder:validation:Enum=periodic
-type AutoscalingTriggerAlgorithm string
-
-const AutoscalingTriggerAlgorithmPeriodic AutoscalingTriggerAlgorithm = "periodic"
-
-// ModelAutoscalingTriggerConfig configures the Trigger stage.
-type ModelAutoscalingTriggerConfig struct {
-	// +optional
-	// +kubebuilder:default=periodic
-	Algorithm AutoscalingTriggerAlgorithm `json:"algorithm,omitempty"`
-
-	// Interval controls how often the controller runs the Trigger stage.
-	// +optional
-	// +kubebuilder:default="5s"
-	Interval Duration `json:"interval,omitempty"`
-}
-
-// ModelAutoscalingDecisionConfig selects a registered policy and its algorithm-owned parameters.
-type ModelAutoscalingDecisionConfig struct {
-	// Algorithm identifies a decision policy compiled into the controller.
+// ModelAutoscalingAlgorithmConfig selects a built-in stage and its optional algorithm-owned parameters.
+type ModelAutoscalingAlgorithmConfig struct {
+	// Algorithm identifies a stage implementation compiled into the controller.
 	// +kubebuilder:validation:MinLength=1
 	Algorithm string `json:"algorithm"`
 
-	// Parameters is an object decoded and validated by the selected policy.
-	// Use an empty object to accept that policy's defaults.
+	// Parameters overrides the selected implementation's defaults when supplied.
+	// +optional
 	// +kubebuilder:validation:Type=object
 	// +kubebuilder:pruning:PreserveUnknownFields
-	Parameters *apiextensionsv1.JSON `json:"parameters"`
-}
-
-// AutoscalingAdjustmentAlgorithm selects how a desired replica count is stabilized before lifecycle resolution.
-// +kubebuilder:validation:Enum=direct;step
-type AutoscalingAdjustmentAlgorithm string
-
-const (
-	AutoscalingAdjustmentAlgorithmDirect AutoscalingAdjustmentAlgorithm = "direct"
-	AutoscalingAdjustmentAlgorithmStep   AutoscalingAdjustmentAlgorithm = "step"
-)
-
-// ModelAutoscalingScaleUpConfig controls upward stabilization.
-type ModelAutoscalingScaleUpConfig struct {
-	// +optional
-	// +kubebuilder:default="0s"
-	StabilizationWindow NonNegativeDuration `json:"stabilizationWindow,omitempty"`
-}
-
-// ModelAutoscalingScaleDownConfig controls downward stabilization.
-type ModelAutoscalingScaleDownConfig struct {
-	// +optional
-	// +kubebuilder:default="300s"
-	StabilizationWindow NonNegativeDuration `json:"stabilizationWindow,omitempty"`
-}
-
-// ModelAutoscalingAdjustmentConfig configures how desired replica capacity is applied.
-// +kubebuilder:validation:XValidation:rule="self.algorithm != 'direct' || (!has(self.scaleUp) && !has(self.scaleDown))",message="direct adjustment does not accept scaleUp or scaleDown configuration"
-type ModelAutoscalingAdjustmentConfig struct {
-	// +optional
-	// +kubebuilder:default=step
-	Algorithm AutoscalingAdjustmentAlgorithm `json:"algorithm,omitempty"`
-
-	// +optional
-	ScaleUp *ModelAutoscalingScaleUpConfig `json:"scaleUp,omitempty"`
-
-	// +optional
-	ScaleDown *ModelAutoscalingScaleDownConfig `json:"scaleDown,omitempty"`
+	Parameters *apiextensionsv1.JSON `json:"parameters,omitempty"`
 }
 
 // ModelAutoscalingConfig configures user-visible service replica autoscaling.
@@ -217,13 +162,12 @@ type ModelAutoscalingConfig struct {
 
 	// Trigger may be omitted to use periodic evaluation every five seconds.
 	// +optional
-	// +kubebuilder:default={}
-	Trigger *ModelAutoscalingTriggerConfig `json:"trigger,omitempty"`
+	Trigger *ModelAutoscalingAlgorithmConfig `json:"trigger,omitempty"`
 
-	Decision ModelAutoscalingDecisionConfig `json:"decision"`
+	Decision ModelAutoscalingAlgorithmConfig `json:"decision"`
 
 	// +optional
-	Adjustment *ModelAutoscalingAdjustmentConfig `json:"adjustment,omitempty"`
+	Adjustment *ModelAutoscalingAlgorithmConfig `json:"adjustment,omitempty"`
 }
 
 // ModelSource selects how model and tokenizer identifiers are resolved.

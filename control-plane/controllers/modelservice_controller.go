@@ -12,7 +12,6 @@ import (
 	"reflect"
 	"slices"
 	"sync"
-	"time"
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	inferencev1alpha1 "github.com/shiweijiezero/foretoken/control-plane/api/v1alpha1"
@@ -36,7 +35,6 @@ const (
 	conditionPoolsMaterialized = "PoolsMaterialized"
 	conditionReady             = "Ready"
 	maxDesiredReplicas         = int32(1<<31 - 1)
-	defaultScalingPollInterval = 5 * time.Second
 )
 
 // ScalingMetricsProvider supplies one read-only, target-attributed metrics snapshot.

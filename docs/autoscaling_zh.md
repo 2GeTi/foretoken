@@ -23,19 +23,8 @@ spec:
   autoscaling:
     minReplicas: 1
     maxReplicas: 8
-    trigger:
-      algorithm: periodic
-      interval: 5s
     decision:
       algorithm: queue
-      parameters:
-        targetAverageQueuedRequests: 1
-    adjustment:
-      algorithm: step
-      scaleUp:
-        stabilizationWindow: 0s
-      scaleDown:
-        stabilizationWindow: 300s
 ```
 
 `periodic` 按配置的间隔评估队列负载。指标缺失、过期或不完整时，保持当前容量。自动扩缩容至少保留一个副本。
@@ -44,17 +33,34 @@ spec:
 
 缩容稳定窗口使用当前控制器进程保存的近期建议。控制器重启或 leader 切换不会保留这些历史，因此可能缩短等待缩容的延迟。
 
-## 决策参数
+## 算法参数
 
-`decision.parameters` 必须提供。使用 `parameters: {}` 可以接受所选算法的默认值。参数由该算法负责；控制器会在写入容量前拒绝未知字段、非整数值和不合法的范围。
+三个阶段都使用 `algorithm` 和可选的 `parameters`。省略参数时使用所选算法的默认值；整个 trigger 或 adjustment 阶段省略时，分别使用 `periodic` 和 `step`。算法构造函数在写入容量前拒绝未知字段、错误类型和无效值。新增算法编译进控制器后，用户只需在服务配置中选择它，无需修改 CRD。
 
 | 算法 | 参数 | 默认值 | 约束 |
 | --- | --- | --- | --- |
 | `queue` | `targetAverageQueuedRequests` | `1` | 正整数 |
 | `queue_threshold` | `scaleUpQueuedRequests` | `1` | 非负整数 |
 | `queue_threshold` | `scaleDownQueuedRequests` | `0` | 非负整数，不超过 `scaleUpQueuedRequests` |
+| `periodic`（trigger） | `interval` | `5s` | 正的时间长度 |
+| `step`（adjustment） | `scaleUpStabilizationWindow` | `0s` | 非负时间长度 |
+| `step`（adjustment） | `scaleDownStabilizationWindow` | `300s` | 非负时间长度 |
+| `direct`（adjustment） | 无 | — | 不接受参数 |
 
 控制器必须包含对应名称的算法。未知算法名称或无效参数会使 ModelService 出现 `ScalingFailed` condition；Kubernetes 校验参数必须为对象，由选中的算法校验对象内容。
+
+例如，在已有的 `autoscaling` 中覆盖轮询间隔和缩容稳定窗口：
+
+```yaml
+trigger:
+  algorithm: periodic
+  parameters:
+    interval: 10s
+adjustment:
+  algorithm: step
+  parameters:
+    scaleDownStabilizationWindow: 60s
+```
 
 ## 查看扩缩容决策
 
@@ -84,18 +90,18 @@ kubectl get modelservice multi-model-qwen3-0.6b \
 
 [多模型示例](../examples/multi-model-quickstart/README_zh.md)部署一个按队列自动扩缩的 Qwen 服务和一个固定容量的 Llama 服务，其中包含有界并发负载和观察容量变化的状态命令。
 
-## 迁移旧版决策配置
+## 迁移旧版配置
 
-`v1alpha1` 决策配置现使用 `parameters`，替代算法专属的 `queue` 和 `queueThreshold` 块。将所选块中的内容移入 `parameters`，删除旧块；算法名称和参数值保持不变。例如：
+升级前保存现有服务配置，并将算法专属值移入各自阶段的 `parameters` 对象：
 
-```yaml
-decision:
-  algorithm: queue
-  parameters:
-    targetAverageQueuedRequests: 2
-```
+| 旧字段 | 新字段 |
+| --- | --- |
+| `decision.queue.*` / `decision.queueThreshold.*` | `decision.parameters.*` |
+| `trigger.interval` | `trigger.parameters.interval` |
+| `adjustment.scaleUp.stabilizationWindow` | `adjustment.parameters.scaleUpStabilizationWindow` |
+| `adjustment.scaleDown.stabilizationWindow` | `adjustment.parameters.scaleDownStabilizationWindow` |
 
-控制器和 CRD 需要配套更新，再重新提交迁移后的服务配置。迁移完成前，已有服务保持当前 Pool 容量并报告 `ScalingFailed`；缺少 `parameters` 会被拒绝，避免静默使用算法默认值。新提交的旧格式配置会被 schema 拒绝。回退控制器和 CRD 前，需要将配置恢复为对应的旧决策块。
+删除旧字段；与默认值相同的参数可以省略。控制器和 CRD 需配套升级，并在新控制器开始协调已有服务前提交迁移后的配置。新 schema 不保留旧字段，未迁移的设置可能丢失并被算法默认值替代。回退时需一并恢复旧控制器、CRD 和保存的服务配置。
 
 ## 维护者架构
 

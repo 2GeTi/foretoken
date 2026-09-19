@@ -50,7 +50,7 @@ func recommendation(replicas int32, state core.RecommendationState, reason core.
 // NewQueue constructs the queue policy for the built-in registry and validates its capacity target.
 func NewQueue(parameters json.RawMessage) (core.DecisionAlgorithm, error) {
 	target := int64(1)
-	if err := decodeParameters(parameters, map[string]*int64{"targetAverageQueuedRequests": &target}); err != nil {
+	if err := core.DecodeParameters(parameters, map[string]any{"targetAverageQueuedRequests": &target}); err != nil {
 		return nil, err
 	}
 	if target <= 0 {

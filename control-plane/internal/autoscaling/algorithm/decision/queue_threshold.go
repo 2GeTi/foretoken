@@ -41,7 +41,7 @@ func (threshold QueueThreshold) RecommendReplicas(snapshot core.ScalingSnapshot)
 // NewQueueThreshold constructs the backlog policy for the built-in registry and validates its boundaries.
 func NewQueueThreshold(parameters json.RawMessage) (core.DecisionAlgorithm, error) {
 	scaleUp, scaleDown := int64(1), int64(0)
-	if err := decodeParameters(parameters, map[string]*int64{
+	if err := core.DecodeParameters(parameters, map[string]any{
 		"scaleUpQueuedRequests":   &scaleUp,
 		"scaleDownQueuedRequests": &scaleDown,
 	}); err != nil {

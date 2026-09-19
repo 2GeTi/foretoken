@@ -15,28 +15,28 @@ import (
 )
 
 // Built-in implementations are declared together and remain fixed for the process lifetime.
-var triggers = map[string]func() (core.TriggerAlgorithm, error){
-	"periodic": func() (core.TriggerAlgorithm, error) { return trigger.Periodic{}, nil },
+var triggers = map[string]func(json.RawMessage) (core.TriggerAlgorithm, error){
+	"periodic": trigger.NewPeriodic,
 }
 
 var decisions = map[string]func(json.RawMessage) (core.DecisionAlgorithm, error){
-	"manual":          func(json.RawMessage) (core.DecisionAlgorithm, error) { return decision.Manual{}, nil },
+	"manual":          decision.NewManual,
 	"queue":           decision.NewQueue,
 	"queue_threshold": decision.NewQueueThreshold,
 }
 
-var adjustments = map[string]func(core.AdjustmentConfig) (core.AdjustmentAlgorithm, error){
-	"direct": func(core.AdjustmentConfig) (core.AdjustmentAlgorithm, error) { return adjustment.Direct{}, nil },
+var adjustments = map[string]func(json.RawMessage, *core.RecommendationHistory) (core.AdjustmentAlgorithm, error){
+	"direct": adjustment.NewDirect,
 	"step":   adjustment.NewStep,
 }
 
 // BuildTrigger constructs a named trigger algorithm from the builtin registry.
-func BuildTrigger(name string) (core.TriggerAlgorithm, error) {
+func BuildTrigger(name string, parameters json.RawMessage) (core.TriggerAlgorithm, error) {
 	factory, ok := triggers[name]
 	if !ok {
 		return nil, fmt.Errorf("unknown autoscaling trigger algorithm %q", name)
 	}
-	return factory()
+	return factory(parameters)
 }
 
 // BuildDecision constructs a named decision algorithm from the builtin registry.
@@ -49,10 +49,10 @@ func BuildDecision(name string, config json.RawMessage) (core.DecisionAlgorithm,
 }
 
 // BuildAdjustment constructs a named adjustment algorithm from the builtin registry.
-func BuildAdjustment(name string, config core.AdjustmentConfig) (core.AdjustmentAlgorithm, error) {
+func BuildAdjustment(name string, parameters json.RawMessage, history *core.RecommendationHistory) (core.AdjustmentAlgorithm, error) {
 	factory, ok := adjustments[name]
 	if !ok {
 		return nil, fmt.Errorf("unknown autoscaling adjustment algorithm %q", name)
 	}
-	return factory(config)
+	return factory(parameters, history)
 }

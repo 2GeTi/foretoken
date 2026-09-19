@@ -23,19 +23,8 @@ spec:
   autoscaling:
     minReplicas: 1
     maxReplicas: 8
-    trigger:
-      algorithm: periodic
-      interval: 5s
     decision:
       algorithm: queue
-      parameters:
-        targetAverageQueuedRequests: 1
-    adjustment:
-      algorithm: step
-      scaleUp:
-        stabilizationWindow: 0s
-      scaleDown:
-        stabilizationWindow: 300s
 ```
 
 `periodic` evaluates queue demand at the configured interval. Missing, stale, or incomplete observations keep the current capacity. Automatic scaling maintains at least one replica.
@@ -44,17 +33,34 @@ spec:
 
 The scale-down window uses recent recommendations held by the current controller process. A controller restart or leadership change does not preserve that history, so it can shorten a pending scale-down delay.
 
-## Decision parameters
+## Algorithm parameters
 
-`decision.parameters` is required. Use `parameters: {}` to accept the selected policy's defaults. Parameters belong to that policy; the controller rejects unknown names, non-integer values, and invalid ranges before writing capacity.
+All three stages use `algorithm` and optional `parameters`. Omit parameters to use the selected algorithm's defaults. Omit the trigger or adjustment stage entirely to use `periodic` or `step`. Algorithm constructors reject unknown fields, wrong types, and invalid values before capacity is written. New algorithms are compiled into the controller; users select them in the service manifest without editing CRDs.
 
 | Algorithm | Parameter | Default | Constraint |
 | --- | --- | --- | --- |
 | `queue` | `targetAverageQueuedRequests` | `1` | Positive integer |
 | `queue_threshold` | `scaleUpQueuedRequests` | `1` | Non-negative integer |
 | `queue_threshold` | `scaleDownQueuedRequests` | `0` | Non-negative integer, no greater than `scaleUpQueuedRequests` |
+| `periodic` (trigger) | `interval` | `5s` | Positive duration |
+| `step` (adjustment) | `scaleUpStabilizationWindow` | `0s` | Non-negative duration |
+| `step` (adjustment) | `scaleDownStabilizationWindow` | `300s` | Non-negative duration |
+| `direct` (adjustment) | None | — | No parameters accepted |
 
 The controller must contain the named algorithm. Unknown algorithm names or invalid parameters produce a `ScalingFailed` condition on the ModelService; Kubernetes validates the parameters object shape, while the selected algorithm validates its contents.
+
+For example, override the polling interval and scale-down window in the existing `autoscaling` block:
+
+```yaml
+trigger:
+  algorithm: periodic
+  parameters:
+    interval: 10s
+adjustment:
+  algorithm: step
+  parameters:
+    scaleDownStabilizationWindow: 60s
+```
 
 ## Observe a decision
 
@@ -84,18 +90,18 @@ For aggregate services, `kind` is `Pool`. For E/P/D services, `kind` is `EPDPipe
 
 The [multi-model example](../examples/multi-model-quickstart/README.md) deploys one queue-autoscaled Qwen service and one fixed-capacity Llama service. It includes a bounded concurrent workload and status commands for observing capacity changes.
 
-## Migrate the previous decision format
+## Migrate the previous configuration
 
-The `v1alpha1` decision configuration now uses `parameters` instead of the algorithm-specific `queue` and `queueThreshold` blocks. Move the contents of the selected block into `parameters` and remove the old block; keep the algorithm name and parameter values unchanged. For example:
+Before upgrading, save the existing service manifests and move algorithm-specific values into their stage's `parameters` object:
 
-```yaml
-decision:
-  algorithm: queue
-  parameters:
-    targetAverageQueuedRequests: 2
-```
+| Previous field | New field |
+| --- | --- |
+| `decision.queue.*` / `decision.queueThreshold.*` | `decision.parameters.*` |
+| `trigger.interval` | `trigger.parameters.interval` |
+| `adjustment.scaleUp.stabilizationWindow` | `adjustment.parameters.scaleUpStabilizationWindow` |
+| `adjustment.scaleDown.stabilizationWindow` | `adjustment.parameters.scaleDownStabilizationWindow` |
 
-Update the controller and CRDs together, then reapply the migrated service manifests. Until migration, existing services keep their current Pool capacity and report `ScalingFailed`; missing `parameters` is rejected rather than silently applying algorithm defaults. New manifests using the old shape fail schema validation. Before rolling back the controller and CRDs, restore the corresponding old decision block in the manifests.
+Remove the old fields. Unchanged default-valued parameters can be omitted. Upgrade the controller and CRDs together, and apply the migrated manifests before allowing the new controller to reconcile existing services. The new schema does not retain the old fields, so unmigrated settings can be lost and replaced by algorithm defaults. Rollback requires the previous controller, CRDs, and saved service manifests together.
 
 ## Maintainer architecture
 

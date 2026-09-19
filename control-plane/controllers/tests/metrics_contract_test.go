@@ -33,7 +33,7 @@ func TestStaleSourceMetricsStillEnforceMaximumCapacity(t *testing.T) {
 	service.Spec.Autoscaling = &inferencev1alpha1.ModelAutoscalingConfig{
 		MinReplicas: 1,
 		MaxReplicas: 3,
-		Decision: inferencev1alpha1.ModelAutoscalingDecisionConfig{
+		Decision: inferencev1alpha1.ModelAutoscalingAlgorithmConfig{
 			Algorithm:  "queue",
 			Parameters: &apiextensionsv1.JSON{Raw: []byte(`{"targetAverageQueuedRequests":1}`)},
 		},
@@ -69,7 +69,7 @@ func TestMetricsAggregationDrivesPoolScalingContract(t *testing.T) {
 	service.Spec.Autoscaling = &inferencev1alpha1.ModelAutoscalingConfig{
 		MinReplicas: 1,
 		MaxReplicas: 2,
-		Decision: inferencev1alpha1.ModelAutoscalingDecisionConfig{
+		Decision: inferencev1alpha1.ModelAutoscalingAlgorithmConfig{
 			Algorithm:  "queue",
 			Parameters: &apiextensionsv1.JSON{Raw: []byte(`{"targetAverageQueuedRequests":1}`)},
 		},

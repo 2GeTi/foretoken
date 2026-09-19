@@ -30,11 +30,11 @@ The controller supplies complete, fresh observations to the pipeline. `periodic`
 
 Built-in algorithms live under `algorithm/`. Trigger, decision, and adjustment implementations return domain results and do not read Kubernetes resources, mutate capacity, or schedule work. Add a new implementation only when it represents a current, independently owned recommendation policy; controller lifecycle behavior remains in `core` and the ModelService reconciler.
 
-`algorithm/registry.go` declares all built-in factories in one static registry. Implementations do not self-register through `init()`. To add a decision policy, implement its recommendation and parameter constructor, then add its factory to the decision registry. The constructor receives the `decision.parameters` JSON object, owns explicit parameter decoding, defaults and validation, and returns a policy using backend-neutral snapshots. Existing integer policies share an explicit field decoder; other parameter types belong to the policy that consumes them.
+`algorithm/registry.go` declares the static trigger, decision, and adjustment factories. Adding an algorithm requires its implementation file and one factory entry. Each implementation owns parameter decoding, defaults, validation, and execution; no algorithm enum or algorithm-specific CRD/compiler/controller mapping is maintained. `core.DecodeParameters` decodes explicitly selected fields without exposing implementation structs as configuration.
 
-The CRD carries an algorithm name and a required parameters object without listing policy-specific fields. The controller constructs the selected pipeline once per reconciliation and reuses its resolved polling configuration. It rejects invalid configuration before writing Pools; the compiler only compiles model deployment intent. Adding a decision policy does not require API, compiler or controller dispatch branches. Update the user guide with the policy's parameters and behavior.
+All stages receive an optional JSON parameters object. Adjustment factories also receive the controller-owned recommendation history. Trigger implementations expose their polling interval; the controller owns scheduling and derives observation freshness from that interval. Capacity bounds and lifecycle constraints remain platform responsibilities.
 
-Trigger scheduling and adjustment history remain owned by the existing controller and pipeline boundaries. Their common configuration is independent of decision parameters.
+The controller constructs the pipeline once per reconciliation. Built-in defaults select periodic triggering and step adjustment when those stages are omitted; individual parameter defaults remain in the selected implementation. A new implementation requires rebuilding and deploying the controller, not runtime plugin loading.
 
 ## Validation
 
