@@ -17,6 +17,16 @@ import (
 	lwsv1 "sigs.k8s.io/lws/api/leaderworkerset/v1"
 )
 
+// modelGroupLeaderWorkerSetName leaves room for LWS's worker StatefulSet ordinal
+// and Kubernetes' ControllerRevision suffix in the 63-byte Pod label value.
+func modelGroupLeaderWorkerSetName(group *inferencev1alpha1.ModelGroup) string {
+	const suffixLength = len("-0-") + 10
+	if len(group.Name) <= 63-suffixLength {
+		return group.Name
+	}
+	return "mg-" + string(group.UID)
+}
+
 // reconcileWorkload keeps complete Group availability independent of the Pod orchestration backend.
 func (reconciler *ModelGroupReconciler) reconcileWorkload(ctx context.Context, group *inferencev1alpha1.ModelGroup) (bool, error) {
 	if group.Spec.NodeCount == 1 {
@@ -25,6 +35,27 @@ func (reconciler *ModelGroupReconciler) reconcileWorkload(ctx context.Context, g
 			return false, err
 		}
 		return modelGroupDeploymentAvailable(deployment), nil
+	}
+	workloadName := modelGroupLeaderWorkerSetName(group)
+	if workloadName != group.Name {
+		// Foreground deletion keeps the old group from holding GPUs when its
+		// replacement starts, including when LWS never created every member.
+		previous := new(lwsv1.LeaderWorkerSet)
+		err := reconciler.Get(ctx, client.ObjectKey{Namespace: group.Namespace, Name: group.Name}, previous)
+		if err == nil {
+			if !metav1.IsControlledBy(previous, group) {
+				return false, fmt.Errorf("LeaderWorkerSet %q is not controlled by ModelGroup", previous.Name)
+			}
+			if previous.DeletionTimestamp.IsZero() {
+				if err := reconciler.Delete(ctx, previous, client.PropagationPolicy(metav1.DeletePropagationForeground), client.Preconditions{UID: &previous.UID}); client.IgnoreNotFound(err) != nil {
+					return false, fmt.Errorf("delete superseded LeaderWorkerSet: %w", err)
+				}
+			}
+			return false, nil
+		}
+		if !apierrors.IsNotFound(err) {
+			return false, fmt.Errorf("get superseded LeaderWorkerSet: %w", err)
+		}
 	}
 	deployment, err := desiredDeployment(group, reconciler.ImagePullSecrets)
 	if err != nil {
@@ -43,7 +74,7 @@ func (reconciler *ModelGroupReconciler) reconcileWorkload(ctx context.Context, g
 	one := int32(1)
 	desired := &lwsv1.LeaderWorkerSet{
 		TypeMeta:   metav1.TypeMeta{APIVersion: lwsv1.GroupVersion.String(), Kind: "LeaderWorkerSet"},
-		ObjectMeta: metav1.ObjectMeta{Name: group.Name, Namespace: group.Namespace, Labels: modelGroupLabels(group)},
+		ObjectMeta: metav1.ObjectMeta{Name: workloadName, Namespace: group.Namespace, Labels: modelGroupLabels(group)},
 		Spec: lwsv1.LeaderWorkerSetSpec{
 			Replicas:      &one,
 			StartupPolicy: lwsv1.LeaderCreatedStartupPolicy,
