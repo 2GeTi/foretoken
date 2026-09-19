@@ -130,7 +130,8 @@ class PlatformLifecycle:
         self._oci_registry = config.image_registry
         self._kubectl = Kubectl()
         self._metax_exporter = MetaXExporterLifecycle(
-            self._kubectl, config.management_label, config.metax_exporter_image
+            self._kubectl, config.management_label, config.metax_exporter_image,
+            config.image_registry,
         )
         self._gateway = GatewayControllerLifecycle(self._helm, self._kubectl)
         self._leader_worker = LeaderWorkerLifecycle(self._helm, self._kubectl)
