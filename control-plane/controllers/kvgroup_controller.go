@@ -234,6 +234,12 @@ func desiredKVGroupResources(group *inferencev1alpha1.KVGroup, controlPlaneNames
 	}
 	containerPorts := []corev1.ContainerPort{{Name: "management", ContainerPort: registrationPort, Protocol: corev1.ProtocolTCP}}
 	servicePorts := []corev1.ServicePort{{Name: "management", Port: registrationPort, TargetPort: intstr.FromString("management")}}
+	capabilities := &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}}
+	if group.Spec.Client.Protocol == "rdma" {
+		// RDMA registers pinned host memory and must not silently fall back to TCP.
+		capabilities.Add = []corev1.Capability{"IPC_LOCK"}
+		env = append(env, corev1.EnvVar{Name: "MC_FORCE_HCA", Value: "1"})
+	}
 	container := corev1.Container{
 		Name: "client", Image: group.Spec.Client.Image, ImagePullPolicy: corev1.PullIfNotPresent,
 		Command: []string{"mooncake_client"}, Args: args,
@@ -241,7 +247,7 @@ func desiredKVGroupResources(group *inferencev1alpha1.KVGroup, controlPlaneNames
 		Env:             env,
 		Resources:       corev1.ResourceRequirements{Requests: requests, Limits: limits},
 		VolumeMounts:    mounts,
-		SecurityContext: &corev1.SecurityContext{AllowPrivilegeEscalation: &allowPrivilegeEscalation, ReadOnlyRootFilesystem: &readOnlyRootFilesystem, Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}}},
+		SecurityContext: &corev1.SecurityContext{AllowPrivilegeEscalation: &allowPrivilegeEscalation, ReadOnlyRootFilesystem: &readOnlyRootFilesystem, Capabilities: capabilities},
 		ReadinessProbe:  tcpProbe("management", 10), LivenessProbe: tcpProbe("management", 15),
 	}
 	deployment := &appsv1.Deployment{
