@@ -34,7 +34,7 @@ foretoken deploy examples/quickstart --timeout 20m
 
 ## 输出示例
 
-单张 A100 80GB PCIe 上的 Qwen3-0.6B：
+Qwen3-0.6B 的 NVIDIA GPU 测量示例：
 
 ![扫描命令的实际输出](../imgs/sweep-cli.png)
 

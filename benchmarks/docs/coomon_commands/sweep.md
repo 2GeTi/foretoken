@@ -34,7 +34,7 @@ foretoken deploy examples/quickstart --timeout 20m
 
 ## Example output
 
-Qwen3-0.6B on one A100 80GB PCIe GPU:
+Example measurement for Qwen3-0.6B on an NVIDIA GPU:
 
 ![Recorded sweep output](../imgs/sweep-cli.png)
 
