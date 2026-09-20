@@ -461,69 +461,64 @@ func projectServiceEPDComponents(service *inferencev1alpha1.ModelService, pools 
 		return compareStrings(string(left.UID), string(right.UID))
 	})
 	var scopes []epdScope
-	compatible := func(scope epdScope, role inferencev1alpha1.ModelRole, candidate *inferencev1alpha1.ModelGroup) bool {
-		if role == inferencev1alpha1.ModelRoleEncoder {
-			for _, prefill := range scope.prefills {
-				if !compatibleEncoderPrefill(candidate, prefill) {
-					return false
-				}
-			}
-			return true
+	remainingEncoders := append([]*inferencev1alpha1.ModelGroup(nil), encoders...)
+	remainingPrefills := append([]*inferencev1alpha1.ModelGroup(nil), prefills...)
+	remainingDecodes := append([]*inferencev1alpha1.ModelGroup(nil), decodes...)
+	for len(remainingEncoders) > 0 || len(remainingPrefills) > 0 || len(remainingDecodes) > 0 {
+		if len(remainingEncoders) == 0 || len(remainingPrefills) == 0 || len(remainingDecodes) == 0 {
+			return nil, nil, &splitRoutingProjectionError{service: service.Name, reason: "ready E/P/D groups cannot be partitioned into complete compatible scopes"}
 		}
-		if role == inferencev1alpha1.ModelRolePrefill {
-			for _, encoder := range scope.encoders {
-				if !compatibleEncoderPrefill(encoder, candidate) {
-					return false
-				}
-			}
-			for _, decode := range scope.decodes {
-				if !compatiblePDGroups(candidate, decode) {
-					return false
-				}
-			}
-			return true
+		seedEncoder := remainingEncoders[0]
+		seedPrefillIndex := slices.IndexFunc(remainingPrefills, func(candidate *inferencev1alpha1.ModelGroup) bool {
+			return compatibleEncoderPrefill(seedEncoder, candidate)
+		})
+		if seedPrefillIndex < 0 {
+			return nil, nil, &splitRoutingProjectionError{service: service.Name, reason: fmt.Sprintf("encoder ModelGroup %q has no compatible prefill scope", seedEncoder.Name)}
 		}
-		for _, prefill := range scope.prefills {
-			if !compatiblePDGroups(prefill, candidate) {
-				return false
+		seedPrefill := remainingPrefills[seedPrefillIndex]
+		seedDecodeIndex := slices.IndexFunc(remainingDecodes, func(candidate *inferencev1alpha1.ModelGroup) bool {
+			return compatiblePDGroups(seedPrefill, candidate)
+		})
+		if seedDecodeIndex < 0 {
+			return nil, nil, &splitRoutingProjectionError{service: service.Name, reason: fmt.Sprintf("prefill ModelGroup %q has no compatible decode scope", seedPrefill.Name)}
+		}
+		seedDecode := remainingDecodes[seedDecodeIndex]
+		scope := epdScope{
+			encoders: []*inferencev1alpha1.ModelGroup{seedEncoder},
+			prefills: []*inferencev1alpha1.ModelGroup{seedPrefill},
+			decodes:  []*inferencev1alpha1.ModelGroup{seedDecode},
+		}
+		remainingEncoders = remainingEncoders[1:]
+		remainingPrefills = slices.Delete(remainingPrefills, seedPrefillIndex, seedPrefillIndex+1)
+		remainingDecodes = slices.Delete(remainingDecodes, seedDecodeIndex, seedDecodeIndex+1)
+		for index := 0; index < len(remainingEncoders); {
+			candidate := remainingEncoders[index]
+			if compatibleEncoderPrefill(candidate, seedPrefill) {
+				scope.encoders = append(scope.encoders, candidate)
+				remainingEncoders = slices.Delete(remainingEncoders, index, index+1)
+			} else {
+				index++
 			}
 		}
-		return true
-	}
-	assign := func(role inferencev1alpha1.ModelRole, candidate *inferencev1alpha1.ModelGroup) {
-		for index := range scopes {
-			if !compatible(scopes[index], role, candidate) {
-				continue
+		for index := 0; index < len(remainingPrefills); {
+			candidate := remainingPrefills[index]
+			if compatibleEncoderPrefill(seedEncoder, candidate) && compatiblePDGroups(candidate, seedDecode) {
+				scope.prefills = append(scope.prefills, candidate)
+				remainingPrefills = slices.Delete(remainingPrefills, index, index+1)
+			} else {
+				index++
 			}
-			switch role {
-			case inferencev1alpha1.ModelRoleEncoder:
-				scopes[index].encoders = append(scopes[index].encoders, candidate)
-			case inferencev1alpha1.ModelRolePrefill:
-				scopes[index].prefills = append(scopes[index].prefills, candidate)
-			case inferencev1alpha1.ModelRoleDecode:
-				scopes[index].decodes = append(scopes[index].decodes, candidate)
-			}
-			return
 		}
-		scope := epdScope{}
-		switch role {
-		case inferencev1alpha1.ModelRoleEncoder:
-			scope.encoders = []*inferencev1alpha1.ModelGroup{candidate}
-		case inferencev1alpha1.ModelRolePrefill:
-			scope.prefills = []*inferencev1alpha1.ModelGroup{candidate}
-		case inferencev1alpha1.ModelRoleDecode:
-			scope.decodes = []*inferencev1alpha1.ModelGroup{candidate}
+		for index := 0; index < len(remainingDecodes); {
+			candidate := remainingDecodes[index]
+			if compatiblePDGroups(seedPrefill, candidate) {
+				scope.decodes = append(scope.decodes, candidate)
+				remainingDecodes = slices.Delete(remainingDecodes, index, index+1)
+			} else {
+				index++
+			}
 		}
 		scopes = append(scopes, scope)
-	}
-	for _, group := range encoders {
-		assign(inferencev1alpha1.ModelRoleEncoder, group)
-	}
-	for _, group := range prefills {
-		assign(inferencev1alpha1.ModelRolePrefill, group)
-	}
-	for _, group := range decodes {
-		assign(inferencev1alpha1.ModelRoleDecode, group)
 	}
 	var components []servingSnapshotEPDComponent
 	var pipelineScopes []servingSnapshotEPDPipelineScope
