@@ -483,8 +483,10 @@ async fn spawn_engine_attempt(
             cache_mode_failure(mode, "profiling storage preparation failed", error)
         })?;
     }
-    if config.launch.shared_prefix_lookup() {
-        let mut python_paths = vec![std::path::PathBuf::from(shared_kv::PYTHON_MODULE_PATH)];
+    if config.launch.shared_prefix_lookup()
+        || config.launch.profiling.engine == profiling::Engine::Mctracer
+    {
+        let mut python_paths = vec![std::path::PathBuf::from("/opt/foretoken/python")];
         if let Some(existing) = std::env::var_os("PYTHONPATH") {
             python_paths.extend(std::env::split_paths(&existing));
         }
@@ -494,6 +496,8 @@ async fn spawn_engine_attempt(
             "PYTHONPATH".into(),
             python_path.to_string_lossy().into_owned(),
         ));
+    }
+    if config.launch.kv.shared_prefix_lookup() {
         environment.push((
             shared_kv::LOOKUP_ENDPOINT_ENV.into(),
             shared_kv::lookup_endpoint("*", 0),
@@ -534,6 +538,11 @@ async fn spawn_engine_attempt(
         && let Some(profile) = profiling
     {
         managed_engine.python_args.push(profile.engine_argument());
+        if config.launch.profiling.engine == profiling::Engine::Mctracer {
+            managed_engine
+                .python_args
+                .push("--worker-cls=foretoken_mctracer.Worker".into());
+        }
     }
     let protocol_timeout = startup_deadline.saturating_duration_since(Instant::now());
     if protocol_timeout.is_zero() {

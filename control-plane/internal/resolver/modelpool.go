@@ -156,6 +156,14 @@ func ResolveModelPool(template inferencev1alpha1.NormalizedPoolTemplate, profile
 	if rdma != nil && (rdma.ResourceName == "" || rdma.ResourceCount < 1) {
 		return ModelGroupTemplate{}, fmt.Errorf("platform RDMA allocation is incomplete")
 	}
+	if template.Profiling != nil && template.Profiling.Engine == "mctracer" {
+		if profile.DeviceResourceName != "metax-tech.com/gpu" {
+			return ModelGroupTemplate{}, fmt.Errorf("mcTracer requires MetaX GPUs")
+		}
+		if template.RuntimeCache == nil {
+			return ModelGroupTemplate{}, fmt.Errorf("mcTracer requires a persistent RuntimeCache")
+		}
+	}
 	resources := *template.Resources.DeepCopy()
 
 	nodeSelector := map[string]string(nil)
