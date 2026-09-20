@@ -134,9 +134,6 @@ func Compile(template inferencev1alpha1.NormalizedPoolTemplate) (EffectiveConfig
 	if err := validateParallelism(effective.Parallelism); err != nil {
 		return EffectiveConfig{}, err
 	}
-	if err := validateTransferParallelism(template.Role, effective.Parallelism); err != nil {
-		return EffectiveConfig{}, err
-	}
 	capacity := int64(template.NodeCount) * int64(template.Resources.Requests.GPU.Count)
 	ranks := int64(effective.Parallelism.PP) * int64(effective.Parallelism.TP) * int64(effective.Parallelism.PCP) * int64(effective.Parallelism.DP)
 	if capacity != ranks {
@@ -165,9 +162,6 @@ func BuildLaunchPlan(group inferencev1alpha1.ModelGroupSpec) (LaunchPlanV1, erro
 		return LaunchPlanV1{}, fmt.Errorf("vLLM artifacts must be nonempty")
 	}
 	if err := validateParallelism(group.Parallelism); err != nil {
-		return LaunchPlanV1{}, err
-	}
-	if err := validateTransferParallelism(group.Role, group.Parallelism); err != nil {
 		return LaunchPlanV1{}, err
 	}
 	if group.Runtime.InternalGenerateRequestBodyLimitBytes < inferencev1alpha1.MinInternalGenerateRequestBodyLimitBytes || group.Runtime.InternalGenerateRequestBodyLimitBytes > inferencev1alpha1.MaxInternalGenerateRequestBodyLimitBytes {
@@ -358,27 +352,9 @@ func CompatibleKVTransfer(left, right inferencev1alpha1.ModelGroupSpec) bool {
 	return true
 }
 
-// vLLM owns the legality of context-parallel combinations. Foretoken only
-// rejects malformed topology values before the launch plan crosses process boundaries.
-func validateTransferParallelism(role inferencev1alpha1.ModelRole, parallelism inferencev1alpha1.CompiledParallelism) error {
-	_ = role
-	_ = parallelism
-	return nil
-}
-
 func validateParallelism(parallelism inferencev1alpha1.CompiledParallelism) error {
 	if parallelism.TP < 1 || parallelism.PP < 1 || parallelism.DP < 1 || parallelism.PCP < 1 || parallelism.DCP < 1 {
 		return fmt.Errorf("vLLM topology values must be positive")
-	}
-	if parallelism.PCP > 1 && parallelism.DP > 1 {
-		return fmt.Errorf("vLLM prefill context parallelism greater than 1 requires data parallelism 1")
-	}
-	if parallelism.PCP == 1 {
-		if parallelism.TP%parallelism.DCP != 0 {
-			return fmt.Errorf("vLLM decode context parallelism must divide tensor parallelism")
-		}
-	} else if parallelism.DCP != 1 && parallelism.DCP != parallelism.PCP && parallelism.DCP != parallelism.TP*parallelism.PCP {
-		return fmt.Errorf("vLLM decode context parallelism is incompatible with tensor and prefill context parallelism")
 	}
 	if parallelism.EP != nil && parallelism.EP.EPLB && parallelism.EP.Size == 1 {
 		return fmt.Errorf("vLLM EPLB requires more than one expert-parallel rank")
