@@ -1,7 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 
-"""Use native TorchAO INT8 weight storage with MACA floating-point linear kernels."""
+"""Adapt TorchAO INT8 weight storage to MACA floating-point linear kernels.
+
+Weights remain quantized between operations and are dequantized for each linear
+layer, reducing storage without providing INT8 GEMM execution. The adapter is
+limited to Int8WeightOnlyConfig and works around quantized-tensor dispatch in
+the MACA PyTorch 2.10 and TorchAO 0.15.0 combination.
+"""
 
 import torch
 import torch.nn.functional as F

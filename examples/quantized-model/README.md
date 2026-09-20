@@ -5,64 +5,62 @@
 
 English | [简体中文](README_zh.md)
 
-Serve Qwen2.5-0.5B-Instruct using a prequantized checkpoint or quantize ordinary weights during loading. Each configuration has a complete `model.yaml`; namespace, frontend and cache resources are shared under `shared/`.
+These examples serve Qwen2.5-0.5B-Instruct with a prequantized checkpoint or quantize ordinary weights while loading. Each directory is a complete Kustomize deployment with its own namespace, runtime cache, frontend, and model service. The three examples can be deployed and removed independently without resource-name conflicts.
 
-| Configuration | Weight loading | Hardware |
-| --- | --- | --- |
-| [`awq/`](awq/model.yaml) | Prequantized AWQ checkpoint, FP16 activations | NVIDIA A100 |
-| [`bitsandbytes/`](bitsandbytes/model.yaml) | Ordinary checkpoint, 4-bit quantization during loading | NVIDIA A100 |
-| [`torchao-metax/`](torchao-metax/model.yaml) | Ordinary checkpoint, INT8 weight storage with floating-point linear execution | MetaX C500 |
-
-The MetaX configuration dequantizes each linear layer for execution; it reduces stored weight memory rather than providing INT8 GEMM acceleration. Loading-time quantization does not export a new checkpoint.
-
-## Install and choose a configuration
-
-Install the [platform from this source checkout](../../docs/custom-deployment.md) with `foretoken install -e .`. The model-server build prepares the quantization dependencies for the selected accelerator. MetaX setup follows the [MetaX deployment guide](../../docs/metax-deployment.md).
-
-Run from the repository root and choose one pair:
+Build and install the [platform from this source checkout](../../docs/custom-deployment.md) before deploying an example:
 
 ```bash
-# Prequantized AWQ
-EXAMPLE=examples/quantized-model/awq
-MODEL=Qwen/Qwen2.5-0.5B-Instruct-AWQ
-
-# Or: BitsAndBytes 4-bit on A100
-# EXAMPLE=examples/quantized-model/bitsandbytes
-# MODEL=Qwen/Qwen2.5-0.5B-Instruct
-
-# Or: TorchAO INT8 on C500
-# EXAMPLE=examples/quantized-model/torchao-metax
-# MODEL=Qwen/Qwen2.5-0.5B-Instruct
+foretoken install -e .
 ```
 
-Each choice uses the context length from the model configuration and requests one GPU, 3 CPU and 9 GiB of host memory including the frontend, plus platform capacity. The configurations are alternatives for the same service, not concurrent deployments.
+Each deployment requests one GPU, 3 CPU, and 9 GiB of host memory across the model and frontend, plus capacity for the Foretoken platform.
 
-All choices use the repository-root `data/` directory. For remote clusters, set an absolute node-visible path in [`shared/cache.yaml`](shared/cache.yaml); see [model storage](../../docs/model-storage.md).
+## AWQ on NVIDIA A100
 
-## Deploy and send a request
+This example loads the prequantized `Qwen/Qwen2.5-0.5B-Instruct-AWQ` checkpoint with FP16 activations. It requires one NVIDIA A100 GPU.
 
 ```bash
-foretoken deploy "$EXAMPLE" --timeout 20m
-FRONTEND_URL="$(foretoken endpoint "$EXAMPLE")"
-
-curl --fail-with-body "$FRONTEND_URL/v1/chat/completions" \
-  -H 'Content-Type: application/json' \
-  --data-binary @- <<EOF
-{
-  "model": "$MODEL",
-  "messages": [{"role": "user", "content": "Explain quantization in one sentence."}],
-  "max_tokens": 64,
-  "temperature": 0
-}
-EOF
+foretoken deploy examples/quantized-model/awq --timeout 20m
 ```
 
-For Gateway access, follow the hostname and Host-header example in the root Quick Start. Configure the model directly in the selected `model.yaml`; native options are described in [inference parameters](../../docs/inference-parameters.md).
-
-## Clean up
+When finished, remove only the AWQ deployment:
 
 ```bash
-foretoken delete "$EXAMPLE"
+foretoken delete examples/quantized-model/awq
 ```
 
-The namespace and serving resources are removed; downloaded files remain in the directory cache.
+## BitsAndBytes 4-bit on NVIDIA A100
+
+This example loads `Qwen/Qwen2.5-0.5B-Instruct` and applies 4-bit BitsAndBytes quantization during loading. It requires one NVIDIA A100 GPU. Loading-time quantization does not create a new checkpoint.
+
+```bash
+foretoken deploy examples/quantized-model/bitsandbytes --timeout 20m
+```
+
+When finished, remove only the BitsAndBytes deployment:
+
+```bash
+foretoken delete examples/quantized-model/bitsandbytes
+```
+
+## TorchAO INT8 weight storage on MetaX C500
+
+This example loads `Qwen/Qwen2.5-0.5B-Instruct` and stores supported linear weights as INT8 with TorchAO. It requires one MetaX C500 GPU and a cluster prepared according to the [MetaX deployment guide](../../docs/metax-deployment.md).
+
+Each linear layer is dequantized for floating-point execution. This reduces stored weight memory; it does not provide INT8 GEMM acceleration or create a new checkpoint.
+
+```bash
+foretoken deploy examples/quantized-model/torchao-metax --timeout 20m
+```
+
+When finished, remove only the TorchAO deployment:
+
+```bash
+foretoken delete examples/quantized-model/torchao-metax
+```
+
+## Storage and requests
+
+Each example's `cache.yaml` uses the repository-root `data/` directory. For a remote cluster, replace `directory: ../../../data` in the example you deploy with an absolute path visible to the target nodes; see [model storage](../../docs/model-storage.md).
+
+Resolve the selected frontend with `foretoken endpoint` and use the model identifier from its section in an OpenAI-compatible request. The request format and Gateway hostname setup are shown in the [Single-Model Quick Start](../quickstart/README.md). Downloaded model files remain in the directory cache after cleanup.

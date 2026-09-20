@@ -4,4 +4,4 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: foretoken-quantized-demo
+  name: foretoken-awq-demo

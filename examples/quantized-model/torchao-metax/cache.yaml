@@ -4,7 +4,7 @@
 apiVersion: inference.foretoken.io/v1alpha1
 kind: RuntimeCache
 metadata:
-  name: models
+  name: torchao-metax-models
 spec:
   directory: ../../../data
   accessMode: ReadWriteMany
