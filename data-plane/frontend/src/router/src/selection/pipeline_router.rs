@@ -55,7 +55,7 @@ impl<C: Send + 'static> PipelineRouter<C> {
     }
 
     // Builds the immutable, rank-expanded candidate snapshot for one selection round. Dynamic
-    // health, capabilities, and aggregate telemetry are captured before algorithms observe it.
+    // health, capabilities, and telemetry are captured before algorithms observe it.
     fn candidates(&self, request: &RouterRequest) -> Vec<RouteCandidate> {
         self.inventory
             .model_routes()
@@ -74,8 +74,8 @@ impl<C: Send + 'static> PipelineRouter<C> {
                 )
             })
             .flat_map(|route| {
-                // Statistics are route-target aggregate telemetry. Read once with the core-owned
-                // window, then share the same immutable observation across all rank candidates.
+                // Read the group's aggregate and rank-local gauges once, then share the immutable
+                // observation across candidates; scorers select the candidate's exact DP rank.
                 let stats = self
                     .route_target_stats_reader
                     .stats(&route.route_target_id, ROUTE_TARGET_STATS_WINDOW)
@@ -177,10 +177,31 @@ impl<C: Send + 'static> PipelineRouter<C> {
             );
             metrics.stage(round, "picker", picker_name, stage_started.elapsed());
             let picked = picked.ok_or(RouteError::EmptyPickerResult)?;
-            selectable
+            let candidate = selectable
                 .get(picked.0)
                 .map(|candidate| candidate.candidate.clone())
-                .ok_or(RouteError::InvalidPickerIndex { index: picked.0 })
+                .ok_or(RouteError::InvalidPickerIndex { index: picked.0 })?;
+            // Selection facts and engine load outcomes share the generation request identity.
+            // Keep request IDs out of metric labels and never record prompt tokens or cache salts.
+            if tracing::enabled!(tracing::Level::DEBUG) {
+                let observation = request
+                    .kv_prefix_lookup(
+                        candidate.route_target_id.as_str(),
+                        candidate.data_parallel_rank,
+                    )
+                    .map_or_else(
+                        foretoken_kv_indexer::KvPrefixQueryResult::Unavailable,
+                        |lookup| self.kv_prefix_indexer.prefix_matches(lookup),
+                    );
+                tracing::debug!(
+                    request_id = %request.generate_request.request_id,
+                    route_target_id = %candidate.route_target_id.as_str(),
+                    data_parallel_rank = candidate.data_parallel_rank,
+                    cache_observation = ?observation,
+                    "KV routing observation"
+                );
+            }
+            Ok(candidate)
         })();
         metrics.selection(round, started.elapsed(), result.as_ref().err());
         result
