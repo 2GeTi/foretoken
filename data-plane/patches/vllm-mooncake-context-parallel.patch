@@ -109,6 +109,18 @@ index dd94ffb2f..adec0a3f5 100644
          except Exception as e:
              logger.error(
                  "Failed to connect to bootstrap server %s: %s",
+@@ -2146,8 +2180,10 @@ def should_launch_bootstrap_server(vllm_config: VllmConfig) -> bool:
+-    # Only the TP=0, PP=0 worker of the designated engine should launch it.
++    # Only the TP=0, PP=0, PCP=0 worker of the designated engine launches it.
+     if get_tensor_model_parallel_rank() != 0:
+         return False
+     if get_pp_group().rank_in_group != 0:
+         return False
++    if get_pcp_group().rank_in_group != 0:
++        return False
+
+     # In hybrid or external LB mode,
+     # each instance should have its own bootstrap server.
 diff --git a/vllm/distributed/kv_transfer/kv_connector/v1/mooncake/mooncake_utils.py b/vllm/distributed/kv_transfer/kv_connector/v1/mooncake/mooncake_utils.py
 index 2d158387f..a2208e2a5 100644
 --- a/vllm/distributed/kv_transfer/kv_connector/v1/mooncake/mooncake_utils.py
