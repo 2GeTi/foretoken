@@ -9,9 +9,9 @@
 
 ## 容量单位
 
-聚合模型服务的每个副本按照配置的资源和并行参数运行完整模型。对于将编码、预填充和解码分开运行的 E/P/D 服务，一个副本包含 encoder、prefill 和 decode 三个阶段，三者一起扩缩；所需资源为各阶段配置的资源之和。
+聚合模型服务的每个 Pool 副本按照配置的资源和并行参数运行完整模型。对于将编码、预填充和解码分开运行的 E/P/D 服务，每个阶段各有一个 Pool，三个 Pool 分别拥有和调整自己的副本容量。请求仍需要完整的 E/P/D 路径，各 Pool 的新 revision 也仍作为一个完整服务代统一切换。
 
-`spec.replicas` 提供基线容量。配置 `autoscaling` 后，`minReplicas` 和 `maxReplicas` 从首次协调起就约束实际创建的容量。
+`spec.replicas` 提供聚合简写的基线容量；高级 `modelPools` 使用各 Pool 的 `replicas`。配置 `autoscaling` 后，`minReplicas` 和 `maxReplicas` 从首次协调起约束每个 Pool。
 
 ## 配置队列自动扩缩容
 
@@ -66,7 +66,7 @@ kubectl get modelservice multi-model-qwen3-0.6b \
 
 `desiredReplicas` 是算法建议，`adjustedReplicas` 是稳定窗口和速率限制后的结果，`appliedReplicas` 是生命周期与最小/最大副本数限制后写入目标的容量。`observationState`、各阶段 reason 和 `constraint` 用于说明容量为何保持或改变。
 
-聚合模型服务的 `kind` 为 `Pool`。E/P/D 服务的 `kind` 为 `EPDPipelineScope`，`role` 为 `EPD`。
+`kind` 为 `Pool`。`role` 用于区分该 Pool 承担 Aggregate、Encoder、Prefill 或 Decode 工作。
 
 ## 使用维护中的示例
 

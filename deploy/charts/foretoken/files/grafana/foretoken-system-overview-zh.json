@@ -927,21 +927,6 @@
                 }
               }
             ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "EPDPipelineScope"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "#eb6834",
-                  "mode": "fixed"
-                }
-              }
-            ]
           }
         ]
       },

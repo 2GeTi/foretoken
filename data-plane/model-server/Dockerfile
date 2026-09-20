@@ -87,7 +87,7 @@ RUN --mount=from=patch-tool,source=/usr/bin/patch,target=/usr/local/bin/patch \
 ARG UV_DEFAULT_INDEX=https://pypi.org/simple
 # Engine images may provide a Python virtual environment without pip.
 RUN --mount=from=uv,source=/uv,target=/usr/local/bin/uv \
-    uv pip install --no-cache --python "${FORETOKEN_VLLM_PYTHON:-python}" \
+    uv pip install --system --no-cache --python "${FORETOKEN_VLLM_PYTHON:-python}" \
       --default-index "${UV_DEFAULT_INDEX}" modelscope==1.35.3
 
 FROM engine-runtime AS runtime

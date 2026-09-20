@@ -705,7 +705,7 @@ def build() -> dashboard_models.Dashboard:
             ],
             unit="short",
             span=6,
-            colors={"Pool": BLUE, "EPDPipelineScope": ORANGE},
+            colors={"Pool": BLUE},
         )
     )
 

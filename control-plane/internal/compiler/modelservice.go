@@ -102,18 +102,16 @@ func CompileModelService(spec inferencev1alpha1.ModelServiceSpec) ([]ModelPool, 
 }
 
 // Validate service-wide topology across Pools: aggregate and split roles are exclusive,
-// P/D must be paired, and E/P/D requires one equally sized Pool for every stage.
+// and split topologies contain the stages required by their role.
 func validateModelPoolRoles(pools []inferencev1alpha1.ModelPoolTemplate) error {
 	var aggregate bool
 	roleCounts := make(map[inferencev1alpha1.ModelRole]int, 3)
-	roleReplicas := make(map[inferencev1alpha1.ModelRole]int32, 3)
 	for _, pool := range pools {
 		switch pool.Role {
 		case "", inferencev1alpha1.ModelRoleAggregate:
 			aggregate = true
 		case inferencev1alpha1.ModelRoleEncoder, inferencev1alpha1.ModelRolePrefill, inferencev1alpha1.ModelRoleDecode:
 			roleCounts[pool.Role]++
-			roleReplicas[pool.Role] += valueOrDefault(pool.Replicas, 1)
 		}
 	}
 	hasEncoder := roleCounts[inferencev1alpha1.ModelRoleEncoder] > 0
@@ -126,15 +124,6 @@ func validateModelPoolRoles(pools []inferencev1alpha1.ModelPoolTemplate) error {
 		if !hasPrefill || !hasDecode {
 			return fmt.Errorf("E/P/D modelPools must contain encoder, prefill, and decode roles")
 		}
-		for _, role := range []inferencev1alpha1.ModelRole{inferencev1alpha1.ModelRoleEncoder, inferencev1alpha1.ModelRolePrefill, inferencev1alpha1.ModelRoleDecode} {
-			if roleCounts[role] != 1 {
-				return fmt.Errorf("E/P/D modelPools must contain exactly one %s Pool", role)
-			}
-		}
-		encoderReplicas := roleReplicas[inferencev1alpha1.ModelRoleEncoder]
-		if encoderReplicas != roleReplicas[inferencev1alpha1.ModelRolePrefill] || encoderReplicas != roleReplicas[inferencev1alpha1.ModelRoleDecode] {
-			return fmt.Errorf("E/P/D modelPools must have equal encoder, prefill, and decode replica counts")
-		}
 		return nil
 	}
 	if hasPrefill != hasDecode {
@@ -144,8 +133,8 @@ func validateModelPoolRoles(pools []inferencev1alpha1.ModelPoolTemplate) error {
 }
 
 func compilePool(spec inferencev1alpha1.ModelServiceSpec, source inferencev1alpha1.ModelSource, artifactRevision, name string, role inferencev1alpha1.ModelRole, replicas, nodes int32, network, ecProfile string, resources inferencev1alpha1.ModelResources, engineArgs inferencev1alpha1.EngineArguments, maxInputTokens *int32, internalGenerateRequestBodyLimitBytes int64, kvCache *inferencev1alpha1.KVCache, features *inferencev1alpha1.ModelFeatures, timeouts inferencev1alpha1.ModelTimeouts) (ModelPool, error) {
-	if nodes != 1 {
-		return ModelPool{}, fmt.Errorf("only single-node model groups are currently supported")
+	if nodes < 1 {
+		return ModelPool{}, fmt.Errorf("nodes must be positive")
 	}
 	normalizedResources, err := normalizeResources(resources)
 	if err != nil {
@@ -178,7 +167,6 @@ func compilePool(spec inferencev1alpha1.ModelServiceSpec, source inferencev1alph
 			Tokenizer:                             tokenizer,
 			TokenizerRevision:                     artifactRevision,
 			Backend:                               spec.Backend,
-			Inference:                             *spec.InferenceParameters.DeepCopy(),
 			Role:                                  role,
 			NodeCount:                             nodes,
 			MemberCount:                           nodes,

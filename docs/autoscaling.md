@@ -9,9 +9,9 @@ Autoscaling changes the capacity of a `ModelService` from request demand. Config
 
 ## Capacity units
 
-For an aggregate model service, each replica runs the complete model with its configured resources and parallelism. For a service with separate encoder, prefill, and decode stages (E/P/D), one replica includes all three stages, which scale together. Its resource requirements are the sum of the resources configured for those stages.
+For an aggregate model service, each Pool replica runs the complete model with its configured resources and parallelism. A service with separate encoder, prefill, and decode stages (E/P/D) has one Pool for each stage, and the three Pools own and scale their replica capacities independently. Requests still require a complete E/P/D route, and new Pool revisions enter service together as one complete cohort.
 
-`spec.replicas` provides the baseline capacity. When `autoscaling` is present, `minReplicas` and `maxReplicas` constrain the capacity created from the first reconciliation onward.
+`spec.replicas` provides the aggregate shorthand's baseline capacity. Advanced `modelPools` use each Pool's `replicas`. When `autoscaling` is present, `minReplicas` and `maxReplicas` constrain every Pool from the first reconciliation onward.
 
 ## Configure queue autoscaling
 
@@ -66,7 +66,7 @@ kubectl get modelservice multi-model-qwen3-0.6b \
 
 `desiredReplicas` is the algorithm recommendation. `adjustedReplicas` is the result after stabilization and rate limiting. `appliedReplicas` is the capacity written to the target after lifecycle and min/max constraints. `observationState`, the stage reasons, and `constraint` explain why capacity was held or changed.
 
-For aggregate services, `kind` is `Pool`. For E/P/D services, `kind` is `EPDPipelineScope` and `role` is `EPD`.
+`kind` is `Pool`. The `role` identifies whether that Pool serves Aggregate, Encoder, Prefill, or Decode work.
 
 ## Try the maintained example
 
