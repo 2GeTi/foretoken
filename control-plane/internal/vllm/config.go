@@ -147,9 +147,6 @@ func BuildLaunchPlan(group inferencev1alpha1.ModelGroupSpec) (LaunchPlanV1, erro
 	if group.NodeCount < 1 {
 		return LaunchPlanV1{}, fmt.Errorf("model-server launch plan requires a positive node count")
 	}
-	if group.NodeCount > 1 && group.Parallelism.PCP != 1 {
-		return LaunchPlanV1{}, fmt.Errorf("multi-node vLLM multiprocessing requires prefill context parallelism 1")
-	}
 	startup, err := parsePositiveDuration(group.Timeouts.Startup, "startup")
 	if err != nil {
 		return LaunchPlanV1{}, err

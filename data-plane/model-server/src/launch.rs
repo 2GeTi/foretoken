@@ -270,11 +270,6 @@ impl LaunchPlanV1 {
         if self.node_count == 0 {
             return Err("launch plan requires a positive node count".into());
         }
-        if self.node_count > 1 && self.parallelism.pcp != 1 {
-            return Err(
-                "multi-node vLLM multiprocessing requires prefill context parallelism 1".into(),
-            );
-        }
         for (name, value) in [
             ("model", &self.artifacts.model),
             ("revision", &self.artifacts.revision),

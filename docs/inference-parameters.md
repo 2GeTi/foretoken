@@ -42,7 +42,9 @@ Values are YAML booleans, numbers, strings, lists or objects. Omitted options re
 
 `nodes` selects how many Kubernetes nodes each model replica uses; `resources.requests.gpu.count` is the GPU count per member Pod. Their product must equal TP × PP × DP × PCP for vLLM. DCP does not add GPUs. Expert parallelism uses native `enable-expert-parallel`, `all2all-backend` and `enable-eplb` options.
 
-Aggregated replicas can span nodes. Foretoken places one member on each node and manages startup, readiness and restart as a complete group. `foretoken install` prepares the LeaderWorkerSet controller and RDMA allocation; communication libraries select from allocated devices. A persistent cache used across nodes must be accessible from every member. Multi-node execution requires PCP=1. P/D and E/P/D Pools can select their own TP, PP, DP and expert-parallel settings. Mooncake transfer currently requires PCP=DCP=1, and the prefill and decode TP sizes must divide one another.
+Model replicas can span nodes. Foretoken places one member on each node and manages startup, readiness and restart as a complete group. `foretoken install` prepares the LeaderWorkerSet controller and RDMA allocation; communication libraries select from allocated devices. A persistent cache used across nodes must be accessible from every member.
+
+P/D and E/P/D Pools can select their own parallelism settings within the model and engine's supported combinations. PCP and DCP support also depends on the attention backend. The [EPD runtime](../examples/encoder-prefill-decode/README.md) includes CP-aware Mooncake transfer: Prefill and Decode must use matching PCP/DCP cache layouts, and their TP sizes must divide one another.
 
 `modelPools[].engineArgs`, when supplied, replaces the service-level native options for that Pool. Service replica counts remain separate from engine data parallelism.
 
