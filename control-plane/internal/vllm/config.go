@@ -358,12 +358,11 @@ func CompatibleKVTransfer(left, right inferencev1alpha1.ModelGroupSpec) bool {
 	return true
 }
 
-// Mooncake addresses KV workers by DP, TP and PP rank; context-sharded KV requires
-// a distinct transfer layout rather than the full-sequence blocks it exchanges.
+// vLLM owns the legality of context-parallel combinations. Foretoken only
+// rejects malformed topology values before the launch plan crosses process boundaries.
 func validateTransferParallelism(role inferencev1alpha1.ModelRole, parallelism inferencev1alpha1.CompiledParallelism) error {
-	if (role == inferencev1alpha1.ModelRolePrefill || role == inferencev1alpha1.ModelRoleDecode) && (parallelism.PCP != 1 || parallelism.DCP != 1) {
-		return fmt.Errorf("Mooncake P/D transfer requires prefill-context-parallel-size=1 and decode-context-parallel-size=1; TP, PP, DP and EP are configured independently")
-	}
+	_ = role
+	_ = parallelism
 	return nil
 }
 

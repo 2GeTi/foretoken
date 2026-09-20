@@ -292,17 +292,6 @@ impl LaunchPlanV1 {
         if !(p.tp * p.pp * p.pcp * p.dp).is_multiple_of(self.node_count) {
             return Err("worker count must divide evenly across model nodes".into());
         }
-        if p.pcp > 1 && p.dp > 1 {
-            return Err(
-                "prefill context parallelism greater than 1 requires data parallelism 1".into(),
-            );
-        }
-        if p.pcp == 1 && !p.tp.is_multiple_of(p.dcp) {
-            return Err("decode context parallelism must divide tensor parallelism".into());
-        }
-        if p.pcp > 1 && p.dcp != 1 && p.dcp != p.pcp && p.dcp != p.tp * p.pcp {
-            return Err("decode context parallelism is incompatible with tensor and prefill context parallelism".into());
-        }
         if let Some(ep) = &p.ep
             && ep.eplb
             && p.tp * p.pcp * p.dp == 1
