@@ -5,7 +5,7 @@
 
 English | [简体中文](README_zh.md)
 
-These examples serve Qwen2.5-0.5B-Instruct with a prequantized checkpoint or quantize ordinary weights while loading. Each directory is a complete Kustomize deployment with its own namespace, runtime cache, frontend, and model service. The three examples can be deployed and removed independently without resource-name conflicts.
+These examples serve Qwen2.5-0.5B-Instruct with a prequantized checkpoint or quantize ordinary weights while loading. Each directory is a complete Kustomize deployment with its own namespace, runtime cache, frontend, and model service. Both examples can be deployed and removed independently without resource-name conflicts.
 
 Build and install the [platform from this source checkout](../../docs/custom-deployment.md) before deploying an example:
 
@@ -41,22 +41,6 @@ When finished, remove only the BitsAndBytes deployment:
 
 ```bash
 foretoken delete examples/quantized-model/bitsandbytes
-```
-
-## TorchAO INT8 weight storage on MetaX C500
-
-This example loads `Qwen/Qwen2.5-0.5B-Instruct` and stores supported linear weights as INT8 with TorchAO. It requires one MetaX C500 GPU and a cluster prepared according to the [MetaX deployment guide](../../docs/metax-deployment.md).
-
-Each linear layer is dequantized for floating-point execution. This reduces stored weight memory; it does not provide INT8 GEMM acceleration or create a new checkpoint.
-
-```bash
-foretoken deploy examples/quantized-model/torchao-metax --timeout 20m
-```
-
-When finished, remove only the TorchAO deployment:
-
-```bash
-foretoken delete examples/quantized-model/torchao-metax
 ```
 
 ## Storage and requests

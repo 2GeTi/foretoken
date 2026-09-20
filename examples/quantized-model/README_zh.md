@@ -5,7 +5,7 @@
 
 [English](README.md) | 简体中文
 
-这些示例使用预量化 checkpoint，或在加载普通权重时进行量化，部署 Qwen2.5-0.5B-Instruct。每个目录都是完整的 Kustomize 部署，包含独立的 namespace、RuntimeCache、FrontendService 和 ModelService。三个示例可以分别部署和清理，同时运行也不会发生资源名称冲突。
+这些示例使用预量化 checkpoint，或在加载普通权重时进行量化，部署 Qwen2.5-0.5B-Instruct。每个目录都是完整的 Kustomize 部署，包含独立的 namespace、RuntimeCache、FrontendService 和 ModelService。两个示例可以分别部署和清理，同时运行也不会发生资源名称冲突。
 
 部署前，先从当前源码目录[构建并安装平台](../../docs/custom-deployment_zh.md)：
 
@@ -41,22 +41,6 @@ foretoken deploy examples/quantized-model/bitsandbytes --timeout 20m
 
 ```bash
 foretoken delete examples/quantized-model/bitsandbytes
-```
-
-## 沐曦 C500 上的 TorchAO INT8 权重存储
-
-该示例加载 `Qwen/Qwen2.5-0.5B-Instruct`，并使用 TorchAO 将受支持的线性层权重以 INT8 保存。运行需要 1 张沐曦 C500 GPU，集群准备方式见[沐曦部署指南](../../docs/metax-deployment_zh.md)。
-
-每个线性层执行前会将权重反量化，并使用浮点计算。这种方式降低权重存储占用，不提供 INT8 GEMM 加速，也不会生成新的 checkpoint。
-
-```bash
-foretoken deploy examples/quantized-model/torchao-metax --timeout 20m
-```
-
-使用完后只清理 TorchAO 部署：
-
-```bash
-foretoken delete examples/quantized-model/torchao-metax
 ```
 
 ## 存储与请求
