@@ -17,8 +17,12 @@ type AIMD struct {
 	ScaleUpQueuedRequests         int64
 }
 
-// Name returns the AIMD decision algorithm name.
-func (AIMD) Name() string { return "aimd" }
+const aimdName = "aimd"
+
+// Name identifies the AIMD decision algorithm for registry consumers.
+func (AIMD) Name() string { return aimdName }
+
+var aimdDescriptor = core.DecisionDescriptor{Name: aimdName, Factory: NewAIMD}
 
 // RecommendReplicas adds capacity above the queue threshold and reduces it proportionally when idle.
 func (aimd AIMD) RecommendReplicas(snapshot core.ScalingSnapshot) (core.ReplicaRecommendation, error) {

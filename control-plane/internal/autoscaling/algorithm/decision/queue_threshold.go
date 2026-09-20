@@ -15,8 +15,12 @@ type QueueThreshold struct {
 	ScaleDownQueuedRequests int64
 }
 
-// Name returns the queue-threshold decision algorithm name.
-func (QueueThreshold) Name() string { return "queue_threshold" }
+const queueThresholdName = "queue_threshold"
+
+// Name identifies the absolute queue-threshold decision algorithm for registry consumers.
+func (QueueThreshold) Name() string { return queueThresholdName }
+
+var queueThresholdDescriptor = core.DecisionDescriptor{Name: queueThresholdName, Factory: NewQueueThreshold}
 
 // RecommendReplicas changes the recommendation by one replica when aggregate queue depth crosses configured boundaries.
 func (threshold QueueThreshold) RecommendReplicas(snapshot core.ScalingSnapshot) (core.ReplicaRecommendation, error) {

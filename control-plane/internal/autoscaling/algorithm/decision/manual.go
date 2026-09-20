@@ -10,8 +10,12 @@ import (
 
 type Manual struct{}
 
-// Name returns the manual decision algorithm name.
-func (Manual) Name() string { return "manual" }
+const manualName = "manual"
+
+// Name identifies the manual decision algorithm for registry consumers.
+func (Manual) Name() string { return manualName }
+
+var manualDescriptor = core.DecisionDescriptor{Name: manualName, Factory: NewManual}
 
 // RecommendReplicas returns the caller-compiled baseline for fixed capacity control.
 func (Manual) RecommendReplicas(snapshot core.ScalingSnapshot) (core.ReplicaRecommendation, error) {

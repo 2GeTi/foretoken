@@ -10,8 +10,12 @@ import (
 
 type Direct struct{}
 
-// Name returns the direct adjustment algorithm name.
-func (Direct) Name() string { return "direct" }
+const directName = "direct"
+
+// Name identifies the direct adjustment algorithm for registry consumers.
+func (Direct) Name() string { return directName }
+
+var directDescriptor = core.AdjustmentDescriptor{Name: directName, Factory: NewDirect}
 
 // Adjust clamps the replica recommendation to the configured bounds.
 func (Direct) Adjust(input core.AdjustmentInput) (core.ReplicaAdjustment, error) {

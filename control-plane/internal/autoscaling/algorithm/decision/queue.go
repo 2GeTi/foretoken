@@ -12,8 +12,12 @@ import (
 
 type Queue struct{ TargetAverageQueuedRequests int64 }
 
-// Name returns the queue decision algorithm name.
-func (Queue) Name() string { return "queue" }
+const queueName = "queue"
+
+// Name identifies the queue decision algorithm for registry consumers.
+func (Queue) Name() string { return queueName }
+
+var queueDescriptor = core.DecisionDescriptor{Name: queueName, Factory: NewQueue}
 
 // RecommendReplicas converts aggregate waiting requests into an HPA-style average-value recommendation.
 func (queue Queue) RecommendReplicas(snapshot core.ScalingSnapshot) (core.ReplicaRecommendation, error) {

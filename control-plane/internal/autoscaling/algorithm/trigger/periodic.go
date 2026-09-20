@@ -12,8 +12,12 @@ import (
 
 type Periodic struct{ interval time.Duration }
 
-// Name returns the periodic trigger algorithm name.
-func (Periodic) Name() string { return "periodic" }
+const periodicName = "periodic"
+
+// Name identifies the periodic trigger algorithm for registry consumers.
+func (Periodic) Name() string { return periodicName }
+
+var periodicDescriptor = core.TriggerDescriptor{Name: periodicName, Factory: NewPeriodic}
 
 // Decide evaluates every complete fresh metrics snapshot supplied by the controller polling loop.
 func (Periodic) Decide(snapshot core.ScalingSnapshot) core.TriggerDecision {
