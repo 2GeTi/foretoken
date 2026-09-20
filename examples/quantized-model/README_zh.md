@@ -15,9 +15,9 @@ foretoken install -e .
 
 每套部署中的模型和前端合计申请 1 张 GPU、3 核 CPU 和 9 GiB 主机内存，此外还需为 Foretoken 平台预留资源。
 
-## NVIDIA A100 上的 AWQ
+## NVIDIA GPU 上的 AWQ
 
-该示例加载预量化 checkpoint `Qwen/Qwen2.5-0.5B-Instruct-AWQ`，激活值使用 FP16，需要 1 张 NVIDIA A100 GPU。
+该示例加载预量化 checkpoint `Qwen/Qwen2.5-0.5B-Instruct-AWQ`，激活值使用 FP16，需要 1 张支持对应 vLLM 量化路径的 NVIDIA GPU。
 
 ```bash
 foretoken deploy examples/quantized-model/awq --timeout 20m
@@ -29,9 +29,9 @@ foretoken deploy examples/quantized-model/awq --timeout 20m
 foretoken delete examples/quantized-model/awq
 ```
 
-## NVIDIA A100 上的 BitsAndBytes 4-bit
+## NVIDIA GPU 上的 BitsAndBytes 4-bit
 
-该示例加载 `Qwen/Qwen2.5-0.5B-Instruct`，并在加载时使用 BitsAndBytes 进行 4-bit 量化，需要 1 张 NVIDIA A100 GPU。加载时量化不会生成新的 checkpoint。
+该示例加载 `Qwen/Qwen2.5-0.5B-Instruct`，并在加载时使用 BitsAndBytes 进行 4-bit 量化，需要 1 张支持对应 vLLM 量化路径的 NVIDIA GPU。加载时量化不会生成新的 checkpoint。
 
 ```bash
 foretoken deploy examples/quantized-model/bitsandbytes --timeout 20m

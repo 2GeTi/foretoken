@@ -15,9 +15,9 @@ foretoken install -e .
 
 Each deployment requests one GPU, 3 CPU, and 9 GiB of host memory across the model and frontend, plus capacity for the Foretoken platform.
 
-## AWQ on NVIDIA A100
+## AWQ on NVIDIA GPUs
 
-This example loads the prequantized `Qwen/Qwen2.5-0.5B-Instruct-AWQ` checkpoint with FP16 activations. It requires one NVIDIA A100 GPU.
+This example loads the prequantized `Qwen/Qwen2.5-0.5B-Instruct-AWQ` checkpoint with FP16 activations. It requires one NVIDIA GPU with the selected vLLM quantization support.
 
 ```bash
 foretoken deploy examples/quantized-model/awq --timeout 20m
@@ -29,9 +29,9 @@ When finished, remove only the AWQ deployment:
 foretoken delete examples/quantized-model/awq
 ```
 
-## BitsAndBytes 4-bit on NVIDIA A100
+## BitsAndBytes 4-bit on NVIDIA GPUs
 
-This example loads `Qwen/Qwen2.5-0.5B-Instruct` and applies 4-bit BitsAndBytes quantization during loading. It requires one NVIDIA A100 GPU. Loading-time quantization does not create a new checkpoint.
+This example loads `Qwen/Qwen2.5-0.5B-Instruct` and applies 4-bit BitsAndBytes quantization during loading. It requires one NVIDIA GPU with the selected vLLM quantization support. Loading-time quantization does not create a new checkpoint.
 
 ```bash
 foretoken deploy examples/quantized-model/bitsandbytes --timeout 20m
