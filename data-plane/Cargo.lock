@@ -1287,6 +1287,8 @@ dependencies = [
  "async-stream",
  "async-trait",
  "axum",
+ "base64 0.22.1",
+ "blake3",
  "bytes",
  "foretoken-artifacts",
  "foretoken-model-protocol",

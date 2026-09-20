@@ -497,7 +497,7 @@ async fn spawn_engine_attempt(
             python_path.to_string_lossy().into_owned(),
         ));
     }
-    if config.launch.kv.shared_prefix_lookup() {
+    if config.launch.shared_prefix_lookup() {
         environment.push((
             shared_kv::LOOKUP_ENDPOINT_ENV.into(),
             shared_kv::lookup_endpoint("*", 0),
