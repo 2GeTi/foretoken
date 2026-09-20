@@ -1,5 +1,5 @@
 diff --git a/rust/src/engine-core-client/src/client.rs b/rust/src/engine-core-client/src/client.rs
-index d1c20ad58..8a4c9b9df 100644
+index d1c20ad58..89a6cd8c3 100644
 --- a/rust/src/engine-core-client/src/client.rs
 +++ b/rust/src/engine-core-client/src/client.rs
 @@ -17,7 +17,7 @@ use crate::error::{Error, Result};
@@ -29,11 +29,11 @@ index d1c20ad58..8a4c9b9df 100644
 @@ -275,7 +283,7 @@ impl EngineCoreClient {
              }
          };
-
+ 
 -        Self::from_connected(config, connected).await
 +        Self::from_connected(config, connected, protocol).await
      }
-
+ 
      /// Create a new client instance from the connected transport state after
 @@ -283,6 +291,7 @@ impl EngineCoreClient {
      async fn from_connected(
@@ -87,7 +87,7 @@ index d1c20ad58..8a4c9b9df 100644
 +            .as_deref()
 +            .expect("EngineCore did not report vLLM version")
      }
-
+ 
      /// Return the total number of GPU blocks summed across all connected
 @@ -449,6 +469,7 @@ impl EngineCoreClient {
              .expect("engine core client requires at least one engine")
@@ -95,10 +95,10 @@ index d1c20ad58..8a4c9b9df 100644
              .world_size
 +            .expect("EngineCore did not report world size")
      }
-
+ 
      /// Get the model name associated with this client used for metrics
 diff --git a/rust/src/engine-core-client/src/client/imp.rs b/rust/src/engine-core-client/src/client/imp.rs
-index 9c539bf18..6eb8db4df 100644
+index 9c539bf18..1365cf663 100644
 --- a/rust/src/engine-core-client/src/client/imp.rs
 +++ b/rust/src/engine-core-client/src/client/imp.rs
 @@ -22,7 +22,7 @@ use crate::error::{client_closed, dispatcher_closed, unexpected_dispatcher_outpu
@@ -150,7 +150,7 @@ index 9c539bf18..6eb8db4df 100644
 +            EngineCoreProtocol::V0_28ToV0_30,
          )
      }
-
+ 
 diff --git a/rust/src/engine-core-client/src/lib.rs b/rust/src/engine-core-client/src/lib.rs
 index 7b6020619..f2666c0c8 100644
 --- a/rust/src/engine-core-client/src/lib.rs
@@ -161,7 +161,7 @@ index 7b6020619..f2666c0c8 100644
  pub use error::{Error, Result};
 +pub use protocol::request::EngineCoreProtocol;
  pub use transport::{ENGINE_CORE_DEAD_SENTINEL, EngineId};
-
+ 
  #[cfg(test)]
 diff --git a/rust/src/engine-core-client/src/mock_engine.rs b/rust/src/engine-core-client/src/mock_engine.rs
 index ee066635f..72ad1842e 100644
@@ -279,17 +279,18 @@ index a4e1cebde..fea142b73 100644
      /// KV-event publisher configuration, if configured.
      #[serde(default)]
 diff --git a/rust/src/engine-core-client/src/protocol/output.rs b/rust/src/engine-core-client/src/protocol/output.rs
+index a9695bd1c..ecbfa879e 100644
 --- a/rust/src/engine-core-client/src/protocol/output.rs
 +++ b/rust/src/engine-core-client/src/protocol/output.rs
-@@ -12,6 +12,7 @@
+@@ -12,6 +12,7 @@ use serde_tuple::{Deserialize_tuple, Serialize_tuple};
  use super::utility::UtilityOutput;
  use crate::error::{Error, Result, ext_value_decode};
  use crate::protocol::logprobs::MaybeWireLogprobs;
 +use crate::protocol::request::EngineCoreProtocol;
  use crate::protocol::stats::{PrefillStats, SchedulerStats};
  use crate::protocol::{OpaqueValue, decode_msgpack};
-
-@@ -125,6 +126,9 @@
+ 
+@@ -125,6 +126,9 @@ pub struct EngineCoreOutput {
      pub mm_cache_miss_hashes: Option<Vec<String>>,
      #[serde(default)]
      pub new_sampling_mask: Option<OpaqueValue>,
@@ -297,15 +298,17 @@ diff --git a/rust/src/engine-core-client/src/protocol/output.rs b/rust/src/engin
 +    #[serde(default)]
 +    pub spec_decode_metrics: Option<OpaqueValue>,
  }
-
+ 
  impl EngineCoreOutput {
-@@ -364,9 +368,42 @@
+@@ -364,9 +368,42 @@ pub fn decode_engine_core_outputs<Frame>(frames: &[Frame]) -> Result<EngineCoreO
  where
      Frame: AsRef<[u8]>,
  {
+-    let first_frame = frames.first().ok_or_else(|| ext_value_decode!("missing output frame"))?;
 +    decode_engine_core_outputs_for(frames, EngineCoreProtocol::V0_28ToV0_30)
 +}
-+
+ 
+-    let mut outputs: EngineCoreOutputs = decode_msgpack(first_frame.as_ref())?;
 +/// Decode a release-specific output layout while keeping tensor auxiliary-frame indices unchanged.
 +pub fn decode_engine_core_outputs_for<Frame>(
 +    frames: &[Frame],
@@ -314,9 +317,7 @@ diff --git a/rust/src/engine-core-client/src/protocol/output.rs b/rust/src/engin
 +where
 +    Frame: AsRef<[u8]>,
 +{
-     let first_frame = frames.first().ok_or_else(|| ext_value_decode!("missing output frame"))?;
--
--    let mut outputs: EngineCoreOutputs = decode_msgpack(first_frame.as_ref())?;
++    let first_frame = frames.first().ok_or_else(|| ext_value_decode!("missing output frame"))?;
 +    let mut outputs: EngineCoreOutputs = if matches!(
 +        protocol,
 +        EngineCoreProtocol::V0_20 | EngineCoreProtocol::V0_21ToV0_25
@@ -345,23 +346,23 @@ diff --git a/rust/src/engine-core-client/src/protocol/output.rs b/rust/src/engin
      Ok(outputs)
  }
 diff --git a/rust/src/engine-core-client/src/protocol/request.rs b/rust/src/engine-core-client/src/protocol/request.rs
-index 8118b770e..cab093d56 100644
+index 8118b770e..821bfc007 100644
 --- a/rust/src/engine-core-client/src/protocol/request.rs
 +++ b/rust/src/engine-core-client/src/protocol/request.rs
 @@ -4,7 +4,8 @@
  use std::collections::{BTreeMap, HashMap};
-
+ 
  use bytes::Bytes;
 -use serde::{Deserialize, Serialize};
 +use serde::ser::SerializeTuple;
 +use serde::{Deserialize, Serialize, Serializer};
  use serde_default::DefaultFromSerde;
  use serde_tuple::{Deserialize_tuple, Serialize_tuple};
-
+ 
 @@ -129,7 +130,100 @@ pub struct EngineCoreRequest {
      pub session_id: Option<String>,
  }
-
+ 
 +/// Selects the positional EngineCore wire layout used by one vLLM release family.
 +#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 +pub enum EngineCoreProtocol {
@@ -460,9 +461,10 @@ index 8118b770e..cab093d56 100644
      pub fn validate(&self) -> Result<()> {
          if self.prompt_embeds.is_some() {
 diff --git a/rust/src/engine-core-client/src/transport.rs b/rust/src/engine-core-client/src/transport.rs
+index 7aac8774c..63b33e475 100644
 --- a/rust/src/engine-core-client/src/transport.rs
 +++ b/rust/src/engine-core-client/src/transport.rs
-@@ -21,8 +21,9 @@
+@@ -21,8 +21,9 @@ use crate::error::{Error, Result, bail_unexpected_handshake_message};
  use crate::protocol::handshake::{
      EngineCoreReadyResponse, HandshakeAddresses, HandshakeInitMessage, ReadyMessage,
  };
@@ -471,13 +473,13 @@ diff --git a/rust/src/engine-core-client/src/transport.rs b/rust/src/engine-core
 +use crate::protocol::output::{EngineCoreOutputs, decode_engine_core_outputs_for};
 +use crate::protocol::request::EngineCoreProtocol;
 +use crate::protocol::{OpaqueValue, decode_msgpack, encode_msgpack};
-
+ 
  /// Dedicated single-frame sentinel emitted by Python `EngineCoreProc` when the
  /// engine dies.
-@@ -180,6 +181,32 @@
+@@ -180,6 +181,32 @@ pub async fn connect_handshake(
      let mut handshake_socket = RouterSocket::new();
      handshake_socket.bind(handshake_address).await?;
-
+ 
 +    // Independently launched Python engines pick different DP rendezvous ports.
 +    // Match Python's coordinated handshake by distributing one shared allocation.
 +    // Preserve Python's dense-DP size=1 and its per-engine rank/index assignment.
@@ -505,9 +507,9 @@ diff --git a/rust/src/engine-core-client/src/transport.rs b/rust/src/engine-core
 +        BTreeMap::new()
 +    };
      let mut engines = BTreeMap::new();
-
+ 
      // 3. Receive HELLO from every engine and send a matching INIT. When coordinator mode is
-@@ -213,6 +243,7 @@
+@@ -213,6 +240,7 @@ pub async fn connect_handshake(
                      &input_address,
                      &output_address,
                      coordinator.as_ref(),
@@ -515,7 +517,7 @@ diff --git a/rust/src/engine-core-client/src/transport.rs b/rust/src/engine-core
                  )
                  .await?;
                  debug!(handshake_address, ?engine_id, "sent INIT to engine");
-@@ -438,6 +469,7 @@
+@@ -438,6 +466,7 @@ async fn send_init_message(
      input_address: &str,
      output_address: &str,
      coordinator: Option<&CoordinatorBootstrap>,
@@ -523,7 +525,7 @@ diff --git a/rust/src/engine-core-client/src/transport.rs b/rust/src/engine-core
  ) -> Result<()> {
      let init_message = HandshakeInitMessage {
          addresses: HandshakeAddresses {
-@@ -447,7 +479,7 @@
+@@ -447,7 +476,7 @@ async fn send_init_message(
              coordinator_output: coordinator.map(|c| c.output_address.clone()),
              frontend_stats_publish_address: None,
          },
@@ -532,7 +534,7 @@ diff --git a/rust/src/engine-core-client/src/transport.rs b/rust/src/engine-core
      };
      let payload = encode_msgpack(&init_message)?;
      let message = ZmqMessage::try_from(vec![engine_id.to_frame(), Bytes::from(payload)])
-@@ -553,6 +585,7 @@
+@@ -553,6 +582,7 @@ pub async fn send_message(
  pub async fn run_output_loop(
      mut output_socket: PullSocket,
      tx: mpsc::Sender<Result<EngineCoreOutputs>>,
@@ -540,7 +542,7 @@ diff --git a/rust/src/engine-core-client/src/transport.rs b/rust/src/engine-core
  ) {
      loop {
          let message = match output_socket.recv().await {
-@@ -577,7 +610,7 @@
+@@ -577,7 +607,7 @@ pub async fn run_output_loop(
              let _ = tx.send(Err(Error::EngineCoreDead)).await;
              return;
          }
@@ -556,7 +558,7 @@ index 201d8ace9..7fd506571 100644
 @@ -26,20 +26,30 @@ impl ControlServiceImpl {
          self.state.engine_core_client().ready_response()
      }
-
+ 
 -    fn parallelism_info(&self) -> pb::ParallelismInfo {
 +    fn parallelism_info(&self) -> Result<pb::ParallelismInfo, Status> {
          let ready = self.ready();
@@ -581,9 +583,9 @@ index 201d8ace9..7fd506571 100644
 +        })
      }
  }
-
+ 
  const GRPC_API_VERSION: &str = "vllm";
-
+ 
 +fn required<T>(value: Option<T>, field: &'static str) -> Result<T, Status> {
 +    value.ok_or_else(|| Status::failed_precondition(format!("EngineCore did not report {field}")))
 +}
@@ -613,7 +615,7 @@ index 201d8ace9..7fd506571 100644
 +            max_batched_tokens: required(ready.max_num_batched_tokens, "max_num_batched_tokens")?,
          }))
      }
-
+ 
 @@ -125,7 +136,7 @@ pub(super) fn kv_event_source(response: &EngineCoreReadyResponse) -> Option<pb::
          endpoint: config.endpoint.clone(),
          topic: config.topic.clone(),
@@ -633,7 +635,7 @@ index 7eabd2701..4f5d2b1a3 100644
      ready_0.num_gpu_blocks = 10;
 -    ready_0.data_parallel_size = 2;
 +    ready_0.data_parallel_size = Some(2);
-
+ 
      let mut ready_1 = default_ready_response();
      ready_1.max_model_len = 4_096;
      ready_1.num_gpu_blocks = 20;
@@ -641,7 +643,7 @@ index 7eabd2701..4f5d2b1a3 100644
 -    ready_1.data_parallel_rank = 1;
 +    ready_1.data_parallel_size = Some(2);
 +    ready_1.data_parallel_rank = Some(1);
-
+ 
      let engine_tasks = [ready_0, ready_1].map(|ready| {
          let engine_id = EngineId::from_engine_index(
 -            ready.data_parallel_rank.try_into().expect("test rank fits engine identity"),
@@ -688,3 +690,147 @@ index ac65ae269..b04b80c16 100644
          ..default_ready_response()
      };
      let (mut app, _engine_task) = test_dev_mode_app_with_ready(ready, 4).await;
+diff --git a/vllm/distributed/kv_transfer/kv_connector/v1/mooncake/mooncake_connector.py b/vllm/distributed/kv_transfer/kv_connector/v1/mooncake/mooncake_connector.py
+index dd94ffb2f..6bed112a7 100644
+--- a/vllm/distributed/kv_transfer/kv_connector/v1/mooncake/mooncake_connector.py
++++ b/vllm/distributed/kv_transfer/kv_connector/v1/mooncake/mooncake_connector.py
+@@ -39,6 +39,8 @@ from vllm.distributed.kv_transfer.kv_connector.v1.mooncake.stats import (
+     MooncakeKVConnectorStats,
+ )
+ from vllm.distributed.parallel_state import (
++    get_dcp_group,
++    get_pcp_group,
+     get_pp_group,
+     get_tensor_model_parallel_rank,
+     get_tensor_model_parallel_world_size,
+@@ -384,6 +386,10 @@ class MooncakeXferMetadata(
+     remote_port: int
+     remote_tp_size: int
+     remote_tp_rank: int
++    remote_pcp_size: int = 1
++    remote_pcp_rank: int = 0
++    remote_dcp_size: int = 1
++    remote_dcp_rank: int = 0
+     req_blocks: dict[ReqId, tuple[TransferId, list[list[int]]]]
+     kv_caches_base_addr: list[int]
+     block_lens: list[int]
+@@ -967,6 +973,8 @@ class MooncakeConnectorWorker:
+         self.dp_rank = dp_local_rank if parallel_config.local_engines_only else dp_rank
+         self.pp_size = vllm_config.parallel_config.pipeline_parallel_size
+         self.pp_rank = get_pp_group().rank_in_group
++        self.pcp_rank = get_pcp_group().rank_in_group if get_pcp_group().world_size > 1 else 0
++        self.dcp_rank = get_dcp_group().rank_in_group if get_dcp_group().world_size > 1 else 0
+ 
+         self.kv_caches_base_addr: list[int] = []
+         self.device_kv_caches: dict[str, torch.Tensor] = {}
+@@ -1108,6 +1116,8 @@ class MooncakeConnectorWorker:
+             dp_rank=self.dp_rank,
+             tp_rank=self.tp_rank,
+             pp_rank=self.pp_rank,
++            pcp_rank=self.pcp_rank,
++            dcp_rank=self.dcp_rank,
+             addr=worker_addr,
+         )
+         while True:
+@@ -1195,6 +1205,14 @@ class MooncakeConnectorWorker:
+     ):
+         pending_reqs: dict[ReqId, SendBlockMeta] = {}
+         remote_tp_ranks = self.transfer_topo.handshake_target_ranks(meta.remote_tp_size)
++        if (meta.remote_pcp_size != get_pcp_group().world_size or meta.remote_dcp_size != get_dcp_group().world_size or meta.remote_pcp_rank != self.pcp_rank or meta.remote_dcp_rank != self.dcp_rank):
++            msg = ("Mooncake CP topology mismatch: "
++                   f"remote pcp={meta.remote_pcp_size}/{meta.remote_pcp_rank}, dcp={meta.remote_dcp_size}/{meta.remote_dcp_rank}; "
++                   f"local pcp={get_pcp_group().world_size}/{self.pcp_rank}, dcp={get_dcp_group().world_size}/{self.dcp_rank}")
++            logger.error(msg)
++            response = MooncakeXferResponse(status=MooncakeXferResponseStatus.ERROR, err_msg=msg)
++            await sock.send_multipart((identity, self._encoder.encode(response)))
++            return
+         if meta.remote_tp_rank not in remote_tp_ranks:
+             # This D worker does not pair with the P worker.
+             msg = (
+@@ -1911,14 +1929,17 @@ class MooncakeConnectorWorker:
+                 data: dict = response.json()
+                 for _, dp_entry in data.items():
+                     remote_engine_id = dp_entry["engine_id"]
+-                    self._remote_agents[remote_engine_id] = {
+-                        int(tp_rank): {
+-                            int(pp_rank): worker_addr
+-                            for pp_rank, worker_addr in tp_entry.items()
+-                        }
+-                        for tp_rank, tp_entry in dp_entry["worker_addr"].items()
+-                    }
+-                    self._tp_size[remote_engine_id] = len(dp_entry["worker_addr"])
++                    cp_key = self.pcp_rank * 100000 + self.dcp_rank
++                    selected = {}
++                    for tp_rank, tp_entry in dp_entry["worker_addr"].items():
++                        pp_workers = {}
++                        for pp_rank, cp_entry in tp_entry.items():
++                            if str(cp_key) in cp_entry:
++                                pp_workers[int(pp_rank)] = cp_entry[str(cp_key)]
++                        if pp_workers:
++                            selected[int(tp_rank)] = pp_workers
++                    self._remote_agents[remote_engine_id] = selected
++                    self._tp_size[remote_engine_id] = len(selected)
+         except Exception as e:
+             logger.error(
+                 "Failed to connect to bootstrap server %s: %s",
+diff --git a/vllm/distributed/kv_transfer/kv_connector/v1/mooncake/mooncake_utils.py b/vllm/distributed/kv_transfer/kv_connector/v1/mooncake/mooncake_utils.py
+index 2d158387f..a2208e2a5 100644
+--- a/vllm/distributed/kv_transfer/kv_connector/v1/mooncake/mooncake_utils.py
++++ b/vllm/distributed/kv_transfer/kv_connector/v1/mooncake/mooncake_utils.py
+@@ -21,14 +21,16 @@ class RegisterWorkerPayload(BaseModel):
+     dp_rank: int
+     tp_rank: int
+     pp_rank: int
++    pcp_rank: int = 0
++    dcp_rank: int = 0
+     addr: WorkerAddr
+ 
+ 
+ @dataclass
+ class EngineEntry:
+     engine_id: EngineId
+-    # {tp_rank: {pp_rank: worker_addr}}
+-    worker_addr: dict[int, dict[int, WorkerAddr]]
++    # {tp_rank: {pp_rank: {cp_rank_key: worker_addr}}}
++    worker_addr: dict[int, dict[int, dict[int, WorkerAddr]]]
+ 
+ 
+ class MooncakeBootstrapServer:
+@@ -98,25 +100,32 @@ class MooncakeBootstrapServer:
+             dp_entry.worker_addr[payload.tp_rank] = {}
+ 
+         tp_entry = dp_entry.worker_addr[payload.tp_rank]
+-        if payload.pp_rank in tp_entry:
++        if payload.pp_rank not in tp_entry:
++            tp_entry[payload.pp_rank] = {}
++        pp_entry = tp_entry[payload.pp_rank]
++        cp_key = payload.pcp_rank * 100000 + payload.dcp_rank
++        if cp_key in pp_entry:
+             raise HTTPException(
+                 status_code=400,
+                 detail=(
+                     f"Worker with dp_rank={payload.dp_rank}, "
+-                    f"tp_rank={payload.tp_rank}, pp_rank={payload.pp_rank} "
++                    f"tp_rank={payload.tp_rank}, pp_rank={payload.pp_rank}, "
++                    f"pcp_rank={payload.pcp_rank}, dcp_rank={payload.dcp_rank} "
+                     f"is already registered at "
+-                    f"{tp_entry[payload.pp_rank]}, "
++                    f"{pp_entry[cp_key]}, "
+                     f"but still want to register at {payload.addr}"
+                 ),
+             )
+ 
+-        tp_entry[payload.pp_rank] = payload.addr
++        pp_entry[cp_key] = payload.addr
+         logger.debug(
+-            "Registered worker: engine_id=%s, dp_rank=%d, tp_rank=%d, pp_rank=%d at %s",
++            "Registered worker: engine_id=%s, dp_rank=%d, tp_rank=%d, pp_rank=%d, pcp_rank=%d, dcp_rank=%d at %s",
+             payload.engine_id,
+             payload.dp_rank,
+             payload.tp_rank,
+             payload.pp_rank,
++            payload.pcp_rank,
++            payload.dcp_rank,
+             payload.addr,
+         )
+ 
