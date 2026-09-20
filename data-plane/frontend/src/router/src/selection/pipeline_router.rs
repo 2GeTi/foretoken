@@ -72,10 +72,13 @@ impl<C: Send + 'static> PipelineRouter<C> {
                         .effective_capabilities(&route.route_target_id),
                     request,
                     // In E/P/D, Encoder owns media encoding; P/D consume its result and KV.
-                    !matches!(route.role, ModelServerRole::Prefill | ModelServerRole::Decode)
-                        || !route.pipeline_scope_id.as_deref().is_some_and(|scope| {
-                            self.pipeline_scope_has_encoder(request, scope)
-                        }),
+                    !matches!(
+                        route.role,
+                        ModelServerRole::Prefill | ModelServerRole::Decode
+                    ) || !route
+                        .pipeline_scope_id
+                        .as_deref()
+                        .is_some_and(|scope| self.pipeline_scope_has_encoder(request, scope)),
                 )
             })
             .flat_map(|route| {

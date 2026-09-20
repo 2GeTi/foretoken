@@ -111,7 +111,11 @@ impl LlmFacade for StageFacade {
                 prompt_token_ids: vec![1].into(),
                 prompt_logprobs: None,
             }),
-            token_ids: if self.stage == "encoder" { vec![] } else { vec![1] },
+            token_ids: if self.stage == "encoder" {
+                vec![]
+            } else {
+                vec![1]
+            },
             logprobs: None,
             finish_reason: Some(if self.stage == "encoder" {
                 FinishReason::Stop(None)

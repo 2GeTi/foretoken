@@ -14,7 +14,10 @@ pub async fn consume_encoder(stream: TokenStream) -> Result<serde_json::Value, L
     let mut stream = Box::pin(stream);
     while let Some(event) = stream.next().await {
         let event = event?;
-        if matches!(event.finish_reason, Some(FinishReason::Stop(_) | FinishReason::Length)) {
+        if matches!(
+            event.finish_reason,
+            Some(FinishReason::Stop(_) | FinishReason::Length)
+        ) {
             return event.ec_transfer_params.ok_or(LlmFacadeError::Protocol);
         }
         if event.finish_reason.is_some() {
@@ -74,7 +77,8 @@ pub async fn pd_stage_requests(
         .timeout(MODEL_SERVER_REQUEST_START_TIMEOUT)
         .build()
         .map_err(|_| LlmFacadeError::Configuration)?;
-    let engine_id = bootstrap_engine_id(&client, bootstrap_endpoint, prefill_data_parallel_rank).await?;
+    let engine_id =
+        bootstrap_engine_id(&client, bootstrap_endpoint, prefill_data_parallel_rank).await?;
     pd_requests_with_engine(request, bootstrap_endpoint, engine_id)
 }
 
