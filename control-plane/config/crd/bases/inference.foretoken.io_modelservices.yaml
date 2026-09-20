@@ -62,8 +62,9 @@ spec:
                   side-effect-free; lifecycle, bounds, rollout, and drain stay core-owned.
                 properties:
                   adjustment:
-                    description: ModelAutoscalingAlgorithmConfig selects a built-in
-                      stage and its optional algorithm-owned parameters.
+                    description: ModelAutoscalingAlgorithmConfig selects a controller-supported
+                      algorithm for one autoscaling stage (trigger, decision, and adjustment)
+                      and optionally supplies its parameters.
                     properties:
                       algorithm:
                         description: Algorithm identifies a stage implementation compiled
@@ -79,8 +80,9 @@ spec:
                     - algorithm
                     type: object
                   decision:
-                    description: ModelAutoscalingAlgorithmConfig selects a built-in
-                      stage and its optional algorithm-owned parameters.
+                    description: ModelAutoscalingAlgorithmConfig selects a controller-supported
+                      algorithm for one autoscaling stage (trigger, decision, and adjustment)
+                      and optionally supplies its parameters.
                     properties:
                       algorithm:
                         description: Algorithm identifies a stage implementation compiled

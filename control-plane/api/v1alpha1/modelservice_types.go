@@ -135,7 +135,8 @@ type ModelPoolTemplate struct {
 	Features *ModelFeatures `json:"features,omitempty"`
 }
 
-// ModelAutoscalingAlgorithmConfig selects a built-in stage and its optional algorithm-owned parameters.
+// ModelAutoscalingAlgorithmConfig selects a controller-supported algorithm
+// for one autoscaling stage (trigger, decision, and adjustment) and optionally supplies its parameters.
 type ModelAutoscalingAlgorithmConfig struct {
 	// Algorithm identifies a stage implementation compiled into the controller.
 	// +kubebuilder:validation:MinLength=1
