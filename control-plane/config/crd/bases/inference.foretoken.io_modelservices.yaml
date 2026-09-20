@@ -62,36 +62,36 @@ spec:
                   side-effect-free; lifecycle, bounds, rollout, and drain stay core-owned.
                 properties:
                   adjustment:
-                    description: ModelAutoscalingAlgorithmConfig selects a controller-supported
-                      algorithm for one autoscaling stage (trigger, decision, and adjustment)
-                      and optionally supplies its parameters.
+                    description: |-
+                      ModelAutoscalingAlgorithmConfig selects a controller-supported algorithm
+                      for one autoscaling stage (trigger, decision, and adjustment) and optionally supplies its parameters.
                     properties:
                       algorithm:
-                        description: Algorithm names the controller-supported algorithm for this
-                          stage.
+                        description: Algorithm names the controller-supported algorithm
+                          for this stage.
                         minLength: 1
                         type: string
                       parameters:
-                        description: Parameters contains optional settings for the selected algorithm;
-                          omitted fields use its defaults.
+                        description: Parameters contains optional settings for the
+                          selected algorithm; omitted fields use its defaults.
                         type: object
                         x-kubernetes-preserve-unknown-fields: true
                     required:
                     - algorithm
                     type: object
                   decision:
-                    description: ModelAutoscalingAlgorithmConfig selects a controller-supported
-                      algorithm for one autoscaling stage (trigger, decision, and adjustment)
-                      and optionally supplies its parameters.
+                    description: |-
+                      ModelAutoscalingAlgorithmConfig selects a controller-supported algorithm
+                      for one autoscaling stage (trigger, decision, and adjustment) and optionally supplies its parameters.
                     properties:
                       algorithm:
-                        description: Algorithm names the controller-supported algorithm for this
-                          stage.
+                        description: Algorithm names the controller-supported algorithm
+                          for this stage.
                         minLength: 1
                         type: string
                       parameters:
-                        description: Parameters contains optional settings for the selected algorithm;
-                          omitted fields use its defaults.
+                        description: Parameters contains optional settings for the
+                          selected algorithm; omitted fields use its defaults.
                         type: object
                         x-kubernetes-preserve-unknown-fields: true
                     required:
@@ -111,13 +111,13 @@ spec:
                       every five seconds.
                     properties:
                       algorithm:
-                        description: Algorithm names the controller-supported algorithm for this
-                          stage.
+                        description: Algorithm names the controller-supported algorithm
+                          for this stage.
                         minLength: 1
                         type: string
                       parameters:
-                        description: Parameters contains optional settings for the selected algorithm;
-                          omitted fields use its defaults.
+                        description: Parameters contains optional settings for the
+                          selected algorithm; omitted fields use its defaults.
                         type: object
                         x-kubernetes-preserve-unknown-fields: true
                     required:
