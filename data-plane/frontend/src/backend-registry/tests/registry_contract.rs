@@ -7,8 +7,8 @@ use std::time::Duration;
 use axum::{Json, Router, http::StatusCode, routing::get};
 use foretoken_backend_registry::{
     BackendRegistry, BackendRegistryBuild, ModelSource, ServingSnapshot, SnapshotEpdComponent,
-    SnapshotEpdPipelineScope, SnapshotError, SnapshotGroup, SnapshotModel, SnapshotPdComponent,
-    SnapshotPdPipelineScope,
+    SnapshotEpdPipelineScope, SnapshotError, SnapshotGroup, SnapshotModel, SnapshotParallelism,
+    SnapshotPdComponent, SnapshotPdPipelineScope,
 };
 use foretoken_engine_core_client::protocol::dtype::ModelDtype;
 use foretoken_llm_facade::{LlmFacadeResolver, RouteStage};
@@ -52,6 +52,14 @@ fn pd_component(id: &str, role: ModelServerRole) -> SnapshotPdComponent {
         kv_scope_id: "scope".into(),
         kv_lookup_scope: None,
         data_parallel_size: 1,
+        parallelism: SnapshotParallelism {
+            tp: 1,
+            pp: 1,
+            dp: 1,
+            pcp: 1,
+            dcp: 1,
+            ep: false,
+        },
     }
 }
 
@@ -116,9 +124,13 @@ fn epd_component(id: &str, role: ModelServerRole) -> SnapshotEpdComponent {
         tokenizer: "tokenizer".into(),
         tokenizer_revision: "r1".into(),
         capabilities: if role == ModelServerRole::Encoder {
-            ["chat".into(), "multimodal".into(), "multimodal.image".into()]
-                .into_iter()
-                .collect()
+            [
+                "chat".into(),
+                "multimodal".into(),
+                "multimodal.image".into(),
+            ]
+            .into_iter()
+            .collect()
         } else {
             ["chat".into()].into_iter().collect()
         },
@@ -129,6 +141,14 @@ fn epd_component(id: &str, role: ModelServerRole) -> SnapshotEpdComponent {
         kv_scope_id: "scope".into(),
         kv_lookup_scope: None,
         data_parallel_size: 1,
+        parallelism: SnapshotParallelism {
+            tp: 1,
+            pp: 1,
+            dp: 1,
+            pcp: 1,
+            dcp: 1,
+            ep: false,
+        },
     }
 }
 

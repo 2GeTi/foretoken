@@ -561,6 +561,17 @@ func matchingECRuntime(left, right *inferencev1alpha1.ModelGroupECRuntimeConfig)
 	return left.ServiceUID == right.ServiceUID && left.Generation == right.Generation && left.ProfileName == right.ProfileName && left.ProfileRevision == right.ProfileRevision && left.Connector == right.Connector && left.SharedStorageClaim == right.SharedStorageClaim && left.SharedStoragePath == right.SharedStoragePath
 }
 
+func routingParallelism(group *inferencev1alpha1.ModelGroup) servingSnapshotParallelism {
+	return servingSnapshotParallelism{
+		TP:  group.Spec.Parallelism.TP,
+		PP:  group.Spec.Parallelism.PP,
+		DP:  group.Spec.Parallelism.DP,
+		PCP: group.Spec.Parallelism.PCP,
+		DCP: group.Spec.Parallelism.DCP,
+		EP:  group.Spec.Parallelism.EP != nil,
+	}
+}
+
 func routingEPDComponent(service *inferencev1alpha1.ModelService, group *inferencev1alpha1.ModelGroup, poolName string) servingSnapshotEPDComponent {
 	features := group.Spec.Features
 	if group.Spec.Role == inferencev1alpha1.ModelRolePrefill || group.Spec.Role == inferencev1alpha1.ModelRoleDecode {
@@ -583,6 +594,7 @@ func routingEPDComponent(service *inferencev1alpha1.ModelService, group *inferen
 		KVScopeID:         kvScopeID(group),
 		KVLookupScope:     sharedKVLookupScope(group),
 		DataParallelSize:  group.Spec.Parallelism.DP,
+		Parallelism:       routingParallelism(group),
 	}
 	if group.Spec.Role == inferencev1alpha1.ModelRolePrefill {
 		component.PrefillBootstrapEndpoint = modelGroupEndpoint(group, group.Spec.PDRuntime.BootstrapPort)
@@ -734,6 +746,7 @@ func routingPDComponent(service *inferencev1alpha1.ModelService, group *inferenc
 		KVScopeID:         kvScopeID(group),
 		KVLookupScope:     sharedKVLookupScope(group),
 		DataParallelSize:  group.Spec.Parallelism.DP,
+		Parallelism:       routingParallelism(group),
 	}
 	if group.Spec.Role == inferencev1alpha1.ModelRolePrefill {
 		component.PrefillBootstrapEndpoint = modelGroupEndpoint(group, pd.BootstrapPort)

@@ -23,6 +23,16 @@ pub struct ServingSnapshot {
     #[serde(default)]
     pub epd_pipeline_scopes: Vec<SnapshotEpdPipelineScope>,
 }
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SnapshotParallelism {
+    pub tp: u32,
+    pub pp: u32,
+    pub dp: u32,
+    pub pcp: u32,
+    pub dcp: u32,
+    pub ep: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SnapshotModel {
     pub service_uid: String,
@@ -62,6 +72,8 @@ pub struct SnapshotEpdComponent {
     #[serde(default)]
     pub kv_lookup_scope: Option<String>,
     pub data_parallel_size: u32,
+    #[serde(default)]
+    pub parallelism: SnapshotParallelism,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SnapshotEpdPipelineScope {
@@ -101,6 +113,8 @@ pub struct SnapshotPdComponent {
     #[serde(default)]
     pub kv_lookup_scope: Option<String>,
     pub data_parallel_size: u32,
+    #[serde(default)]
+    pub parallelism: SnapshotParallelism,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SnapshotPdPipelineScope {
