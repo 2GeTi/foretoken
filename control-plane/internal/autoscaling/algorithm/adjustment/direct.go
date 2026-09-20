@@ -10,7 +10,7 @@ import (
 
 type Direct struct{}
 
-// Name identifies the direct adjustment algorithm for registry consumers.
+// Name returns the direct adjustment algorithm name.
 func (Direct) Name() string { return "direct" }
 
 // Adjust clamps the replica recommendation to the configured bounds.

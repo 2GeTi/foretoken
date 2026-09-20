@@ -138,11 +138,11 @@ type ModelPoolTemplate struct {
 // ModelAutoscalingAlgorithmConfig selects a controller-supported algorithm
 // for one autoscaling stage (trigger, decision, and adjustment) and optionally supplies its parameters.
 type ModelAutoscalingAlgorithmConfig struct {
-	// Algorithm identifies a stage implementation compiled into the controller.
+	// Algorithm names the controller-supported algorithm for this stage.
 	// +kubebuilder:validation:MinLength=1
 	Algorithm string `json:"algorithm"`
 
-	// Parameters overrides the selected implementation's defaults when supplied.
+	// Parameters contains optional settings for the selected algorithm; omitted fields use its defaults.
 	// +optional
 	// +kubebuilder:validation:Type=object
 	// +kubebuilder:pruning:PreserveUnknownFields

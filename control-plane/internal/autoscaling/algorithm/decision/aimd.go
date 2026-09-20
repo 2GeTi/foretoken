@@ -17,7 +17,7 @@ type AIMD struct {
 	ScaleUpQueuedRequests         int64
 }
 
-// Name identifies the AIMD decision algorithm for registry consumers.
+// Name returns the AIMD decision algorithm name.
 func (AIMD) Name() string { return "aimd" }
 
 // RecommendReplicas adds capacity above the queue threshold and reduces it proportionally when idle.

@@ -31,7 +31,7 @@ var adjustments = map[string]func(json.RawMessage, *core.RecommendationHistory) 
 	"step":   adjustment.NewStep,
 }
 
-// BuildTrigger constructs a named trigger algorithm from the builtin registry.
+// BuildTrigger constructs the named trigger algorithm from the registry.
 func BuildTrigger(name string, parameters json.RawMessage) (core.TriggerAlgorithm, error) {
 	factory, ok := triggers[name]
 	if !ok {
@@ -40,7 +40,7 @@ func BuildTrigger(name string, parameters json.RawMessage) (core.TriggerAlgorith
 	return factory(parameters)
 }
 
-// BuildDecision constructs a named decision algorithm from the builtin registry.
+// BuildDecision constructs the named decision algorithm from the registry.
 func BuildDecision(name string, config json.RawMessage) (core.DecisionAlgorithm, error) {
 	factory, ok := decisions[name]
 	if !ok {
@@ -49,7 +49,7 @@ func BuildDecision(name string, config json.RawMessage) (core.DecisionAlgorithm,
 	return factory(config)
 }
 
-// BuildAdjustment constructs a named adjustment algorithm from the builtin registry.
+// BuildAdjustment constructs the named adjustment algorithm from the registry.
 func BuildAdjustment(name string, parameters json.RawMessage, history *core.RecommendationHistory) (core.AdjustmentAlgorithm, error) {
 	factory, ok := adjustments[name]
 	if !ok {

@@ -10,7 +10,7 @@ import (
 
 type Manual struct{}
 
-// Name identifies the manual decision algorithm for registry consumers.
+// Name returns the manual decision algorithm name.
 func (Manual) Name() string { return "manual" }
 
 // RecommendReplicas returns the caller-compiled baseline for fixed capacity control.

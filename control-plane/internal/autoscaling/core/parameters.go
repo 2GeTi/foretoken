@@ -9,7 +9,7 @@ import (
 	"fmt"
 )
 
-// DecodeParameters decodes explicitly declared stage fields, preserving algorithm-owned defaults when omitted.
+// DecodeParameters decodes declared fields and leaves omitted values at their algorithm defaults.
 func DecodeParameters(raw json.RawMessage, fields map[string]any) error {
 	if len(raw) == 0 {
 		return nil

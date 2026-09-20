@@ -16,7 +16,7 @@ type Step struct {
 	history         *core.RecommendationHistory
 }
 
-// Name identifies the stabilized fixed-step adjustment algorithm for registry consumers.
+// Name returns the step adjustment algorithm name.
 func (Step) Name() string { return "step" }
 
 // Adjust applies directional stabilization, replica bounds, and a one-replica step per evaluation.

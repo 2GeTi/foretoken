@@ -15,7 +15,7 @@ type QueueThreshold struct {
 	ScaleDownQueuedRequests int64
 }
 
-// Name identifies the absolute queue-threshold decision algorithm for registry consumers.
+// Name returns the queue-threshold decision algorithm name.
 func (QueueThreshold) Name() string { return "queue_threshold" }
 
 // RecommendReplicas changes the recommendation by one replica when aggregate queue depth crosses configured boundaries.

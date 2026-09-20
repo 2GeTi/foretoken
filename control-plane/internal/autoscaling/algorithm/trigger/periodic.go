@@ -12,7 +12,7 @@ import (
 
 type Periodic struct{ interval time.Duration }
 
-// Name identifies the periodic trigger algorithm for registry consumers.
+// Name returns the periodic trigger algorithm name.
 func (Periodic) Name() string { return "periodic" }
 
 // Decide evaluates every complete fresh metrics snapshot supplied by the controller polling loop.
