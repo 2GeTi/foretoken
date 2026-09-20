@@ -106,19 +106,6 @@ kubectl get modelservice multi-model-qwen3-0.6b \
 
 [多模型示例](../examples/multi-model-quickstart/README_zh.md)部署一个按队列自动扩缩的 Qwen 服务和一个固定容量的 Llama 服务，其中包含有界并发负载和观察容量变化的状态命令。
 
-## 迁移旧版配置
-
-升级前保存现有服务配置，并将算法专属值移入各自阶段的 `parameters` 对象：
-
-| 旧字段 | 新字段 |
-| --- | --- |
-| `decision.queue.*` / `decision.queueThreshold.*` | `decision.parameters.*` |
-| `trigger.interval` | `trigger.parameters.interval` |
-| `adjustment.scaleUp.stabilizationWindow` | `adjustment.parameters.scaleUpStabilizationWindow` |
-| `adjustment.scaleDown.stabilizationWindow` | `adjustment.parameters.scaleDownStabilizationWindow` |
-
-删除旧字段；与默认值相同的参数可以省略。控制器和 CRD 需配套升级，并在新控制器开始协调已有服务前提交迁移后的配置。新 schema 不保留旧字段，未迁移的设置可能丢失并被算法默认值替代。回退时需一并恢复旧控制器、CRD 和保存的服务配置。
-
 ## 维护者架构
 
 控制器阶段、观测聚合、算法扩展边界和生命周期解析见[自动扩缩容维护者 README](../control-plane/internal/autoscaling/README_zh.md)。

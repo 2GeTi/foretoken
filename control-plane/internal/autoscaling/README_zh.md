@@ -30,7 +30,7 @@
 
 内置算法位于 `algorithm/`。Trigger、Decision 和 Adjustment 实现返回领域结果，不读取 Kubernetes 资源、不修改容量，也不调度工作。新增实现只有在它代表当前独立负责的建议策略时才有意义；控制器生命周期行为保留在 `core` 和 ModelService reconciler 中。
 
-每个 Trigger、Decision 和 Adjustment 阶段都在实现旁拥有一个编译期 descriptor；阶段 descriptor 列表是唯一注册点。新增算法只需添加实现，并在所属阶段增加一个 descriptor。顶层 registry 只校验这些静态 descriptor 并构造选中的 factory，不接受运行时注册。每个实现负责参数解析、默认值、校验和执行，不再维护另一份算法枚举或算法专属的 CRD、compiler、controller 映射。`core.DecodeParameters` 只解码显式指定的字段，不把实现结构体直接暴露为配置。
+每个 Trigger、Decision 和 Adjustment 阶段都拥有自己的编译期 descriptor 列表。新增算法时，在所属阶段添加实现和一个 descriptor；顶层 registry 负责构造选中的 factory，不接受运行时注册。算法各自负责参数默认值和语义校验，`core.DecodeParameters` 只提供共享的字段、类型解析，不把实现结构体直接暴露为配置。
 
 三个阶段都接收可省略的 JSON 参数对象。Adjustment 构造函数还接收控制器持有的建议历史。Trigger 实现提供轮询间隔，控制器负责调度并据此推导观测有效期。容量上下限与生命周期约束仍属于平台职责。
 

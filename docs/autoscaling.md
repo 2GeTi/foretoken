@@ -106,19 +106,6 @@ For aggregate services, `kind` is `Pool`. For E/P/D services, `kind` is `EPDPipe
 
 The [multi-model example](../examples/multi-model-quickstart/README.md) deploys one queue-autoscaled Qwen service and one fixed-capacity Llama service. It includes a bounded concurrent workload and status commands for observing capacity changes.
 
-## Migrate the previous configuration
-
-Before upgrading, save the existing service manifests and move algorithm-specific values into their stage's `parameters` object:
-
-| Previous field | New field |
-| --- | --- |
-| `decision.queue.*` / `decision.queueThreshold.*` | `decision.parameters.*` |
-| `trigger.interval` | `trigger.parameters.interval` |
-| `adjustment.scaleUp.stabilizationWindow` | `adjustment.parameters.scaleUpStabilizationWindow` |
-| `adjustment.scaleDown.stabilizationWindow` | `adjustment.parameters.scaleDownStabilizationWindow` |
-
-Remove the old fields. Unchanged default-valued parameters can be omitted. Upgrade the controller and CRDs together, and apply the migrated manifests before allowing the new controller to reconcile existing services. The new schema does not retain the old fields, so unmigrated settings can be lost and replaced by algorithm defaults. Rollback requires the previous controller, CRDs, and saved service manifests together.
-
 ## Maintainer architecture
 
 The controller stages, observation aggregation, algorithm extension boundary, and lifecycle resolver are documented in [the autoscaling maintainer README](../control-plane/internal/autoscaling/README.md).
