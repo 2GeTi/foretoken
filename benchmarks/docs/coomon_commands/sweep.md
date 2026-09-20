@@ -36,7 +36,7 @@ Delete the service after finishing with `foretoken delete examples/quickstart`.
 
 ## Example output
 
-Qwen3-0.6B on one A100 80GB PCIe GPU:
+Example measurement for Qwen3-0.6B on an NVIDIA GPU (recorded on one A100 80GB PCIe GPU):
 
 ![Recorded sweep output](../imgs/sweep-cli.png)
 

@@ -36,7 +36,7 @@ foretoken bench examples/quickstart \
 
 ## 输出示例
 
-单张 A100 80GB PCIe 上的 Qwen3-0.6B：
+Qwen3-0.6B 的 NVIDIA GPU 测量示例（记录于单张 A100 80GB PCIe GPU）：
 
 ![扫描命令的实际输出](../imgs/sweep-cli.png)
 
