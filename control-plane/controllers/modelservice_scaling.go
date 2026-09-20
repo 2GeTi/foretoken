@@ -25,7 +25,7 @@ type modelScalingConfig struct {
 	MetricsMaxAge   time.Duration
 }
 
-// scalingConfig constructs the selected stages once, keeping capacity bounds and observation freshness with the controller.
+// scalingConfig builds the autoscaler, replica bounds, and metrics freshness for one ModelService; absent autoscaling selects fixed capacity.
 func (reconciler *ModelServiceReconciler) scalingConfig(service *inferencev1alpha1.ModelService) (modelScalingConfig, error) {
 	config := service.Spec.Autoscaling
 	if config == nil {
@@ -55,7 +55,7 @@ func (reconciler *ModelServiceReconciler) scalingConfig(service *inferencev1alph
 	}, nil
 }
 
-// algorithmConfiguration passes the common API envelope to any registered stage without interpreting its parameters.
+// algorithmConfiguration converts one API stage configuration to the runtime form without interpreting its parameters.
 func algorithmConfiguration(config *inferencev1alpha1.ModelAutoscalingAlgorithmConfig) autoscaling.AlgorithmConfiguration {
 	if config == nil {
 		return autoscaling.AlgorithmConfiguration{}
