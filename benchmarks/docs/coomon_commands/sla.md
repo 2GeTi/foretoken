@@ -8,7 +8,7 @@ After the [setup steps](../examples.md#setup), find the largest workload concurr
 foretoken bench examples/quickstart \
   --dataset random --tokenizer-path Qwen/Qwen3-0.6B \
   --min-prompt-length 128 --max-prompt-length 512 \
-  --parallel 2 \
+  --number 100 --parallel 2 \
   --sla-params '[{"p99_latency":"<=2"}]' \
   --sla-upper-bound 32 \
   --num-runs 1 \
@@ -58,8 +58,8 @@ Each group runs its own binary search and reports max concurrency.
 Available metrics:
 
 - Latency: `avg_latency`, `p50_latency`, `p95_latency`, `p99_latency`
-- TTFT: `avg_ttft`, `p50_ttft`, `p90_ttft`, `p95_ttft`, `p99_ttft`
-- TPOT: `avg_tpot`, `p50_tpot`, `p90_tpot`, `p95_tpot`, `p99_tpot`
+- TTFT: `avg_ttft`, `p50_ttft`, `p95_ttft`, `p99_ttft`
+- TPOT: `avg_tpot`, `p50_tpot`, `p95_tpot`, `p99_tpot`
 - Throughput: `rps`, `tps`
 
 SLA auto-tune supports generated workloads, conversation datasets, multiple datasets, and timestamp trace replay. Generated workloads search closed-loop `--parallel`; trace replay searches its in-flight concurrency cap while preserving arrival timestamps. It cannot be combined with `--sweep` or a positive `--rate`.

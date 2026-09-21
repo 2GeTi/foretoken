@@ -8,7 +8,7 @@
 foretoken bench examples/quickstart \
   --dataset random --tokenizer-path Qwen/Qwen3-0.6B \
   --min-prompt-length 128 --max-prompt-length 512 \
-  --parallel 2 \
+  --number 100 --parallel 2 \
   --sla-params '[{"p99_latency":"<=2"}]' \
   --sla-upper-bound 32 \
   --num-runs 1 \
@@ -62,8 +62,8 @@ foretoken bench examples/quickstart \
 当前可用指标：
 
 - 延迟：`avg_latency`、`p50_latency`、`p95_latency`、`p99_latency`
-- TTFT：`avg_ttft`、`p50_ttft`、`p90_ttft`、`p95_ttft`、`p99_ttft`
-- TPOT：`avg_tpot`、`p50_tpot`、`p90_tpot`、`p95_tpot`、`p99_tpot`
+- TTFT：`avg_ttft`、`p50_ttft`、`p95_ttft`、`p99_ttft`
+- TPOT：`avg_tpot`、`p50_tpot`、`p95_tpot`、`p99_tpot`
 - 吞吐：`rps`、`tps`
 
 SLA 支持生成式负载、多轮数据集、多数据集和时间戳轨迹回放。生成式负载搜索闭式 `--parallel`；轨迹回放搜索在途并发上限，同时保留原始到达时间。SLA 不能与 `--sweep` 或正的 `--rate` 组合。
