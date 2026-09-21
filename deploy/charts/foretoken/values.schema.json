@@ -412,30 +412,8 @@
                   },
                   "then": {
                     "properties": {
-                      "profileRevision": {
-                        "minLength": 1
-                      },
-                      "connector": {
-                        "const": "ECExampleConnector"
-                      },
                       "sharedStorageClaim": {
                         "minLength": 1
-                      },
-                      "sharedStoragePath": {
-                        "minLength": 1
-                      }
-                    }
-                  },
-                  "else": {
-                    "properties": {
-                      "profileRevision": {
-                        "const": ""
-                      },
-                      "connector": {
-                        "const": "ECExampleConnector"
-                      },
-                      "sharedStorageClaim": {
-                        "const": ""
                       }
                     }
                   }
@@ -445,11 +423,19 @@
             "pd": {
               "type": "object",
               "required": [
+                "protocol",
                 "bootstrapPort",
                 "abortRequestTimeoutSeconds",
                 "rdmaDeviceName"
               ],
               "properties": {
+                "protocol": {
+                  "type": "string",
+                  "enum": [
+                    "rdma",
+                    "tcp"
+                  ]
+                },
                 "bootstrapPort": {
                   "type": "integer",
                   "minimum": 1,
