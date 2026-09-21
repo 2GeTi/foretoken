@@ -92,7 +92,9 @@ Run on your local computer with a kubeconfig for the target cluster:
 foretoken profile view
 ```
 
-Open the printed URL to browse capture directories and their subfolders. PyTorch traces open in Perfetto; the browser needs access to `ui.perfetto.dev`. For Nsight, download the `.nsys-rep` report and open it in Nsight Systems, or download the SQLite export for analysis. For mcTracer, download the native JSON and open it in [mcTracer-Viewer](https://developer.metax-tech.com/api/client/document/preview/1190/index.html). Press Ctrl+C to close the viewer; files are preserved.
+Open the printed URL to browse captures. PyTorch traces open in Perfetto; the browser needs access to `ui.perfetto.dev`. Select an Nsight timeline and click “Open in NVIDIA Nsight Systems” to open the official viewer in a new tab. mcTracer JSON opens in the same Perfetto view when the report uses the Perfetto-compatible trace format.
+
+The selected report opens in a new browser tab. Press Ctrl+C to stop the viewer; capture files remain available for download.
 
 When the deployment and capture records are no longer needed, clean up with:
 

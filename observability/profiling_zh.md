@@ -92,7 +92,9 @@ foretoken bench examples/profile/nsight \
 foretoken profile view
 ```
 
-打开打印的网址，浏览采集目录及子目录。PyTorch trace 在 Perfetto 中查看，浏览器需能访问 `ui.perfetto.dev`。Nsight 报告可下载为 `.nsys-rep` 文件并用 Nsight Systems 打开，也可下载 SQLite 导出文件进行分析。mcTracer 的原生 JSON 可下载后用 [mcTracer-Viewer](https://developer.metax-tech.com/api/client/document/preview/1190/index.html) 打开。按 Ctrl+C 关闭查看器，文件会保留。
+打开打印的网址浏览采集结果。PyTorch trace 在 Perfetto 中查看，浏览器需能访问 `ui.perfetto.dev`。选择 Nsight 时间线后，点击“Open in NVIDIA Nsight Systems”，即可在新标签页中使用 NVIDIA 官方查看器。mcTracer JSON 使用 Perfetto 兼容的 trace 格式时，会在同一个 Perfetto 页面中打开。
+
+选中的报告会在新浏览器标签页中打开。按 Ctrl+C 停止查看器，采集文件仍可下载。
 
 不再需要该部署及采集记录时清理：
 
