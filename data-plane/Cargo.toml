@@ -35,6 +35,7 @@ vllm_patches = [
     "patches/vllm-http-latency-histogram-buckets.patch",
     "patches/vllm-latency-histogram-buckets.patch",
     "patches/vllm-managed-engine-command.patch",
+    "patches/vllm-offloading-event-identity.patch",
 ]
 
 [workspace.package]

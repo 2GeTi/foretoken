@@ -12,7 +12,9 @@ use serde_json::json;
 use vllm_managed_engine::ManagedEngineConfig;
 
 use foretoken_artifacts::ModelSource;
-use foretoken_model_protocol::RuntimeEcTransferMetadata;
+use foretoken_model_protocol::{
+    KvCacheLocality, KvPlacement, KvStorageTier, RuntimeEcTransferMetadata,
+};
 
 use crate::runtime_transport::{KV_EVENT_TOPIC, LOOPBACK_HOST, kv_event_endpoint};
 
@@ -494,12 +496,24 @@ impl LaunchPlanV1 {
 }
 
 impl LaunchPlanV1 {
+    /// Returns the connector-owned placement exposed by live prefix observation.
+    pub fn shared_prefix_placement(&self) -> Option<KvPlacement> {
+        match self.kv {
+            KvPlan::FilesystemOffload { .. } => Some(KvPlacement {
+                tier: KvStorageTier::Disk,
+                locality: KvCacheLocality::Local,
+            }),
+            KvPlan::MooncakeStore { .. } | KvPlan::MultiConnector { .. } => Some(KvPlacement {
+                tier: KvStorageTier::External,
+                locality: KvCacheLocality::Remote,
+            }),
+            _ => None,
+        }
+    }
+
     /// Reports whether the selected connector exposes live shared-prefix observations.
     pub fn shared_prefix_lookup(&self) -> bool {
-        matches!(
-            self.kv,
-            KvPlan::MooncakeStore { .. } | KvPlan::MultiConnector { .. }
-        )
+        self.shared_prefix_placement().is_some()
     }
 }
 
@@ -525,7 +539,8 @@ impl KvPlan {
         let store = |role: KvRole| {
             let mut config = json!({"kv_connector":"MooncakeStoreConnector","kv_role":role.as_str(),"kv_load_failure_policy":"recompute"});
             if shared_prefix_lookup {
-                config["kv_connector_module_path"] = json!(crate::shared_kv::CONNECTOR_MODULE);
+                config["kv_connector_module_path"] =
+                    json!(crate::shared_kv::MOONCAKE_CONNECTOR_MODULE);
             }
             config
         };
@@ -537,15 +552,17 @@ impl KvPlan {
                 device_name,
                 ..
             } => Some(pd(*role, *protocol, device_name)),
-            Self::CpuOffload { cpu_bytes, .. } => Some(
-                json!({"kv_connector":"OffloadingConnector","kv_role":"kv_both","kv_connector_extra_config":{"cpu_bytes_to_use":cpu_bytes,"spec_name":"CPUOffloadingSpec"}}),
+            Self::CpuOffload {
+                cpu_bytes, events, ..
+            } => Some(
+                json!({"kv_connector":"OffloadingConnector","kv_role":"kv_both","kv_connector_extra_config":{"cpu_bytes_to_use":cpu_bytes,"spec_name":"CPUOffloadingSpec","self_describing_kv_events":events}}),
             ),
             Self::FilesystemOffload {
                 cpu_bytes,
                 storage_path,
                 events,
             } => Some(
-                json!({"kv_connector":"OffloadingConnector","kv_role":"kv_both","kv_connector_extra_config":{"cpu_bytes_to_use":cpu_bytes,"spec_name":"TieringOffloadingSpec","secondary_tiers":[{"type":"fs","root_dir":storage_path,"enable_kv_events":events}]}}),
+                json!({"kv_connector":"OffloadingConnector","kv_connector_module_path":crate::shared_kv::OFFLOADING_CONNECTOR_MODULE,"kv_role":"kv_both","kv_connector_extra_config":{"cpu_bytes_to_use":cpu_bytes,"spec_name":"TieringOffloadingSpec","secondary_tiers":[{"type":"fs","root_dir":storage_path,"enable_kv_events":events}]}}),
             ),
             Self::MooncakeStore { role, .. } => Some(store(*role)),
             Self::MultiConnector {

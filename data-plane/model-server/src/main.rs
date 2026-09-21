@@ -482,7 +482,10 @@ async fn spawn_engine_attempt(
             cache_mode_failure(mode, "profiling storage preparation failed", error)
         })?;
     }
-    if config.launch.shared_prefix_lookup() || config.launch.ec.enabled() {
+    if config.launch.shared_prefix_lookup()
+        || config.launch.ec.enabled()
+        || config.launch.profiling.engine == profiling::Engine::Mctracer
+    {
         let mut python_paths = vec![PathBuf::from(
             foretoken_model_server::launch::PYTHON_MODULE_PATH,
         )];
@@ -537,6 +540,11 @@ async fn spawn_engine_attempt(
         && let Some(profile) = profiling
     {
         managed_engine.python_args.push(profile.engine_argument());
+        if config.launch.profiling.engine == profiling::Engine::Mctracer {
+            managed_engine
+                .python_args
+                .push("--worker-cls=foretoken_mctracer.Worker".into());
+        }
     }
     let protocol_timeout = startup_deadline.saturating_duration_since(Instant::now());
     if protocol_timeout.is_zero() {
