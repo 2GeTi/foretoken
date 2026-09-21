@@ -480,7 +480,10 @@ impl LaunchPlanV1 {
         if self.kv.events() {
             args.push(format!("--kv-events-config={}", json!({"publisher":"zmq","endpoint":kv_event_endpoint(member.map_or(LOOPBACK_HOST, |member| member.leader_address.as_str()), 0),"topic":KV_EVENT_TOPIC,"enable_kv_cache_events":true,"hwm":4096,"max_queue_size":4096})));
         }
-        if let Some(config) = self.kv.transfer_config(self.shared_prefix_lookup()) {
+        if let Some(config) = self.kv.transfer_config(
+            self.shared_prefix_lookup(),
+            member.map(|member| member.model_group_uid.as_str()),
+        ) {
             args.push(format!("--kv-transfer-config={config}"));
         }
         if let Some(config) = self.ec.transfer_config() {
@@ -513,7 +516,11 @@ impl KvPlan {
     }
     // Map each validated KV plan to the vLLM child-process contract. The rendered value is owned
     // by argv construction, keeping controller plan fields separate from backend-specific JSON.
-    fn transfer_config(&self, shared_prefix_lookup: bool) -> Option<serde_json::Value> {
+    fn transfer_config(
+        &self,
+        shared_prefix_lookup: bool,
+        model_group_uid: Option<&str>,
+    ) -> Option<serde_json::Value> {
         let pd = |role: KvRole, protocol: MooncakeProtocol, device_name: &str| json!({"kv_connector":"MooncakeConnector","kv_role":role.as_str(),"kv_connector_extra_config":{"mooncake_protocol":protocol.as_str(),"device_name":device_name}});
         let store = |role: KvRole| {
             let mut config = json!({"kv_connector":"MooncakeStoreConnector","kv_role":role.as_str(),"kv_load_failure_policy":"recompute"});
@@ -522,7 +529,7 @@ impl KvPlan {
             }
             config
         };
-        match self {
+        let mut config = match self {
             Self::None { .. } => None,
             Self::Pd {
                 role,
@@ -556,7 +563,13 @@ impl KvPlan {
                     json!({"kv_connector":"MultiConnector","kv_role":role.as_str(),"kv_load_failure_policy":"recompute","kv_connector_extra_config":{"connectors":[pd(*role, *protocol, device_name), store(store_role)]}}),
                 )
             }
+        }?;
+        // MultiConnector children inherit this identity after vLLM adds DP suffixes.
+        // Independently launched nodes must not generate unrelated engine UUIDs.
+        if let Some(uid) = model_group_uid {
+            config["engine_id"] = json!(uid);
         }
+        Some(config)
     }
 }
 

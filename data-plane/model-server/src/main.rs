@@ -13,7 +13,7 @@ use foretoken_artifacts::ModelSource;
 use foretoken_model_protocol::{RuntimeMetadataResponse, RuntimeModelIdentity};
 use foretoken_model_server::api::{AppState, RuntimeHealth, router};
 use foretoken_model_server::backend::VllmBackend;
-use foretoken_model_server::config::RuntimeConfig;
+use foretoken_model_server::config::{MODEL_GROUP_UID_ENV, RuntimeConfig};
 use foretoken_model_server::kv_event_adapter::KvEventAdapter;
 use foretoken_model_server::managed_engine::ManagedEngine;
 use foretoken_model_server::profiling;
@@ -31,7 +31,6 @@ use vllm_managed_engine::allocate_handshake_port;
 
 const KV_KEY_PATH_ENV: &str = "FORETOKEN_KV_INDEX_KEY_PATH";
 const KV_SCOPE_ENV: &str = "FORETOKEN_KV_SCOPE_ID";
-const MODEL_GROUP_UID_ENV: &str = "FORETOKEN_MODEL_GROUP_UID";
 const TEMPORARY_MODEL_SOURCE_ROOT: &str = "/tmp/foretoken-model-source";
 
 #[tokio::main]
