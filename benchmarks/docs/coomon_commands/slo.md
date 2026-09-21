@@ -8,14 +8,14 @@ After the [setup steps](../examples.md#setup), find the largest workload concurr
 foretoken bench examples/quickstart \
   --dataset random --tokenizer-path Qwen/Qwen3-0.6B \
   --min-prompt-length 128 --max-prompt-length 512 \
-  --number 100 --parallel 2 \
+  --num-prompts 100 --max-concurrency 2 \
   --slo-params '[{"p99_latency":"<=2"}]' \
   --slo-upper-bound 32 \
   --num-runs 1 \
   --output local,wandb
 ```
 
-`--parallel` is the starting concurrency. `--number` is the fixed HTTP request budget for every probe; it does not grow with concurrency. `--num-runs` repeats each probe with the same request budget and averages its metrics. Conversation workloads count every turn request, while trace replay keeps the selected trace events and timestamps fixed.
+`--max-concurrency` is the starting concurrency. `--num-prompts` is the fixed HTTP request budget for every probe; it does not grow with concurrency. `--num-runs` repeats each probe with the same request budget and averages its metrics. Conversation workloads count every turn request, while trace replay keeps the selected trace events and timestamps fixed.
 
 ## Constraints
 
@@ -62,7 +62,7 @@ Available metrics:
 - TPOT: `avg_tpot`, `p50_tpot`, `p95_tpot`, `p99_tpot`
 - Throughput: `rps`, `tps`
 
-SLO auto-tune supports generated workloads, conversation datasets, multiple datasets, and timestamp trace replay. Generated workloads search closed-loop `--parallel`; trace replay searches its in-flight concurrency cap while preserving arrival timestamps. It cannot be combined with `--sweep` or a positive `--rate`.
+SLO auto-tune supports generated workloads, conversation datasets, multiple datasets, and timestamp trace replay. Generated workloads search closed-loop `--max-concurrency`; trace replay searches its in-flight concurrency cap while preserving arrival timestamps. It cannot be combined with `--sweep` or a positive `--request-rate`.
 
 Results include `slo_results.json`. Each probe is stored below the SLO result directory, and W&B runs share one group with names that identify the criterion group, concurrency, and repeat.
 

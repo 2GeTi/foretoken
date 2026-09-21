@@ -1,4 +1,4 @@
-# 请求速率与并发
+# 到达模式与并发
 
 [English](arrival-rate.md) | 简体中文 · [常用命令](../examples_zh.md)
 
@@ -6,21 +6,33 @@
 
 ```bash
 foretoken bench examples/quickstart \
-  --prompt "你好" --rate 5 --parallel 16 --number 100 \
+  --prompt "你好" --request-rate 5 --max-concurrency 16 --num-prompts 100 \
   --output local,wandb
 ```
 
-`--rate` 控制泊松到达率，`--parallel` 控制并发，各自设为 `-1` 表示不限。默认不限速、并发为 1。
+`--request-rate` 控制目标请求速率，`--max-concurrency` 限制在途请求数。默认 `--arrival-pattern poisson` 使用泊松到达；`constant` 使用固定间隔，`gamma` 配合 `--burstiness` 表达突发程度；需要按时间戳回放时单独使用 `--trace`。`--request-rate -1` 表示尽快发送，`--max-concurrency -1` 表示取消并发上限。默认不限速、并发为 1。生成式 constant 和 Gamma 到达目前要求单一数据集和单轮请求。
 
 去掉并发上限：
 
 ```bash
 foretoken bench examples/quickstart \
-  --prompt "你好" --rate 5 --parallel -1 --number 100 \
+  --prompt "你好" --request-rate 5 --max-concurrency -1 --num-prompts 100 \
   --output local,wandb
 ```
 
-`--rate -1 --parallel -1` 会尽快启动请求预算内的请求。多轮数据要求 `--rate -1`；`--number` 仍表示 HTTP 请求预算，`--parallel` 限制同时执行的对话数。
+`--request-rate -1 --max-concurrency -1` 会尽快启动请求预算内的请求。多轮数据要求 `--request-rate -1`；`--num-prompts` 仍表示 HTTP 请求预算，`--max-concurrency` 限制同时执行的对话数。
+
+使用固定间隔或 Gamma 到达：
+
+```bash
+foretoken bench examples/quickstart \
+  --prompt "你好" --request-rate 5 --arrival-pattern constant \
+  --max-concurrency 16 --num-prompts 100 --output local
+
+foretoken bench examples/quickstart \
+  --prompt "你好" --request-rate 5 --arrival-pattern gamma \
+  --burstiness 0.5 --max-concurrency 16 --num-prompts 100 --output local
+```
 
 ## 输出示例
 

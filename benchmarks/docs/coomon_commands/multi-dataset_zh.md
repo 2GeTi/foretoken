@@ -7,10 +7,10 @@
 ```bash
 foretoken bench examples/quickstart \
   --dataset r0b0tlab/qwen3.8-max-distillation-50k:train,ianncity/GLM-5.2-Conversation:train \
-  --parallel 4 --number 20 --output local,wandb
+  --max-concurrency 4 --num-prompts 20 --output local,wandb
 ```
 
-数据集按顺序执行，生成一份汇总结果。`--number` 尽量平均分配，余数分给前面的数据集。远程选择器也可换成本地 JSONL 路径。随机输入不能与其他数据集混用，多数据集不支持 `--sweep`。
+数据集按顺序执行，生成一份汇总结果。`--num-prompts` 尽量平均分配，余数分给前面的数据集。远程选择器也可换成本地 JSONL 路径。随机输入不能与其他数据集混用，多数据集不支持 `--sweep`。
 
 每个数据集在同一 W&B group 中单独记录。对话百分位保留在各数据集结果中，不直接平均。
 

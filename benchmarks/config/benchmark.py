@@ -58,30 +58,41 @@ class ModelServiceSource:
 
 @dataclass
 class HttpLoadSchedule:
-    """Store the standard HTTP workload, concurrency limit, and arrival rate."""
+    """Store the HTTP request budget, concurrency, and arrival process."""
 
     max_concurrency: int = 1
     request_count: int = 100
-    # -1 sends as fast as possible; positive values use a Poisson arrival rate.
     arrival_rate: float = -1.0
+    arrival_pattern: str = "poisson"
+    burstiness: float = 1.0
     warmup_requests: int = 0
 
     def validate(self) -> None:
         """Reject load coordinates that would block or cannot express the requested schedule."""
         if self.max_concurrency != -1 and self.max_concurrency < 1:
             raise ValueError(
-                f"--parallel must be -1 or >= 1; got {self.max_concurrency}"
+                f"--max-concurrency must be -1 or >= 1; got {self.max_concurrency}"
             )
         rate_value = float(self.arrival_rate)
         if not math.isfinite(rate_value) or (rate_value != -1 and rate_value <= 0):
             raise ValueError(
-                "--rate must be -1 (send as fast as possible) or > 0; "
+                "--request-rate must be -1 (send as fast as possible) or > 0; "
                 f"got {self.arrival_rate}"
             )
         if self.request_count < 1:
             raise ValueError(
-                f"--number must be >= 1, got {self.request_count}"
+                f"--num-prompts must be >= 1, got {self.request_count}"
             )
+        if self.arrival_pattern not in {"constant", "poisson", "gamma"}:
+            raise ValueError(
+                "--arrival-pattern must be constant, poisson, or gamma"
+            )
+        if not math.isfinite(self.burstiness) or self.burstiness <= 0:
+            raise ValueError("--burstiness must be finite and > 0")
+        if self.arrival_pattern == "gamma" and rate_value == -1:
+            raise ValueError("gamma arrival requires --request-rate > 0")
+        if self.arrival_pattern == "constant" and rate_value == -1:
+            raise ValueError("constant arrival requires --request-rate > 0")
         if self.warmup_requests < 0:
             raise ValueError("--warmup-requests must be >= 0")
 
@@ -379,7 +390,7 @@ class BenchmarkConfig:
                 )
             if self.load.arrival_rate != -1:
                 raise ValueError(
-                    "--profile requires --rate -1 so profiler startup does not distort request pacing"
+                    "--profile requires --request-rate -1 so profiler startup does not distort request pacing"
                 )
         if self.sweep.path and not self.service.kustomize_path:
             raise ValueError("--sweep requires a Foretoken Kustomize deployment")
@@ -393,8 +404,22 @@ class BenchmarkConfig:
         if self.load.warmup_requests and self.is_multi_turn:
             raise ValueError("--warmup-requests requires a generated workload")
         if self.is_multi_turn and self.load.arrival_rate != -1:
-            raise ValueError("multi-turn workloads require --rate -1")
+            raise ValueError("multi-turn workloads require --request-rate -1")
+        if self.load.arrival_pattern != "poisson" and self.is_multi_turn:
+            raise ValueError(
+                "generated constant and gamma arrivals currently require single-turn workloads"
+            )
+        if self.load.arrival_pattern in {"constant", "gamma"} and self.load.warmup_requests:
+            raise ValueError(
+                "generated constant and gamma arrivals do not support --warmup-requests; run a separate warmup"
+            )
+        if self.load.arrival_pattern != "poisson" and workload.has_multiple_datasets:
+            raise ValueError(
+                "generated constant and gamma arrivals require one dataset source"
+            )
         self.trace.validate()
+        if self.trace.trace_selector and self.load.arrival_pattern != "poisson":
+            raise ValueError("--trace cannot be combined with generated arrival patterns")
         self.slo.validate()
 
         if self.slo.params:
@@ -402,7 +427,7 @@ class BenchmarkConfig:
                 raise ValueError("--slo-params cannot be combined with --sweep")
             if self.load.arrival_rate != -1 and not self.trace.trace_selector:
                 raise ValueError(
-                    "--slo-params requires --rate -1 for generated workloads"
+                    "--slo-params requires --request-rate -1 for generated workloads"
                 )
 
         trace = self.trace
@@ -446,12 +471,12 @@ class BenchmarkConfig:
                 )
             if self.load.arrival_rate != -1:
                 raise ValueError(
-                    "--trace uses record timestamps; omit --rate"
+                    "--trace uses record timestamps; omit --request-rate"
                 )
             if self.load != HttpLoadSchedule() and not self.slo.params:
                 raise ValueError(
                     "--trace replays the selected trace window; use "
-                    "--trace-max-concurrency instead of --parallel/--number"
+                    "--trace-max-concurrency instead of --max-concurrency/--num-prompts"
                 )
             if same_dataset and workload.row_offset:
                 raise ValueError(
@@ -484,6 +509,8 @@ class BenchmarkConfig:
             "parallel": self.load.max_concurrency,
             "number": self.load.request_count,
             "rate": self.load.arrival_rate,
+            "arrival_pattern": self.load.arrival_pattern,
+            "burstiness": self.load.burstiness,
             "warmup_requests": self.load.warmup_requests,
         }
         workload = self.resolved_workload

@@ -386,7 +386,7 @@ def _evalscope_arguments(
         if multi_turn and schedule.arrival_rate != -1:
             Path(dataset_path).unlink(missing_ok=True)
             raise ValueError(
-                "Multi-turn conversations require --rate -1; "
+                "Multi-turn conversations require --request-rate -1; "
                 "rate schedules independent requests"
             )
         argument_values.update(

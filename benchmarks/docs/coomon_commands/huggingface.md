@@ -7,7 +7,7 @@ After [setup](../examples.md#setup), use the public StudyChat dataset:
 ```bash
 foretoken bench examples/quickstart \
   --dataset KrisQ/StudyChat \
-  --parallel 2 --number 2 --output local,wandb
+  --max-concurrency 2 --num-prompts 2 --output local,wandb
 ```
 
 The repository's default configuration has one split, so no suffix is needed. For datasets with multiple splits, append the split name, such as `:train`.
@@ -17,7 +17,7 @@ To select the repository's [JSONL file](https://huggingface.co/datasets/KrisQ/St
 ```bash
 foretoken bench examples/quickstart \
   --dataset hf://datasets/KrisQ/StudyChat/data.jsonl \
-  --parallel 2 --number 2 --output local,wandb
+  --max-concurrency 2 --num-prompts 2 --output local,wandb
 ```
 
 File selection downloads the file into the Hugging Face cache. Rows use the same [conversation formats](conversations.md) as local data. Add `--max-turns 1` for first-turn-only evaluation, or `--dataset-offset` to skip initial rows.

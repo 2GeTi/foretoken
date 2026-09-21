@@ -7,7 +7,7 @@ After [setup](../examples.md#setup), run from the repository root:
 ```bash
 foretoken bench examples/quickstart \
   --prompt "Name a planet." --no-stream \
-  --number 20 --max-tokens 32 \
+  --num-prompts 20 --max-tokens 32 \
   --output local,wandb
 ```
 

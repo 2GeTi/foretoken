@@ -20,7 +20,7 @@
 foretoken bench video \
   --url http://127.0.0.1:8091/v1/videos/sync \
   --dataset VideoArgusBench/TI2V \
-  --number 10 \
+  --num-prompts 10 \
   --width 1024 \
   --height 576 \
   --num-frames 124 \
@@ -31,7 +31,7 @@ foretoken bench video \
   --audio-flow-shift 3 \
   --seed 1 \
   --timeout 3600 \
-  --parallel 1 \
+  --max-concurrency 1 \
   --output local,wandb \
   --output-dir results/video/ti2v
 ```
@@ -50,7 +50,7 @@ foretoken bench video \
 foretoken bench video \
   --url http://127.0.0.1:8091/v1/videos/sync \
   --dataset VideoArgusBench/TV2V \
-  --number 10 \
+  --num-prompts 10 \
   --width 1024 \
   --height 576 \
   --num-frames 124 \
@@ -61,7 +61,7 @@ foretoken bench video \
   --audio-flow-shift 3 \
   --seed 1 \
   --timeout 3600 \
-  --parallel 1 \
+  --max-concurrency 1 \
   --output local,wandb \
   --output-dir results/video/tv2v
 ```
