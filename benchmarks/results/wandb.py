@@ -126,6 +126,19 @@ def wandb_metric_fields(metrics: dict[str, Any]) -> dict[str, Any]:
                 message[f"{name}/{percentile}"] = round(
                     float(value) * scale, 4
                 )
+    slo = metrics.get("slo")
+    if isinstance(slo, dict):
+        for source, destination in (
+            ("slo_attainment", "SLO attainment (%)"),
+            ("request_goodput", "SLO request goodput (req/s)"),
+            ("token_goodput", "SLO token goodput (tokens/s)"),
+        ):
+            value = slo.get(source)
+            if value is not None:
+                message[destination] = round(
+                    float(value) * 100.0 if source == "slo_attainment" else float(value),
+                    4,
+                )
     conversation = metrics.get("conversation")
     if isinstance(conversation, dict):
         message[_CONCURRENT_CONVERSATIONS] = int(metrics["parallel"])
@@ -217,6 +230,7 @@ def publish_http_wandb(sdk_run: Any, run: BenchmarkRun) -> None:
                 request_series(
                     run.measurements,
                     stream=bool(run.metrics["stream"]),
+                    slo_met=(run.metrics.get("slo") or {}).get("request_slo_met"),
                 ),
             ),
         )

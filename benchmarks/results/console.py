@@ -102,17 +102,17 @@ def format_benchmark_config(
         if dataset.dataset_selectors and not trace.trace_selector
         else ""
     )
-    sla = benchmark.sla
-    if sla.params:
-        params_label = str(sla.params)
-        sla_lines = (
-            f"  SLA params : {params_label}\n"
-            f"  SLA concurrency bounds="
-            f"[{sla.lower_bound}, {sla.upper_bound}], "
-            f"num_runs={sla.num_runs}\n"
+    slo = benchmark.slo
+    if slo.params:
+        params_label = str(slo.params)
+        slo_lines = (
+            f"  SLO params : {params_label}\n"
+            f"  SLO concurrency bounds="
+            f"[{slo.lower_bound}, {slo.upper_bound}], "
+            f"num_runs={slo.num_runs}\n"
         )
     else:
-        sla_lines = ""
+        slo_lines = ""
     return (
         "\n===== Foretoken Benchmark Configuration ====\n"
         f"  URL        : {service.chat_completions_url}\n"
@@ -124,7 +124,7 @@ def format_benchmark_config(
         f"  Dataset    : {dataset_label}\n"
         f"{max_turns_line}"
         f"{trace_lines}"
-        f"{sla_lines}"
+        f"{slo_lines}"
         "============================================\n"
     )
 
@@ -252,6 +252,18 @@ def log_benchmark_summary(run_record: dict[str, Any], metrics: dict[str, Any]) -
             *metric_lines,
         ]
     )
+    slo = metrics.get("slo")
+    if isinstance(slo, dict) and slo.get("slo_attainment") is not None:
+        lines.extend(
+            [
+                "  SLO attainment (%): "
+                f"{_format_metric(float(slo['slo_attainment']) * 100)}",
+                "  SLO request goodput (req/s): "
+                f"{_format_metric(slo.get('request_goodput'))}",
+                "  SLO token goodput (tokens/s): "
+                f"{_format_metric(slo.get('token_goodput'))}",
+            ]
+        )
     if multi_turn:
         conversation = metrics["conversation"]
         if conversation.get("per_dataset"):
@@ -316,11 +328,11 @@ def log_benchmark_summary(run_record: dict[str, Any], metrics: dict[str, Any]) -
     logger.info("\n%s", "\n".join(lines))
 
 
-def log_sla_results(sla: dict[str, Any]) -> None:
-    """Print one row for each SLA probe and its satisfied search point."""
-    lines = ["========== SLA Auto-tune Results =========="]
-    if sla.get("probes"):
-        for row in sla["probes"]:
+def log_slo_results(slo: dict[str, Any]) -> None:
+    """Print one row for each SLO probe and its satisfied search point."""
+    lines = ["========== SLO Capacity Search Results =========="]
+    if slo.get("probes"):
+        for row in slo["probes"]:
             if "max_satisfied" in row:
                 lines.append(
                     f"  Group {row.get('group')}: max concurrency="
@@ -332,7 +344,7 @@ def log_sla_results(sla: dict[str, Any]) -> None:
                     f"satisfied={row.get('satisfied')} criteria={row.get('criteria')}"
                 )
     else:
-        lines.append(f"  Max concurrency: {sla.get('max_satisfied', 'None')}")
+        lines.append(f"  Max concurrency: {slo.get('max_satisfied', 'None')}")
     lines.append("============================================")
     logger.info("\n%s", "\n".join(lines))
 
