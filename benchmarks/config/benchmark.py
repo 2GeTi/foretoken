@@ -367,12 +367,14 @@ class BenchmarkConfig:
             if not self.service.kustomize_path:
                 raise ValueError("--profile requires a Foretoken Kustomize deployment")
             if (
-                self.trace.trace_selector or self.sweep.path
+                self.trace.trace_selector
+                or self.sweep.path
                 or self.resolved_workload.has_multiple_datasets
+                or self.is_multi_turn
             ):
                 raise ValueError(
                     "--profile supports one generated workload, not trace replay, "
-                    "sweeps or multiple datasets"
+                    "sweeps, multi-turn workloads or multiple datasets"
                 )
             if self.load.arrival_rate != -1:
                 raise ValueError(
@@ -387,6 +389,8 @@ class BenchmarkConfig:
         workload.validate()
         if self.generation.min_output_length is not None and workload.dataset_selectors != ["random"]:
             raise ValueError("output length control requires --dataset random")
+        if self.load.warmup_requests and self.is_multi_turn:
+            raise ValueError("--warmup-requests requires a generated workload")
         self.trace.validate()
         self.sla.validate()
 
