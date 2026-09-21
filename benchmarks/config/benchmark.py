@@ -391,6 +391,8 @@ class BenchmarkConfig:
             raise ValueError("output length control requires --dataset random")
         if self.load.warmup_requests and self.is_multi_turn:
             raise ValueError("--warmup-requests requires a generated workload")
+        if self.is_multi_turn and self.load.arrival_rate != -1:
+            raise ValueError("multi-turn workloads require --rate -1")
         self.trace.validate()
         self.sla.validate()
 
