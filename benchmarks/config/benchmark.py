@@ -353,11 +353,12 @@ class BenchmarkConfig:
 
     @property
     def is_multi_turn(self) -> bool:
-        """Return whether the selected non-trace workload is conversation-driven."""
+        """Return whether the resolved workload is conversation-driven."""
+        workload = self.resolved_workload
         return (
             not self.trace.trace_selector
-            and bool(self.workload.dataset_selectors)
-            and self.workload.dataset_selectors != ["random"]
+            and bool(workload.dataset_selectors)
+            and workload.dataset_selectors != ["random"]
         )
 
     def validate(self) -> None:
