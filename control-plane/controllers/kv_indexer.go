@@ -65,7 +65,7 @@ func kvScopeID(group *inferencev1alpha1.ModelGroup) string {
 		Model, Revision, Tokenizer, TokenizerRevision string
 		Source                                        inferencev1alpha1.ModelSource
 		Parallelism                                   inferencev1alpha1.CompiledParallelism
-		RuntimeArgs                                   []inferencev1alpha1.BackendArg
+		EngineArgs                                    inferencev1alpha1.EngineArguments
 		KVRuntime                                     *inferencev1alpha1.ModelGroupKVRuntimeConfig
 	}{
 		Model:             group.Spec.Artifacts.Model,
@@ -74,7 +74,7 @@ func kvScopeID(group *inferencev1alpha1.ModelGroup) string {
 		TokenizerRevision: group.Spec.Artifacts.TokenizerRevision,
 		Source:            group.Spec.Artifacts.Source,
 		Parallelism:       group.Spec.Parallelism,
-		RuntimeArgs:       group.Spec.Runtime.Args,
+		EngineArgs:        group.Spec.Runtime.EngineArgs,
 		KVRuntime:         group.Spec.KVRuntime,
 	}
 	encoded, _ := json.Marshal(payload)
@@ -85,7 +85,7 @@ func kvScopeID(group *inferencev1alpha1.ModelGroup) string {
 // sharedKVLookupScope bounds query reuse by a known Store owner or one external-profile consumer.
 // The existing KV scope independently checks model and layout compatibility.
 func sharedKVLookupScope(group *inferencev1alpha1.ModelGroup) string {
-	if group.Spec.Parallelism.DP != 1 || group.Spec.KVRuntime == nil || group.Spec.KVRuntime.MooncakeStore == nil {
+	if group.Spec.KVRuntime == nil || group.Spec.KVRuntime.MooncakeStore == nil {
 		return ""
 	}
 	if group.Spec.Role != inferencev1alpha1.ModelRoleAggregate && group.Spec.Role != inferencev1alpha1.ModelRolePrefill {
@@ -97,12 +97,8 @@ func sharedKVLookupScope(group *inferencev1alpha1.ModelGroup) string {
 	return "modelgroup:" + string(group.UID)
 }
 
-// pdPipelineScopeID scopes dynamic Mooncake side-channel ingress to compatible P/D Groups.
+// pdPipelineScopeID scopes dynamic Mooncake side channels to their ModelService owner.
+// Transfer compatibility is checked separately from network access and KV index identity.
 func pdPipelineScopeID(group *inferencev1alpha1.ModelGroup) string {
-	encoded, _ := json.Marshal(struct {
-		KVScope   string
-		PDRuntime *inferencev1alpha1.ModelGroupPDRuntimeConfig
-	}{kvScopeID(group), group.Spec.PDRuntime})
-	sum := sha256.Sum256(encoded)
-	return hex.EncodeToString(sum[:16])
+	return group.Spec.PDRuntime.ServiceUID
 }

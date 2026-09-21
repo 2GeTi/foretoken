@@ -16,7 +16,7 @@ foretoken install
 foretoken deploy examples/quickstart
 ```
 
-`foretoken install` reuses a Prometheus that already exists in the cluster or installs a CLI-managed kube-prometheus-stack. The CLI-managed Grafana loads the dashboard automatically. Retrieve its generated administrator credentials, then open Grafana at the address your cluster provides:
+`foretoken install` reuses a Prometheus that already exists in the cluster or installs a CLI-managed kube-prometheus-stack. If it installs the monitoring stack, use the CLI-managed Grafana and retrieve its generated administrator credentials. If it reuses an existing stack, use that platform's Grafana and credentials:
 
 ```bash
 GRAFANA_USER="$(kubectl get secret \
@@ -31,7 +31,11 @@ printf 'Grafana user: %s\nGrafana password: %s\n' \
   "$GRAFANA_USER" "$GRAFANA_PASSWORD"
 ```
 
-In Grafana, open Foretoken System Overview for English or Foretoken 系统概览 for Chinese. It follows a request through the Frontend, model serving, caches, and accelerators, and ends with autoscaling decisions; routing and control-plane details are in collapsed sections. Filters narrow the view to a namespace, Frontend service, model group, model role, model, or model service.
+In Grafana, open Foretoken System Overview for English or Foretoken 系统概览 for Chinese. Select a namespace and model, then narrow to a model instance, execution role or engine rank. Model-serving, cache, GPU and routing panels follow that selection. Routing decisions show each backend's share within its model and role; a backend is one model instance and data-parallel rank. The selected backend lines keep the full model-and-role denominator.
+
+Shared frontend panels show all traffic through the selected frontend, not just one model. Autoscaling follows the selected model and service; control-plane diagnostics describe the platform.
+
+After upgrading Foretoken, run `foretoken install` again to update the controller, frontend, scrape configuration, and dashboards. Importing dashboard JSON alone does not update metric producers.
 
 ## Check that collection works
 
@@ -40,7 +44,7 @@ kubectl get servicemonitor,prometheusrule -A \
   -l app.kubernetes.io/name=foretoken-control-plane
 ```
 
-In Prometheus, confirm on Targets that the Foretoken targets are `UP` and on Rules that `foretoken.recording` is loaded. This query returns the Frontend request rate:
+In Prometheus, confirm on Targets that the Foretoken targets are `UP` and on Rules that `foretoken.recording` is loaded. If service alerts are enabled, also confirm the corresponding `foretoken.alerting` rules are loaded. This query returns the Frontend request rate:
 
 ```promql
 sum(foretoken:frontend_http_response_starts:rate5m)
@@ -54,7 +58,7 @@ The CLI reuses what the cluster already provides and installs only what is missi
 | --- | --- | --- | --- | --- |
 | Prometheus | Install a CLI-managed kube-prometheus-stack | Reuse it | Stop and ask for an explicit choice | Remove only the CLI-managed release |
 | NVIDIA DCGM Exporter | Install a CLI-managed exporter on clusters with NVIDIA GPUs | Reuse it | Stop | Remove only the CLI-managed release |
-| MetaX mxExporter | Stop; the cluster must provide it | Reuse it | Stop | Keep it |
+| MetaX mxExporter | Install a CLI-managed exporter | Reuse it | Stop | Remove only CLI-managed resources |
 
 An exporter is usable when it covers every GPU node and the selected Prometheus scrapes it. The CLI does not install GPU drivers, device plugins, or vendor operators.
 
@@ -106,7 +110,7 @@ foretoken deploy examples/observability --timeout 20m
 
 Remove a name, or use `rules: []`, and deploy again to remove the corresponding alerts. Metrics and the dashboard remain available. The CLI reports alert configuration failures separately from serving readiness; `deploy` does not install monitoring.
 
-Selecting the power alert also requires a positive `spec.observability.alerts.thresholds.nvidiaPowerWatts`, chosen for the GPU model. Setting a threshold alone does not enable a rule. Notification language, destination, and time zone are configured on the receiver; see the optional [Lark integration](integrations/lark/README.md).
+Selecting the power alert also requires a positive `spec.observability.alerts.thresholds.nvidiaPowerWatts`, chosen for the GPU model. Setting a threshold alone does not enable a rule. Configure notifications with a [Lark](integrations/lark/README.md) or [Slack](integrations/slack/README.md) receiver.
 
 ## Metrics reference
 
@@ -119,7 +123,7 @@ Selecting the power alert also requires a positive `spec.observability.alerts.th
 | mxExporter | MetaX utilization and memory |
 | kubelet/cAdvisor | Container CPU and memory |
 
-Dashboard latency metrics use seconds for TTFT and E2EL, and milliseconds for TPOT and ITL. TPOT includes both percentile and mean values.
+Dashboard latency metrics use seconds for TTFT and E2EL, and milliseconds for TPOT and ITL. The p50/p95/p99 percentiles combine request histograms across the selected instances, separately for each model and role. Request rates, token throughput and scheduler pressure are shown by backend, where a backend is one model instance and data-parallel rank; the same panels retain the model-level totals in their summary tiles. Prefix-cache hit ratios divide total hit tokens by total queried tokens; idle or missing observations have no ratio. Routing shares count selection decisions, not completed requests or cache hits.
 
 The following recording rules remain available for alerts and fixed-window queries. Model-serving rules are derived from vLLM metrics.
 
@@ -164,4 +168,4 @@ For a short CPU/GPU capture on an existing diagnostic service, see [Profiling](p
 
 ## Remove collection
 
-After all Foretoken services are deleted, `foretoken uninstall` removes the CLI-managed Prometheus and DCGM Exporter releases. Reused Prometheus, DCGM Exporter, and mxExporter installations are left unchanged.
+After all Foretoken services are deleted, `foretoken uninstall` removes CLI-managed Prometheus, DCGM Exporter, and MetaX mxExporter resources. Reused installations are left unchanged.

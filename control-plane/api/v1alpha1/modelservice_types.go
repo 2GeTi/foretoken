@@ -6,6 +6,7 @@
 package v1alpha1
 
 import (
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -35,41 +36,6 @@ type ExpertParallelism struct {
 	// +optional
 	// +kubebuilder:default=false
 	EPLB bool `json:"eplb,omitempty"`
-}
-
-// Parallelism defines the execution topology of one ModelGroup.
-// +kubebuilder:validation:XValidation:rule="!has(self.dp) || !has(self.ep)",message="parallelism.dp and parallelism.ep are mutually exclusive"
-// +kubebuilder:validation:XValidation:rule="!has(self.ep) || self.ep.size % (self.tp * self.pcp) == 0",message="parallelism.ep.size must be divisible by parallelism.tp * parallelism.pcp"
-// +kubebuilder:validation:XValidation:rule="self.pcp == 1 || !has(self.dp) || self.dp == 1",message="parallelism.pcp greater than 1 is incompatible with parallelism.dp greater than 1"
-// +kubebuilder:validation:XValidation:rule="self.pcp == 1 || !has(self.ep) || self.ep.size == self.tp * self.pcp",message="parallelism.ep.size must equal parallelism.tp * parallelism.pcp when parallelism.pcp is greater than 1"
-// +kubebuilder:validation:XValidation:rule="self.pcp == 1 ? self.tp % self.dcp == 0 : self.dcp == 1 || self.dcp == self.pcp || self.dcp == self.tp * self.pcp",message="parallelism.dcp is incompatible with parallelism.tp and parallelism.pcp"
-type Parallelism struct {
-	// +optional
-	// +kubebuilder:default=1
-	// +kubebuilder:validation:Minimum=1
-	TP int32 `json:"tp,omitempty"`
-
-	// +optional
-	// +kubebuilder:default=1
-	// +kubebuilder:validation:Minimum=1
-	PP int32 `json:"pp,omitempty"`
-
-	// +optional
-	// +kubebuilder:validation:Minimum=1
-	DP *int32 `json:"dp,omitempty"`
-
-	// +optional
-	// +kubebuilder:default=1
-	// +kubebuilder:validation:Minimum=1
-	PCP int32 `json:"pcp,omitempty"`
-
-	// +optional
-	// +kubebuilder:default=1
-	// +kubebuilder:validation:Minimum=1
-	DCP int32 `json:"dcp,omitempty"`
-
-	// +optional
-	EP *ExpertParallelism `json:"ep,omitempty"`
 }
 
 // KVCache defines typed KV-cache placement intent for one execution Pool.
@@ -120,7 +86,6 @@ type ECProfileReference struct {
 // ModelPoolTemplate defines one user-owned execution Pool: a homogeneous set
 // of ModelGroups sharing the same role, network, resources, and parallelism.
 // The controller instantiates it as a ModelPool owned by the ModelService.
-// +kubebuilder:validation:XValidation:rule="(has(self.nodes) ? self.nodes : 1) * self.resources.requests.gpu.count == (has(self.parallelism.ep) ? self.parallelism.pp * self.parallelism.ep.size : self.parallelism.pp * self.parallelism.tp * self.parallelism.pcp * (has(self.parallelism.dp) ? self.parallelism.dp : 1))",message="nodes * resources.requests.gpu.count must equal the compiled worker rank count"
 type ModelPoolTemplate struct {
 	// Name is the stable identity of this Pool within one ModelService.
 	// +kubebuilder:validation:MinLength=1
@@ -138,11 +103,10 @@ type ModelPoolTemplate struct {
 	// +kubebuilder:validation:Minimum=0
 	Replicas *int32 `json:"replicas,omitempty"`
 
-	// Nodes is the number of physical Kubernetes Nodes used by each ModelGroup.
+	// Nodes is the number of distinct Kubernetes Nodes used by each ModelGroup.
 	// +optional
 	// +kubebuilder:default=1
 	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=1
 	Nodes *int32 `json:"nodes,omitempty"`
 
 	// +optional
@@ -151,8 +115,11 @@ type ModelPoolTemplate struct {
 	// +kubebuilder:validation:Pattern="^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$"
 	Network string `json:"network,omitempty"`
 
-	Resources   ModelResources `json:"resources"`
-	Parallelism Parallelism    `json:"parallelism"`
+	Resources ModelResources `json:"resources"`
+
+	// EngineArgs replaces service-level native options for this Pool when supplied.
+	// +optional
+	EngineArgs *EngineArguments `json:"engineArgs,omitempty"`
 
 	// MaxInputTokens is the prompt admission limit for requests routed to this Pool.
 	// +optional
@@ -167,105 +134,18 @@ type ModelPoolTemplate struct {
 	Features *ModelFeatures `json:"features,omitempty"`
 }
 
-// AutoscalingDecisionAlgorithm selects how observed demand is converted into desired replica capacity.
-// +kubebuilder:validation:Enum=queue;queue_threshold
-type AutoscalingDecisionAlgorithm string
+// ModelAutoscalingAlgorithmConfig selects a controller-supported algorithm
+// for one autoscaling stage (trigger, decision, and adjustment) and optionally supplies its parameters.
+type ModelAutoscalingAlgorithmConfig struct {
+	// Algorithm names the controller-supported algorithm for this stage.
+	// +kubebuilder:validation:MinLength=1
+	Algorithm string `json:"algorithm"`
 
-const (
-	AutoscalingDecisionAlgorithmQueue          AutoscalingDecisionAlgorithm = "queue"
-	AutoscalingDecisionAlgorithmQueueThreshold AutoscalingDecisionAlgorithm = "queue_threshold"
-)
-
-// AutoscalingTriggerAlgorithm selects how observations enter automatic capacity evaluation.
-// +kubebuilder:validation:Enum=periodic
-type AutoscalingTriggerAlgorithm string
-
-const AutoscalingTriggerAlgorithmPeriodic AutoscalingTriggerAlgorithm = "periodic"
-
-// ModelAutoscalingTriggerConfig configures the Trigger stage.
-type ModelAutoscalingTriggerConfig struct {
+	// Parameters contains optional settings for the selected algorithm; omitted fields use its defaults.
 	// +optional
-	// +kubebuilder:default=periodic
-	Algorithm AutoscalingTriggerAlgorithm `json:"algorithm,omitempty"`
-
-	// Interval controls how often the controller runs the Trigger stage.
-	// +optional
-	// +kubebuilder:default="5s"
-	Interval Duration `json:"interval,omitempty"`
-}
-
-// ModelAutoscalingQueueDecisionConfig configures HPA-style average queue capacity.
-type ModelAutoscalingQueueDecisionConfig struct {
-	// TargetAverageQueuedRequests is the desired average waiting requests per replica.
-	// +optional
-	// +kubebuilder:default=1
-	// +kubebuilder:validation:Minimum=1
-	TargetAverageQueuedRequests *int64 `json:"targetAverageQueuedRequests,omitempty"`
-}
-
-// ModelAutoscalingQueueThresholdDecisionConfig configures absolute backlog boundaries.
-// +kubebuilder:validation:XValidation:rule="self.scaleDownQueuedRequests <= self.scaleUpQueuedRequests",message="scaleDownQueuedRequests must not exceed scaleUpQueuedRequests"
-type ModelAutoscalingQueueThresholdDecisionConfig struct {
-	// ScaleUpQueuedRequests is the queue depth above which one additional replica is recommended.
-	// +optional
-	// +kubebuilder:default=1
-	// +kubebuilder:validation:Minimum=0
-	ScaleUpQueuedRequests *int64 `json:"scaleUpQueuedRequests,omitempty"`
-
-	// ScaleDownQueuedRequests is the queue depth at or below which one fewer idle replica is recommended.
-	// +optional
-	// +kubebuilder:default=0
-	// +kubebuilder:validation:Minimum=0
-	ScaleDownQueuedRequests *int64 `json:"scaleDownQueuedRequests,omitempty"`
-}
-
-// ModelAutoscalingDecisionConfig configures desired-capacity calculation.
-// +kubebuilder:validation:XValidation:rule="self.algorithm == 'queue' ? has(self.queue) && !has(self.queueThreshold) : has(self.queueThreshold) && !has(self.queue)",message="autoscaling decision must configure exactly the selected algorithm"
-type ModelAutoscalingDecisionConfig struct {
-	Algorithm AutoscalingDecisionAlgorithm `json:"algorithm"`
-
-	// +optional
-	Queue *ModelAutoscalingQueueDecisionConfig `json:"queue,omitempty"`
-
-	// +optional
-	QueueThreshold *ModelAutoscalingQueueThresholdDecisionConfig `json:"queueThreshold,omitempty"`
-}
-
-// AutoscalingAdjustmentAlgorithm selects how a desired replica count is stabilized before lifecycle resolution.
-// +kubebuilder:validation:Enum=direct;step
-type AutoscalingAdjustmentAlgorithm string
-
-const (
-	AutoscalingAdjustmentAlgorithmDirect AutoscalingAdjustmentAlgorithm = "direct"
-	AutoscalingAdjustmentAlgorithmStep   AutoscalingAdjustmentAlgorithm = "step"
-)
-
-// ModelAutoscalingScaleUpConfig controls upward stabilization.
-type ModelAutoscalingScaleUpConfig struct {
-	// +optional
-	// +kubebuilder:default="0s"
-	StabilizationWindow NonNegativeDuration `json:"stabilizationWindow,omitempty"`
-}
-
-// ModelAutoscalingScaleDownConfig controls downward stabilization.
-type ModelAutoscalingScaleDownConfig struct {
-	// +optional
-	// +kubebuilder:default="300s"
-	StabilizationWindow NonNegativeDuration `json:"stabilizationWindow,omitempty"`
-}
-
-// ModelAutoscalingAdjustmentConfig configures how desired replica capacity is applied.
-// +kubebuilder:validation:XValidation:rule="self.algorithm != 'direct' || (!has(self.scaleUp) && !has(self.scaleDown))",message="direct adjustment does not accept scaleUp or scaleDown configuration"
-type ModelAutoscalingAdjustmentConfig struct {
-	// +optional
-	// +kubebuilder:default=step
-	Algorithm AutoscalingAdjustmentAlgorithm `json:"algorithm,omitempty"`
-
-	// +optional
-	ScaleUp *ModelAutoscalingScaleUpConfig `json:"scaleUp,omitempty"`
-
-	// +optional
-	ScaleDown *ModelAutoscalingScaleDownConfig `json:"scaleDown,omitempty"`
+	// +kubebuilder:validation:Type=object
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Parameters *apiextensionsv1.JSON `json:"parameters,omitempty"`
 }
 
 // ModelAutoscalingConfig configures user-visible service replica autoscaling.
@@ -282,13 +162,12 @@ type ModelAutoscalingConfig struct {
 
 	// Trigger may be omitted to use periodic evaluation every five seconds.
 	// +optional
-	// +kubebuilder:default={}
-	Trigger *ModelAutoscalingTriggerConfig `json:"trigger,omitempty"`
+	Trigger *ModelAutoscalingAlgorithmConfig `json:"trigger,omitempty"`
 
-	Decision ModelAutoscalingDecisionConfig `json:"decision"`
+	Decision ModelAutoscalingAlgorithmConfig `json:"decision"`
 
 	// +optional
-	Adjustment *ModelAutoscalingAdjustmentConfig `json:"adjustment,omitempty"`
+	Adjustment *ModelAutoscalingAlgorithmConfig `json:"adjustment,omitempty"`
 }
 
 // ModelSource selects how model and tokenizer identifiers are resolved.
@@ -301,15 +180,19 @@ const (
 	ModelSourceModelScope ModelSource = "modelscope"
 )
 
+// ProfilingConfig selects instrumentation prepared when model processes start.
+// Captures are still requested separately through ProfileRun.
+type ProfilingConfig struct {
+	// +kubebuilder:validation:Enum=pytorch;nsight;mctracer
+	Engine string `json:"engine"`
+}
+
 // ModelServiceSpec defines the desired state of a model service.
-// +kubebuilder:validation:XValidation:rule="!has(self.modelPools) || !(has(self.replicas) || has(self.nodes) || has(self.resources) || has(self.parallelism) || has(self.maxInputTokens) || has(self.kvCache) || has(self.features))",message="spec.modelPools is mutually exclusive with top-level replicas, nodes, resources, parallelism, maxInputTokens, kvCache, and features"
-// +kubebuilder:validation:XValidation:rule="has(self.modelPools) || (has(self.resources) && has(self.parallelism))",message="top-level resources and parallelism are required when spec.modelPools is omitted"
+// +kubebuilder:validation:XValidation:rule="!has(self.modelPools) || !(has(self.replicas) || has(self.nodes) || has(self.resources) || has(self.maxInputTokens) || has(self.kvCache) || has(self.features))",message="spec.modelPools is mutually exclusive with top-level replicas, nodes, resources, maxInputTokens, kvCache, and features"
+// +kubebuilder:validation:XValidation:rule="has(self.modelPools) || has(self.resources)",message="top-level resources are required when spec.modelPools is omitted"
 // +kubebuilder:validation:XValidation:rule="!has(self.modelPools) || self.modelPools.all(pool, pool.name != 'default')",message="modelPools name default is reserved for the Quick Start shorthand"
-// +kubebuilder:validation:XValidation:rule="has(self.modelPools) || (has(self.resources) && has(self.parallelism) && (has(self.nodes) ? self.nodes : 1) * self.resources.requests.gpu.count == (has(self.parallelism.ep) ? self.parallelism.pp * self.parallelism.ep.size : self.parallelism.pp * self.parallelism.tp * self.parallelism.pcp * (has(self.parallelism.dp) ? self.parallelism.dp : 1)))",message="nodes * resources.requests.gpu.count must equal the compiled worker rank count"
 // +kubebuilder:validation:XValidation:rule="!has(self.modelPools) || self.modelPools.all(pool, !has(pool.role) || pool.role == 'aggregate') || (self.modelPools.exists(pool, has(pool.role) && pool.role == 'prefill') && self.modelPools.exists(pool, has(pool.role) && pool.role == 'decode') && self.modelPools.all(pool, has(pool.role) && (pool.role == 'prefill' || pool.role == 'decode'))) || (has(self.ecProfile) && self.modelPools.exists(pool, has(pool.role) && pool.role == 'encoder') && self.modelPools.exists(pool, has(pool.role) && pool.role == 'prefill') && self.modelPools.exists(pool, has(pool.role) && pool.role == 'decode') && self.modelPools.all(pool, has(pool.role) && (pool.role == 'encoder' || pool.role == 'prefill' || pool.role == 'decode')))",message="modelPools must be aggregate-only, complete P/D, or complete E/P/D without aggregate pools"
 // +kubebuilder:validation:XValidation:rule="!has(self.ecProfile) || (has(self.modelPools) && self.modelPools.exists(pool, has(pool.role) && pool.role == 'encoder') && self.modelPools.exists(pool, has(pool.role) && pool.role == 'prefill') && self.modelPools.exists(pool, has(pool.role) && pool.role == 'decode') && self.modelPools.all(pool, has(pool.role) && (pool.role == 'encoder' || pool.role == 'prefill' || pool.role == 'decode')))",message="ecProfile requires complete E/P/D modelPools"
-// +kubebuilder:validation:XValidation:rule="!has(self.modelPools) || !self.modelPools.exists(pool, has(pool.role) && pool.role == 'encoder') || (size(self.modelPools.filter(pool, has(pool.role) && pool.role == 'encoder')) == 1 && size(self.modelPools.filter(pool, has(pool.role) && pool.role == 'prefill')) == 1 && size(self.modelPools.filter(pool, has(pool.role) && pool.role == 'decode')) == 1)",message="E/P/D modelPools must contain exactly one encoder, prefill, and decode Pool"
-// +kubebuilder:validation:XValidation:rule="!has(self.modelPools) || !self.modelPools.exists(pool, has(pool.role) && pool.role == 'encoder') || self.modelPools.filter(pool, has(pool.role) && pool.role == 'encoder').all(e, self.modelPools.filter(pool, has(pool.role) && pool.role == 'prefill').all(p, (has(e.replicas) ? e.replicas : 1) == (has(p.replicas) ? p.replicas : 1)) && self.modelPools.filter(pool, has(pool.role) && pool.role == 'decode').all(d, (has(e.replicas) ? e.replicas : 1) == (has(d.replicas) ? d.replicas : 1)))",message="E/P/D modelPools must have equal encoder, prefill, and decode replica counts"
 type ModelServiceSpec struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=1024
@@ -343,16 +226,20 @@ type ModelServiceSpec struct {
 	// +kubebuilder:validation:Minimum=0
 	Replicas *int32 `json:"replicas,omitempty"`
 
-	// Nodes is the number of physical Kubernetes Nodes used by each ModelGroup; the compiler defaults it to 1.
+	// Nodes is the number of distinct Kubernetes Nodes used by each ModelGroup; the compiler defaults it to 1.
 	// +optional
 	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=1
 	Nodes *int32 `json:"nodes,omitempty"`
 
 	// +optional
 	Resources *ModelResources `json:"resources,omitempty"`
 
 	Timeouts ModelTimeouts `json:"timeouts"`
+
+	// Profiling prepares a profiler for every model Pool; omission preserves PyTorch support.
+	// Changing the prepared engine rolls out new model processes but does not start a capture.
+	// +optional
+	Profiling *ProfilingConfig `json:"profiling,omitempty"`
 
 	// Observability selects model-scoped alerts independently of serving and autoscaling.
 	// +optional
@@ -362,9 +249,6 @@ type ModelServiceSpec struct {
 	// side-effect-free; lifecycle, bounds, rollout, and drain stay core-owned.
 	// +optional
 	Autoscaling *ModelAutoscalingConfig `json:"autoscaling,omitempty"`
-
-	// +optional
-	Parallelism *Parallelism `json:"parallelism,omitempty"`
 
 	// MaxInputTokens is the prompt admission limit for requests routed to the default Pool.
 	// +optional
@@ -391,11 +275,9 @@ type ModelServiceSpec struct {
 	// +kubebuilder:validation:MaxItems=32
 	ModelPools []ModelPoolTemplate `json:"modelPools,omitempty"`
 
-	// ExtraArgs are inference-engine CLI flags shared by every compiled Pool.
+	// EngineArgs uses the selected backend's native option names without leading --.
 	// +optional
-	// +listType=atomic
-	// +kubebuilder:validation:MaxItems=256
-	ExtraArgs []BackendArg `json:"extraArgs,omitempty"`
+	EngineArgs EngineArguments `json:"engineArgs,omitempty"`
 }
 
 // AutoscalingStageStatus describes one named pipeline stage result.
@@ -433,10 +315,10 @@ type AutoscalingTargetStatus struct {
 	// +kubebuilder:validation:MinLength=1
 	ID string `json:"id"`
 
-	// +kubebuilder:validation:Enum=Pool;EPDPipelineScope
+	// +kubebuilder:validation:Enum=Pool
 	Kind string `json:"kind"`
 
-	// +kubebuilder:validation:Enum=Aggregate;Encoder;Prefill;Decode;EPD
+	// +kubebuilder:validation:Enum=Aggregate;Encoder;Prefill;Decode
 	Role string `json:"role"`
 
 	EvaluatedAt metav1.Time `json:"evaluatedAt"`
@@ -511,7 +393,7 @@ type ModelServiceStatus struct {
 	// +kubebuilder:validation:MaxItems=8
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
-	// Autoscaling contains the latest decision for each Pool or linked E/P/D processing unit.
+	// Autoscaling contains the latest decision for each ModelPool.
 	// +optional
 	// +listType=map
 	// +listMapKey=id

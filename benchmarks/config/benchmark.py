@@ -39,6 +39,7 @@ class ModelServiceSource:
 
     kustomize_path: str = ""
     url: str = ""
+    health_url: str = ""
     model: str = ""
     api_key: str = "EMPTY"
     timeout_seconds: int = 300
@@ -63,6 +64,7 @@ class HttpLoadSchedule:
     request_count: int = 100
     # -1 sends as fast as possible; positive values use a Poisson arrival rate.
     arrival_rate: float = -1.0
+    warmup_requests: int = 0
 
     def validate(self) -> None:
         """Reject load coordinates that would block or cannot express the requested schedule."""
@@ -80,6 +82,8 @@ class HttpLoadSchedule:
             raise ValueError(
                 f"--number must be >= 1, got {self.request_count}"
             )
+        if self.warmup_requests < 0:
+            raise ValueError("--warmup-requests must be >= 0")
 
 
 @dataclass
@@ -277,36 +281,45 @@ class ParameterSweepConfig:
 
 @dataclass
 class SlaTuneConfig:
-    """Store SLA concurrency-search settings."""
+    """Store SLA search criteria and concurrency bounds."""
 
     params: list[dict[str, str]] | None = None
     num_runs: int = 1
     upper_bound: int = 65536
     lower_bound: int = 1
-    number_multiplier: float | None = None
 
     def validate(self) -> None:
-        """Reject incomplete or inconsistent SLA search settings."""
+        """Validate SLA criteria and search bounds before starting a workload."""
         if self.params is None:
             return
-        if not self.params:
-            raise ValueError("--sla-params must contain at least one criterion group")
+        if not self.params or any(
+            not isinstance(group, dict) or not group for group in self.params
+        ):
+            raise ValueError(
+                "--sla-params must be a non-empty JSON array of non-empty objects"
+            )
+        if any(
+            not all(
+                isinstance(metric, str) and isinstance(criterion, str)
+                for metric, criterion in group.items()
+            )
+            for group in self.params
+        ):
+            raise ValueError("--sla-params metric names and criteria must be strings")
         if self.num_runs < 1:
             raise ValueError("--num-runs must be >= 1")
         if self.lower_bound < 1:
             raise ValueError("--sla-lower-bound must be >= 1")
         if self.upper_bound < self.lower_bound:
-            raise ValueError(
-                "--sla-upper-bound must be >= --sla-lower-bound"
-            )
-        if (
-            self.number_multiplier is not None
-            and (
-                not math.isfinite(self.number_multiplier)
-                or self.number_multiplier <= 0
-            )
-        ):
-            raise ValueError("--sla-number-multiplier must be > 0")
+            raise ValueError("--sla-upper-bound must be >= --sla-lower-bound")
+
+
+@dataclass
+class BenchmarkProfileConfig:
+    """Select one runtime-owned capture accompanying a generated workload."""
+
+    engine: str
+    duration: str
 
 
 @dataclass
@@ -324,6 +337,7 @@ class BenchmarkConfig:
     wandb: WandbRunConfig = field(default_factory=WandbRunConfig)
     sweep: ParameterSweepConfig = field(default_factory=ParameterSweepConfig)
     sla: SlaTuneConfig = field(default_factory=SlaTuneConfig)
+    profile: BenchmarkProfileConfig | None = None
 
     @property
     def resolved_workload(self) -> ChatRequestDataset:
@@ -339,12 +353,31 @@ class BenchmarkConfig:
 
     @property
     def is_multi_turn(self) -> bool:
-        """Return whether a dataset row owns a conversation lifecycle."""
-        return not self.trace.trace_selector
+        """Return whether the selected non-trace workload is conversation-driven."""
+        return (
+            not self.trace.trace_selector
+            and bool(self.workload.dataset_selectors)
+            and self.workload.dataset_selectors != ["random"]
+        )
 
     def validate(self) -> None:
         """Validate each section, then the rules that span sections, before acquiring resources."""
         self.service.validate()
+        if self.profile is not None:
+            if not self.service.kustomize_path:
+                raise ValueError("--profile requires a Foretoken Kustomize deployment")
+            if (
+                self.trace.trace_selector or self.sweep.path
+                or self.resolved_workload.has_multiple_datasets
+            ):
+                raise ValueError(
+                    "--profile supports one generated workload, not trace replay, "
+                    "sweeps or multiple datasets"
+                )
+            if self.load.arrival_rate != -1:
+                raise ValueError(
+                    "--profile requires --rate -1 so profiler startup does not distort request pacing"
+                )
         if self.sweep.path and not self.service.kustomize_path:
             raise ValueError("--sweep requires a Foretoken Kustomize deployment")
         self.load.validate()
@@ -360,19 +393,9 @@ class BenchmarkConfig:
         if self.sla.params:
             if self.sweep.path:
                 raise ValueError("--sla-params cannot be combined with --sweep")
-            if workload.has_multiple_datasets:
+            if self.load.arrival_rate != -1 and not self.trace.trace_selector:
                 raise ValueError(
-                    "--sla-params cannot be combined with multiple --dataset sources"
-                )
-            if self.load.max_concurrency == -1:
-                raise ValueError(
-                    "--sla-params requires a finite --parallel start value; "
-                    "got -1"
-                )
-            if self.load.arrival_rate != -1:
-                raise ValueError(
-                    "--sla-params searches closed-loop concurrency; omit --rate "
-                    "or set --rate -1"
+                    "--sla-params requires --rate -1 for generated workloads"
                 )
 
         trace = self.trace
@@ -396,6 +419,8 @@ class BenchmarkConfig:
                 "--sweep cannot be combined with multiple --dataset sources"
             )
         if has_trace:
+            if self.load.warmup_requests:
+                raise ValueError("--warmup-requests is not supported with --trace; warm up separately")
             if workload.max_turns not in (None, -1):
                 raise ValueError(
                     "--max-turns cannot be combined with --trace; trace replay "
@@ -407,8 +432,6 @@ class BenchmarkConfig:
 
             if self.sweep.path:
                 raise ValueError("--trace cannot be combined with --sweep")
-            if self.sla.params:
-                raise ValueError("--trace cannot be combined with --sla-params")
             if workload.fixed_prompt:
                 raise ValueError(
                     "--trace requires --dataset; fixed --prompt payloads are "
@@ -418,7 +441,7 @@ class BenchmarkConfig:
                 raise ValueError(
                     "--trace uses record timestamps; omit --rate"
                 )
-            if self.load != HttpLoadSchedule():
+            if self.load != HttpLoadSchedule() and not self.sla.params:
                 raise ValueError(
                     "--trace replays the selected trace window; use "
                     "--trace-max-concurrency instead of --parallel/--number"
@@ -443,6 +466,7 @@ class BenchmarkConfig:
         service = {
             "kustomize_path": self.service.kustomize_path,
             "url": self.service.url,
+            "health_url": self.service.health_url,
             "model": self.service.model,
             "timeout": self.service.timeout_seconds,
             "max_retries": self.service.max_retries,
@@ -453,6 +477,7 @@ class BenchmarkConfig:
             "parallel": self.load.max_concurrency,
             "number": self.load.request_count,
             "rate": self.load.arrival_rate,
+            "warmup_requests": self.load.warmup_requests,
         }
         workload = self.resolved_workload
         dataset = {
@@ -471,8 +496,7 @@ class BenchmarkConfig:
             "trace_max_concurrency": self.trace.max_concurrency,
             "trace_synthetic_prefix_reuse": self.trace.synthetic_prefix_reuse,
         }
-        if self.is_multi_turn:
-            dataset["multi_turn"] = True
+        if not self.trace.trace_selector:
             dataset["max_turns"] = workload.max_turns
         return {
             "service": service,
@@ -512,6 +536,9 @@ class BenchmarkConfig:
                 "num_runs": self.sla.num_runs,
                 "upper_bound": self.sla.upper_bound,
                 "lower_bound": self.sla.lower_bound,
-                "number_multiplier": self.sla.number_multiplier,
             },
+            "profile": (
+                {"engine": self.profile.engine, "duration": self.profile.duration}
+                if self.profile is not None else None
+            ),
         }

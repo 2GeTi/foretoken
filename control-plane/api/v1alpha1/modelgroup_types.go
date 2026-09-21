@@ -58,6 +58,14 @@ type ModelGroupArtifacts struct {
 	HuggingFaceAccess *HuggingFaceAccess `json:"huggingFaceAccess,omitempty"`
 }
 
+// RDMAAllocation identifies the platform device-plugin allocation used by runtime transports.
+type RDMAAllocation struct {
+	// +kubebuilder:validation:MinLength=1
+	ResourceName string `json:"resourceName"`
+	// +kubebuilder:validation:Minimum=1
+	ResourceCount int32 `json:"resourceCount"`
+}
+
 // ModelGroupPDRuntimeConfig defines the resolved P/D transport runtime.
 type ModelGroupPDRuntimeConfig struct {
 	// ProfileName and ProfileRevision are opaque platform-owned identifiers.
@@ -69,10 +77,14 @@ type ModelGroupPDRuntimeConfig struct {
 	// +kubebuilder:validation:MaxLength=256
 	ProfileRevision string `json:"profileRevision"`
 
+	// ServiceUID bounds transfer side channels to Pools owned by one ModelService.
+	// +kubebuilder:validation:MinLength=1
+	ServiceUID string `json:"serviceUID"`
+
 	// +kubebuilder:validation:Enum=MooncakeConnector
 	Connector string `json:"connector"`
 
-	// +kubebuilder:validation:Enum=rdma
+	// +kubebuilder:validation:Enum=rdma;tcp
 	Protocol string `json:"protocol"`
 
 	// +kubebuilder:validation:Minimum=1
@@ -82,17 +94,10 @@ type ModelGroupPDRuntimeConfig struct {
 	// +kubebuilder:validation:Minimum=1
 	AbortRequestTimeoutSeconds int32 `json:"abortRequestTimeoutSeconds"`
 
-	// RDMADeviceName selects the platform-verified HCA shared by both P/D roles.
-	// +kubebuilder:validation:MinLength=1
-	RDMADeviceName string `json:"rdmaDeviceName"`
-
-	// RDMAResourceName is the platform-owned Kubernetes extended resource
-	// whose device plugin injects the P/D transport devices.
-	// +kubebuilder:validation:MinLength=1
-	RDMAResourceName string `json:"rdmaResourceName"`
-
-	// +kubebuilder:validation:Minimum=1
-	RDMAResourceCount int32 `json:"rdmaResourceCount"`
+	// RDMADeviceName optionally limits Mooncake to a comma-separated HCA list.
+	// When omitted, Mooncake selects from the devices allocated to the Pod.
+	// +optional
+	RDMADeviceName string `json:"rdmaDeviceName,omitempty"`
 }
 
 // ECTransferRole is the fixed role assigned to a controller-owned EC runtime.
@@ -109,6 +114,13 @@ const (
 // The controller resolves every value from a platform profile; users cannot supply
 // connector options, module paths, or peer endpoints.
 type ModelGroupECRuntimeConfig struct {
+	// Generation selects the owning service configuration's encoder cache directory.
+	Generation int64 `json:"generation"`
+
+	// ServiceUID isolates encoder entries from other services sharing the volume.
+	// +kubebuilder:validation:MinLength=1
+	ServiceUID string `json:"serviceUID"`
+
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=256
 	ProfileName string `json:"profileName"`
@@ -186,11 +198,13 @@ type ModelGroupRuntime struct {
 	// +kubebuilder:validation:Maximum=65535
 	Port int32 `json:"port"`
 
-	// Args contains inference-engine flags not represented by the typed Group specification.
+	// EngineArgs contains resolved native options; worker topology is stored in Parallelism.
 	// +optional
-	// +listType=atomic
-	// +kubebuilder:validation:MaxItems=256
-	Args []BackendArg `json:"args,omitempty"`
+	EngineArgs EngineArguments `json:"engineArgs,omitempty"`
+
+	// Profiling fixes the instrumentation prepared at runtime startup.
+	// +optional
+	Profiling *ProfilingConfig `json:"profiling,omitempty"`
 
 	// InternalGenerateRequestBodyLimitBytes is the group-local generate request
 	// body limit resolved from the ModelService specification.
@@ -226,6 +240,10 @@ type ModelGroupSpec struct {
 	// +optional
 	PDRuntime *ModelGroupPDRuntimeConfig `json:"pdRuntime,omitempty"`
 
+	// RDMA is shared by engine collectives and transfer connectors.
+	// +optional
+	RDMA *RDMAAllocation `json:"rdma,omitempty"`
+
 	// ECRuntime is the controller-owned resolved encoder/prefill transfer configuration.
 	// +optional
 	ECRuntime *ModelGroupECRuntimeConfig `json:"ecRuntime,omitempty"`
@@ -237,14 +255,12 @@ type ModelGroupSpec struct {
 	Resources ModelResources `json:"resources"`
 	Timeouts  ModelTimeouts  `json:"timeouts"`
 
-	// NodeCount is the number of physical Kubernetes Nodes used by this Group.
+	// NodeCount is the number of distinct Kubernetes Nodes used by this Group.
 	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=1
 	NodeCount int32 `json:"nodeCount"`
 
 	// MemberCount is the number of runtime member Pods in this Group.
 	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=1
 	MemberCount int32 `json:"memberCount"`
 
 	Parallelism CompiledParallelism `json:"parallelism"`

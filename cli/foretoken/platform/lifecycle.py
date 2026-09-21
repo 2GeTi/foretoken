@@ -15,7 +15,7 @@ from foretoken.accelerators.config import (
     NVIDIA_GPU_RESOURCE,
 )
 from foretoken.accelerators.discovery import ExporterDiscovery
-from foretoken.accelerators.metax import MetaXMetricsDiscovery
+from foretoken.accelerators.metax import MetaXExporterLifecycle, MetaXMetricsDiscovery
 from foretoken.accelerators.nvidia import NvidiaMetricsDiscovery
 from foretoken.arguments import InstallCommand, UninstallCommand
 from foretoken.kubernetes import (
@@ -36,7 +36,13 @@ from foretoken.platform.config import (
 )
 from foretoken.platform.gateway import GatewayControllerLifecycle
 from foretoken.platform.helm import Helm
+from foretoken.platform.leader_worker import LeaderWorkerLifecycle
 from foretoken.platform.load_balancer import LoadBalancerLifecycle
+from foretoken.platform.rdma import (
+    migrate_stored_rdma_values,
+    require_unused_managed_rdma,
+    select_rdma,
+)
 from foretoken.platform.types import RuntimeOverrides
 from foretoken.source import (
     prepare_source_images,
@@ -55,6 +61,7 @@ class _RuntimeSelection:
 
     backend: str
     resource_name: str
+    nodes: tuple[dict[str, Any], ...]
 
 
 def _resource_capacity(node: dict[str, Any], resource_name: str) -> int:
@@ -87,27 +94,31 @@ def _select_runtime(
         resource_name = overrides.gpu_resource_name
         if not resource_name:
             return None
-        return _RuntimeSelection(
-            GPU_RESOURCE_BACKENDS.get(resource_name, "custom"), resource_name
+    else:
+        resources = tuple(
+            resource
+            for resource in GPU_RESOURCE_BACKENDS
+            if any(_resource_capacity(node, resource) > 0 for node in selected_nodes)
         )
-
-    resources = tuple(
-        resource
-        for resource in GPU_RESOURCE_BACKENDS
-        if any(_resource_capacity(node, resource) > 0 for node in selected_nodes)
+        if not resources:
+            return None
+        if len(resources) > 1:
+            raise DeploymentError(
+                "multiple accelerator resources are allocatable in the selected "
+                "cluster scope: "
+                + ", ".join(resources)
+                + "; set runtime.vllm.gpu.resourceName or runtime.vllm.gpu.nodeSelector "
+                "in --values"
+            )
+        resource_name = resources[0]
+    return _RuntimeSelection(
+        GPU_RESOURCE_BACKENDS.get(resource_name, "custom"),
+        resource_name,
+        tuple(
+            node for node in selected_nodes
+            if _resource_capacity(node, resource_name) > 0
+        ),
     )
-    if not resources:
-        return None
-    if len(resources) > 1:
-        raise DeploymentError(
-            "multiple accelerator resources are allocatable in the selected "
-            "cluster scope: "
-            + ", ".join(resources)
-            + "; set runtime.vllm.gpu.resourceName or runtime.vllm.gpu.nodeSelector "
-            "in --values"
-        )
-    resource_name = resources[0]
-    return _RuntimeSelection(GPU_RESOURCE_BACKENDS[resource_name], resource_name)
 
 
 class PlatformLifecycle:
@@ -118,7 +129,12 @@ class PlatformLifecycle:
         self._helm = Helm(config)
         self._oci_registry = config.image_registry
         self._kubectl = Kubectl()
+        self._metax_exporter = MetaXExporterLifecycle(
+            self._kubectl, config.management_label, config.metax_exporter_image,
+            config.image_registry,
+        )
         self._gateway = GatewayControllerLifecycle(self._helm, self._kubectl)
+        self._leader_worker = LeaderWorkerLifecycle(self._helm, self._kubectl)
         self._load_balancer = LoadBalancerLifecycle(self._helm, self._kubectl)
 
     def install(self, command: InstallCommand) -> None:
@@ -127,6 +143,7 @@ class PlatformLifecycle:
         kubectl = self._kubectl
         gateway = self._gateway
         load_balancer = self._load_balancer
+        metax_exporter = self._metax_exporter
         timeout_seconds(command.timeout)
 
         platform = helm.platform_release()
@@ -151,11 +168,11 @@ class PlatformLifecycle:
                 )
         values = load_platform_values(command.values)
         current_runtime = runtime_overrides_from_values(values)
-        stored_runtime = (
-            runtime_overrides_from_values((helm.release_user_values(platform),))
-            if platform_exists
-            else RuntimeOverrides()
+        stored_values = (
+            (migrate_stored_rdma_values(helm.release_user_values(platform)),)
+            if platform_exists else ()
         )
+        stored_runtime = runtime_overrides_from_values(stored_values)
         runtime_scope = RuntimeOverrides(
             gpu_resource_name=(
                 current_runtime.gpu_resource_name
@@ -207,6 +224,7 @@ class PlatformLifecycle:
         gateway_config, gateway_plan = gateway.resolve_install(
             command, platform, platform_exists
         )
+        leader_worker_plan = self._leader_worker.resolve_install()
 
         managed_dcgm = helm.dcgm_release()
         managed_dcgm_exists = helm.release_exists(managed_dcgm)
@@ -215,8 +233,25 @@ class PlatformLifecycle:
                 f"Helm release {managed_dcgm.display_name} is not managed by foretoken; "
                 "use its existing Helm lifecycle"
             )
-        exporter_discovery = ExporterDiscovery(kubectl)
+        exporter_discovery = ExporterDiscovery(kubectl, command.timeout)
         runtime_selection = _select_runtime(exporter_discovery.nodes, runtime_scope)
+        rdma = select_rdma(
+            kubectl,
+            runtime_selection.nodes if runtime_selection is not None else (),
+            exporter_discovery.daemonsets,
+            (*stored_values, *values),
+            (platform.name, platform.namespace),
+        )
+
+        if platform_exists and (
+            not rdma.managed
+            or runtime_scope.gpu_node_selector != stored_runtime.gpu_node_selector
+            or bool(
+                set(stored_values[0].get("rdma", {}).get("nodeNames", []))
+                - set(rdma.node_names)
+            )
+        ):
+            require_unused_managed_rdma(kubectl, (platform.name, platform.namespace))
 
         source_runtime_image: str | None = None
         configured_runtime_image = (
@@ -264,7 +299,15 @@ class PlatformLifecycle:
         nvidia_metrics = NvidiaMetricsDiscovery(exporter_discovery).resolve(
             managed_dcgm if managed_dcgm_exists else None
         )
-        metax_metrics = MetaXMetricsDiscovery(exporter_discovery).resolve()
+        managed_metax_exists = bool(metax_exporter.managed_resources())
+        metax_metrics = MetaXMetricsDiscovery(exporter_discovery).resolve(
+            metax_exporter.daemonset if managed_metax_exists else None
+        )
+        install_managed_metax = (
+            metax_metrics is not None and metax_metrics.exporter is None
+        )
+        if install_managed_metax:
+            metax_exporter.ensure_available()
 
         managed_prometheus = helm.prometheus_release()
         managed_prometheus_exists = helm.release_exists(managed_prometheus)
@@ -300,12 +343,18 @@ class PlatformLifecycle:
                     "DCGM",
                     nvidia_metrics.exporter if nvidia_metrics is not None else None,
                 ),
-                ("mxExporter", metax_metrics),
+                (
+                    "mxExporter",
+                    metax_metrics.exporter if metax_metrics is not None else None,
+                ),
             )
             if exporter is not None
         )
         if selected_prometheus is not None:
             exporter_discovery.require_prometheus_selection(
+                selected_prometheus, exporters
+            )
+            exporter_discovery.require_prometheus_targets(
                 selected_prometheus, exporters
             )
         if nvidia_metrics is None:
@@ -335,11 +384,14 @@ class PlatformLifecycle:
         if metax_metrics is None:
             metax_action = "Skip"
             metax_detail = f"no allocatable {' or '.join(METAX_GPU_RESOURCES)} resource"
+        elif install_managed_metax:
+            metax_action = "Upgrade" if managed_metax_exists else "Install"
+            metax_detail = f"{metax_exporter.namespace}/{metax_exporter.daemonset.name}"
         else:
             metax_action = "Reuse"
             metax_detail = (
-                f"{metax_metrics.daemonset.namespace}/"
-                f"{metax_metrics.daemonset.display_name}"
+                f"{metax_metrics.exporter.daemonset.namespace}/"
+                f"{metax_metrics.exporter.daemonset.display_name}"
             )
 
         observability_labels = (
@@ -348,6 +400,7 @@ class PlatformLifecycle:
         monitor_namespaces = {
             platform.namespace,
             *(exporter.service_monitor.namespace for _, exporter in exporters),
+            *({metax_exporter.namespace} if install_managed_metax else set()),
         }
 
         platform_action = "Upgrade" if platform_exists else "Install"
@@ -378,6 +431,8 @@ class PlatformLifecycle:
                 f"{runtime_selection.backend} via {runtime_selection.resource_name}"
             )
         _print_plan("Inference runtime", runtime_action, runtime_detail)
+        _print_plan("RDMA", rdma.action, rdma.detail)
+        _print_plan("LeaderWorkerSet", leader_worker_plan.action, leader_worker_plan.detail)
         _print_plan("Foretoken platform", platform_action, platform.display_name)
 
         source_images = (
@@ -394,6 +449,8 @@ class PlatformLifecycle:
         )
         load_balancer.apply(load_balancer_plan, command.timeout)
         gateway.apply_before_platform(gateway_plan, command.timeout)
+        self._leader_worker.apply(leader_worker_plan, command.timeout)
+        _print_plan("LeaderWorkerSet", "Ready", leader_worker_plan.detail)
         if install_managed_prometheus:
             helm.install_prometheus(
                 managed_prometheus,
@@ -411,6 +468,42 @@ class PlatformLifecycle:
                 managed_dcgm_exists,
                 command.timeout,
             )
+        if install_managed_metax:
+            metax_exporter.install(
+                metax_metrics.node_names, observability_labels, command.timeout
+            )
+
+        if install_managed_prometheus or install_managed_dcgm or install_managed_metax:
+            verified_discovery = ExporterDiscovery(kubectl, command.timeout)
+            verified_nvidia = NvidiaMetricsDiscovery(verified_discovery).resolve()
+            verified_metax = MetaXMetricsDiscovery(verified_discovery).resolve()
+            verified_exporters = tuple(
+                (name, exporter)
+                for name, exporter in (
+                    (
+                        "DCGM",
+                        verified_nvidia.exporter
+                        if verified_nvidia is not None
+                        else None,
+                    ),
+                    (
+                        "mxExporter",
+                        verified_metax.exporter
+                        if verified_metax is not None
+                        else None,
+                    ),
+                )
+                if exporter is not None
+            )
+            verified_discovery.require_prometheus_selection(
+                selected_prometheus, verified_exporters
+            )
+            verified_discovery.require_prometheus_targets(
+                selected_prometheus,
+                verified_exporters,
+                timeout_seconds=timeout_seconds(command.timeout),
+            )
+
         helm.install_platform(
             release=platform,
             source_images=source_images,
@@ -423,9 +516,30 @@ class PlatformLifecycle:
             observability_labels=observability_labels,
             observability_prometheus=f"{selected_prometheus.namespace}/{selected_prometheus.name}",
             gpu_resource_name=gpu_resource_name,
-            reuse_values=platform_exists,
+            rdma_resource_name=rdma.resource_name,
+            rdma_managed=rdma.managed,
+            rdma_node_names=rdma.node_names,
+            stored_values=stored_values[0] if platform_exists else None,
             timeout=command.timeout,
         )
+        if rdma.managed:
+            live_discovery = ExporterDiscovery(kubectl, command.timeout)
+            live_runtime = _select_runtime(live_discovery.nodes, runtime_scope)
+            allocation = select_rdma(
+                kubectl,
+                live_runtime.nodes if live_runtime is not None else (),
+                live_discovery.daemonsets,
+                (),
+                (platform.name, platform.namespace),
+            )
+            _print_plan(
+                "RDMA",
+                "Available" if allocation.available else "Not available",
+                allocation.detail if allocation.available else (
+                    "device plugin has no allocatable RDMA pool on the GPU nodes; "
+                    "check node drivers and network interfaces"
+                ),
+            )
         if source_images is not None:
             restart_changed_source_deployments(
                 kubectl,
@@ -463,6 +577,7 @@ class PlatformLifecycle:
         kubectl = self._kubectl
         gateway = self._gateway
         load_balancer = self._load_balancer
+        metax_exporter = self._metax_exporter
         timeout_seconds(command.timeout)
         platform = helm.platform_release()
         managed_dcgm = helm.dcgm_release()
@@ -481,6 +596,7 @@ class PlatformLifecycle:
         prometheus_managed = (
             prometheus_exists and helm.is_cleanup_managed(managed_prometheus)
         )
+        metax_managed = bool(metax_exporter.managed_resources())
         gateway_plan = gateway.resolve_uninstall(
             platform, platform_exists=platform_exists
         )
@@ -488,6 +604,7 @@ class PlatformLifecycle:
             platform_exists
             or dcgm_managed
             or prometheus_managed
+            or metax_managed
             or gateway_plan.managed
         ):
             resources = platform_service_resources(kubectl)
@@ -502,6 +619,7 @@ class PlatformLifecycle:
                 )
 
         if platform_exists:
+            require_unused_managed_rdma(kubectl, (platform.name, platform.namespace))
             _print_plan("Foretoken platform", "Remove", platform.display_name)
         else:
             _print_plan("Foretoken platform", "Skip", "not installed")
@@ -517,6 +635,14 @@ class PlatformLifecycle:
             _print_plan("Prometheus", "Preserve", managed_prometheus.display_name)
         else:
             _print_plan("Prometheus", "Skip", "no managed release")
+        if metax_managed:
+            _print_plan(
+                "MetaX mxExporter",
+                "Remove",
+                f"{metax_exporter.namespace}/{metax_exporter.daemonset.name}",
+            )
+        else:
+            _print_plan("MetaX mxExporter", "Preserve", "not CLI-managed")
         _print_plan(
             "Gateway Controller", gateway_plan.action, gateway_plan.detail
         )
@@ -532,11 +658,19 @@ class PlatformLifecycle:
                 kubectl, managed_prometheus.namespace
             )
             _print_plan("Prometheus", "Removed", managed_prometheus.display_name)
+        if metax_managed:
+            metax_exporter.uninstall(command.timeout)
+            _print_plan(
+                "MetaX mxExporter",
+                "Removed",
+                f"{metax_exporter.namespace}/{metax_exporter.daemonset.name}",
+            )
         gateway_result = gateway.finish_uninstall(
             gateway_plan, command.timeout
         )
         if gateway_result is not None:
             _print_plan("Gateway Controller", *gateway_result)
+        _print_plan("LeaderWorkerSet", *self._leader_worker.finish_uninstall(command.timeout))
         load_balancer_result = load_balancer.finish_uninstall(command.timeout)
         if load_balancer_result is not None:
             _print_plan("LoadBalancer", *load_balancer_result)

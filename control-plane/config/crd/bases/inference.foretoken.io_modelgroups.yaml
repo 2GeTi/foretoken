@@ -165,6 +165,11 @@ spec:
                     enum:
                     - ECExampleConnector
                     type: string
+                  generation:
+                    description: Generation selects the owning service configuration's
+                      encoder cache directory.
+                    format: int64
+                    type: integer
                   profileName:
                     maxLength: 256
                     minLength: 1
@@ -179,6 +184,11 @@ spec:
                     enum:
                     - producer
                     - consumer
+                    type: string
+                  serviceUID:
+                    description: ServiceUID isolates encoder entries from other services
+                      sharing the volume.
+                    minLength: 1
                     type: string
                   sharedStorageClaim:
                     description: |-
@@ -195,9 +205,11 @@ spec:
                     type: string
                 required:
                 - connector
+                - generation
                 - profileName
                 - profileRevision
                 - role
+                - serviceUID
                 - sharedStorageClaim
                 - sharedStoragePath
                 type: object
@@ -297,7 +309,6 @@ spec:
                 description: MemberCount is the number of runtime member Pods in this
                   Group.
                 format: int32
-                maximum: 1
                 minimum: 1
                 type: integer
               modelPoolRef:
@@ -320,10 +331,9 @@ spec:
                 pattern: ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$
                 type: string
               nodeCount:
-                description: NodeCount is the number of physical Kubernetes Nodes
+                description: NodeCount is the number of distinct Kubernetes Nodes
                   used by this Group.
                 format: int32
-                maximum: 1
                 minimum: 1
                 type: integer
               ordinal:
@@ -423,20 +433,16 @@ spec:
                   protocol:
                     enum:
                     - rdma
+                    - tcp
                     type: string
                   rdmaDeviceName:
-                    description: RDMADeviceName selects the platform-verified HCA
-                      shared by both P/D roles.
-                    minLength: 1
-                    type: string
-                  rdmaResourceCount:
-                    format: int32
-                    minimum: 1
-                    type: integer
-                  rdmaResourceName:
                     description: |-
-                      RDMAResourceName is the platform-owned Kubernetes extended resource
-                      whose device plugin injects the P/D transport devices.
+                      RDMADeviceName optionally limits Mooncake to a comma-separated HCA list.
+                      When omitted, Mooncake selects from the devices allocated to the Pod.
+                    type: string
+                  serviceUID:
+                    description: ServiceUID bounds transfer side channels to Pools
+                      owned by one ModelService.
                     minLength: 1
                     type: string
                 required:
@@ -446,9 +452,21 @@ spec:
                 - profileName
                 - profileRevision
                 - protocol
-                - rdmaDeviceName
-                - rdmaResourceCount
-                - rdmaResourceName
+                - serviceUID
+                type: object
+              rdma:
+                description: RDMA is shared by engine collectives and transfer connectors.
+                properties:
+                  resourceCount:
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  resourceName:
+                    minLength: 1
+                    type: string
+                required:
+                - resourceCount
+                - resourceName
                 type: object
               resources:
                 description: ModelResources defines resources for one runtime member
@@ -549,26 +567,16 @@ spec:
                 description: ModelGroupRuntime defines the resolved inference-engine
                   runtime.
                 properties:
-                  args:
-                    description: Args contains inference-engine flags not represented
-                      by the typed Group specification.
-                    items:
-                      description: |-
-                        BackendArg is one long-form CLI argument passed to the inference engine.
-                        The vLLM adapter accepts max-model-len, dtype, quantization, gpu-memory-utilization,
-                        max-num-seqs, max-num-batched-tokens, limit-mm-per-prompt, enforce-eager, and
-                        disable-log-stats. This schema rejects spaces, aliases, and positional arguments.
-                      maxLength: 4096
-                      minLength: 3
-                      pattern: ^--[a-z][a-z0-9-]*(=[^[:space:]]+)?$
-                      type: string
-                    maxItems: 256
-                    type: array
-                    x-kubernetes-list-type: atomic
                   backend:
                     enum:
                     - vllm
                     type: string
+                  engineArgs:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: EngineArgs contains resolved native options; worker
+                      topology is stored in Parallelism.
+                    type: object
                   image:
                     maxLength: 2048
                     minLength: 1
@@ -588,6 +596,19 @@ spec:
                     maximum: 65535
                     minimum: 1
                     type: integer
+                  profiling:
+                    description: Profiling fixes the instrumentation prepared at runtime
+                      startup.
+                    properties:
+                      engine:
+                        enum:
+                        - pytorch
+                        - nsight
+                        - mctracer
+                        type: string
+                    required:
+                    - engine
+                    type: object
                 required:
                 - backend
                 - image

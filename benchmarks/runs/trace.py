@@ -122,8 +122,9 @@ def _request_measurement(record: dict[str, Any]) -> RequestMeasurement:
         latency=float(record["latency"]),
         tpot=record["tpot"],
         itl_samples=tuple(record["inter_token_latencies"]),
-        input_tokens=int(record["input_tokens"]),
-        output_tokens=int(record["output_tokens"]),
+        input_tokens=record["input_tokens"],
+        output_tokens=record["output_tokens"],
+        cached_input_tokens=record["cached_input_tokens"],
         succeeded=bool(record["success"]),
         conversation_id=record["conversation_id"],
         turn=None,
@@ -139,9 +140,16 @@ class TraceReplayBenchmark:
         self,
         benchmark: BenchmarkConfig,
         service: ModelService,
+        *,
+        label: str = "",
+        output_dir: str | None = None,
+        wandb_group: str | None = None,
     ) -> None:
         self.benchmark = benchmark
         self.service = service
+        self.label = label
+        self.output_dir = output_dir
+        self.wandb_group = wandb_group
 
     async def _send_event(
         self,
@@ -275,6 +283,8 @@ class TraceReplayBenchmark:
             start_offset_seconds=trace.start_offset_seconds,
             duration_seconds=trace.duration_seconds,
         )
+        if self.benchmark.sla.params:
+            events = events[: self.benchmark.load.request_count]
         trace_format = reader.trace_format
         if trace_format is None:
             raise RuntimeError("Trace format was not detected")
@@ -320,7 +330,14 @@ class TraceReplayBenchmark:
                 "payload_source": request_origin,
             }
         )
-        with ResultOutputs(self.benchmark, self.service, record) as outputs:
+        with ResultOutputs(
+            self.benchmark,
+            self.service,
+            record,
+            label=self.label,
+            output_dir=self.output_dir,
+            wandb_group=self.wandb_group,
+        ) as outputs:
             async with ChatCompletionsLoadClient(
                 self.benchmark,
                 self.service,
@@ -340,7 +357,8 @@ class TraceReplayBenchmark:
                 arrival_rate=-1.0,
                 request_count=request_count,
                 reported_concurrency=reported_concurrency,
-                include_user_throughput=False,
+                gpu_count=self.service.gpu_count,
+                include_normalized_throughput=False,
             )
             self._attach_replay_metrics(metrics, records)
             # The raw replay records carry trace timing that RequestMeasurement

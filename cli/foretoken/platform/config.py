@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -39,9 +40,11 @@ class PlatformConfig:
     dcgm_exporter: ManagedChart
     envoy_gateway: ManagedChart
     metallb: ManagedChart
+    leader_worker: ManagedChart
     envoy_gateway_default_controller: str
     envoy_gateway_controller: str
     dcgm_metrics: str
+    metax_exporter_image: str | None
     image_registry: str | None
 
     @property
@@ -128,6 +131,11 @@ def default_platform_config(oci_registry: str | None = None) -> PlatformConfig:
             ),
             version="0.16.1",
         ),
+        leader_worker=ManagedChart(
+            release_name="foretoken-lws",
+            source=_chart_source(registry, "oci://registry.k8s.io/lws/charts/lws"),
+            version="0.10.0",
+        ),
         envoy_gateway_default_controller=(
             "gateway.envoyproxy.io/gatewayclass-controller"
         ),
@@ -143,6 +151,7 @@ DCGM_FI_DEV_POWER_USAGE, gauge, Power draw (in W).
 DCGM_FI_DEV_GPU_TEMP, gauge, GPU temperature (in C).
 DCGM_FI_DEV_XID_ERRORS, gauge, Last XID error code.
 """,
+        metax_exporter_image=os.environ.get("FORETOKEN_METAX_EXPORTER_IMAGE"),
         image_registry=registry,
     )
 

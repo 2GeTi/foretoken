@@ -2,7 +2,7 @@
 
 English | [简体中文](sla_zh.md) · [Common commands](../examples.md)
 
-After the [setup steps](../examples.md#setup), find the largest concurrency that still meets latency or throughput constraints. Search and `--sla-params` parsing reuse EvalScope; Foretoken publishes results. Only closed-loop `--parallel` is tuned (not arrival rate).
+After the [setup steps](../examples.md#setup), find the largest workload concurrency that still meets latency or throughput constraints. Foretoken owns the request budget, search, and result publication; generated single-turn execution reuses EvalScope's HTTP engine. The search preserves the selected workload schedule.
 
 ```bash
 foretoken bench examples/quickstart \
@@ -15,7 +15,7 @@ foretoken bench examples/quickstart \
   --output local,wandb
 ```
 
-`--parallel` is the search start value. Passing `--sla-params` enables the search. Each probe uses `number = round(parallel * multiplier)` (default multiplier 2), so a plain `--number` is not the per-probe budget during SLA search. `--num-runs` averages that many runs at each concurrency probe. Omit `--rate` or keep `--rate -1`.
+`--parallel` is the starting concurrency. `--number` is the fixed HTTP request budget for every probe; it does not grow with concurrency. `--num-runs` repeats each probe with the same request budget and averages its metrics. Conversation workloads count every turn request, while trace replay keeps the selected trace events and timestamps fixed.
 
 ## Constraints
 
@@ -62,8 +62,8 @@ Available metrics:
 - TPOT: `avg_tpot`, `p50_tpot`, `p90_tpot`, `p95_tpot`, `p99_tpot`
 - Throughput: `rps`, `tps`
 
-SLA auto-tune cannot be combined with `--trace`, `--sweep`, unlimited `--parallel -1`, a positive `--rate`, or multiple `--dataset` sources.
+SLA auto-tune supports generated workloads, conversation datasets, multiple datasets, and timestamp trace replay. Generated workloads search closed-loop `--parallel`; trace replay searches its in-flight concurrency cap while preserving arrival timestamps. It cannot be combined with `--sweep` or a positive `--rate`.
 
-Results include `sla_results.json` and `metrics.json` with an `sla` block.
+Results include `sla_results.json`. Each probe is stored below the SLA result directory, and W&B runs share one group with names that identify the criterion group, concurrency, and repeat.
 
 When finished, run `foretoken delete examples/quickstart` if you deployed the Quick Start service.

@@ -46,9 +46,9 @@ uv pip install foretoken
 foretoken install
 ```
 
-安装会根据集群的 GPU 资源自动选择 NVIDIA 或沐曦运行时，`--values` 中显式指定的运行时配置优先。混合 GPU 集群通过 `runtime.vllm.gpu.resourceName` 选择资源，或通过 `runtime.vllm.gpu.nodeSelector` 限定节点范围。
+安装会自动选择 NVIDIA 或沐曦运行时，并复用或安装 LeaderWorkerSet 控制器和 RDMA 设备插件。`--values` 中显式指定的运行时配置优先。混合 GPU 集群通过 `runtime.vllm.gpu.resourceName` 选择资源，或通过 `runtime.vllm.gpu.nodeSelector` 限定节点范围。
 
-安装同时会配置监控；集群里已有 Prometheus 和 GPU 指标 exporter 时直接复用。详见[可观测性](../observability/README_zh.md)。
+看板和告警的使用见[可观测性](../observability/README_zh.md)。
 
 ### 网关模式
 
@@ -88,7 +88,7 @@ foretoken install -e . --registry ghcr.io/example/foretoken
 
 ### 安装选项
 
-重复使用 `--values` 可提供平台镜像、runtime 和硬件配置。发布镜像和 CLI 管理的 Chart 镜像使用 `--oci-registry`。
+自定义平台镜像、runtime 或硬件设置时使用 `--values`。没有显式覆盖时，安装会为默认平台镜像和 OCI Chart 比较可用的公共来源。通过 `--oci-registry` 指定仓库，values 中明确填写的镜像地址保持不变。选源在运行 CLI 的机器上执行，所选仓库也需要能从集群节点访问。
 
 模型服务通过一个集群外可访问的 IP 提供服务。k3d、k3s 和云上集群会自动分配这个 IP；用 kubeadm、RKE2 或 kubespray 搭建的集群默认没有地址分配能力，安装结尾会提示 `LoadBalancer support Not verified`。此时向集群管理员确认一段节点网段内未被占用的 IP 交给 Foretoken，由它分配给服务：
 
@@ -96,10 +96,6 @@ foretoken install -e . --registry ghcr.io/example/foretoken
 loadBalancer:
   managedAddresses:
     - 192.168.1.240-192.168.1.250
-```
-
-```bash
-foretoken install --values platform-values.yaml
 ```
 
 ## 部署和管理模型服务
@@ -147,13 +143,7 @@ FORETOKEN_REQUEST_HOST="$(foretoken endpoint examples/multi-model-quickstart --h
 
 ## 采集诊断 Profile
 
-该实验性命令要求平台通过源码安装，并可对使用持久 RuntimeCache 的已有 ModelService 采集一次 PyTorch profile：
-
-```bash
-foretoken profile examples/quickstart --profile-engine pytorch --profile-duration 15s
-```
-
-命令不会生成流量。采集和查看结果见[性能剖析指南](../observability/profiling_zh.md)。
+在 `foretoken deploy` 或 `foretoken bench` 后加 `--profile` 采集性能数据，用 `foretoken profile view` 浏览结果。详见[性能剖析指南](../observability/profiling_zh.md)。
 
 ## 清理
 
@@ -164,4 +154,4 @@ foretoken delete examples/multi-model-quickstart
 foretoken uninstall
 ```
 
-卸载保留 Foretoken CRD 和复用的集群组件。如果其他服务仍依赖托管的 MetalLB，也会保留它。
+卸载保留 CRD 和复用的集群组件。仍有工作负载依赖托管的 LeaderWorkerSet 或 MetalLB 时，也会保留对应控制器。

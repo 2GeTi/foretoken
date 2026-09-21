@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	lwsv1 "sigs.k8s.io/lws/api/leaderworkerset/v1"
 
 	inferencev1alpha1 "github.com/shiweijiezero/foretoken/control-plane/api/v1alpha1"
 	"github.com/shiweijiezero/foretoken/control-plane/controllers"
@@ -48,8 +49,8 @@ func main() {
 	var frontendGatewayName string
 	var frontendGatewayNamespace string
 	var frontendGatewaySectionName string
-	var inferenceEngineProfileRevision string
 	var inferenceEngineImage string
+	var nsightImage string
 	var modelServerPort int
 	var gpuResourceName string
 	var runtimeClassName string
@@ -66,8 +67,8 @@ func main() {
 	var vllmPDBootstrapPort int
 	var vllmPDAbortRequestTimeoutSeconds int
 	var vllmPDRDMADeviceName string
-	var vllmPDRDMAResourceName string
-	var vllmPDRDMAResourceCount int
+	var rdmaResourceName string
+	var rdmaResourceCount int
 	var vllmMooncakeStoreProfileName string
 	var vllmMooncakeStoreProfileRevision string
 	var vllmMooncakeStoreConfigMapName string
@@ -113,8 +114,8 @@ func main() {
 	flag.StringVar(&modelSourceEndpoint, "model-source-endpoint", "", "Optional Hugging Face-compatible Hub endpoint.")
 	flag.StringVar(&modelSourceTokenSecretName, "model-source-token-secret-name", "", "Namespace-local Secret containing the Hugging Face credential.")
 	flag.StringVar(&modelSourceTokenSecretKey, "model-source-token-secret-key", "", "Key in the model source credential Secret.")
-	flag.StringVar(&inferenceEngineProfileRevision, "inference-engine-profile-revision", "default", "Opaque revision of the configured inference engine profile.")
 	flag.StringVar(&inferenceEngineImage, "inference-engine-image", "", "Inference engine image containing the Foretoken model-server adapter.")
+	flag.StringVar(&nsightImage, "nsight-image", "", "Optional NVIDIA model-server image prepared for Nsight Systems.")
 	flag.IntVar(&modelServerPort, "model-server-port", 9000, "Internal model-server HTTP port.")
 	flag.StringVar(&gpuResourceName, "gpu-resource-name", "nvidia.com/gpu", "Kubernetes extended resource used for accelerator devices.")
 	flag.StringVar(&runtimeClassName, "runtime-class-name", "", "Optional RuntimeClass for inference engine Pods.")
@@ -127,12 +128,12 @@ func main() {
 	flag.StringVar(&vllmECSharedStoragePath, "vllm-ec-shared-storage-path", "/var/lib/foretoken/ec", "In-container shared EC storage path.")
 	flag.StringVar(&vllmPDProfileName, "vllm-pd-profile-name", "", "Opaque platform-owned Mooncake P/D profile name; empty disables P/D.")
 	flag.StringVar(&vllmPDProfileRevision, "vllm-pd-profile-revision", "", "Opaque platform-owned Mooncake P/D profile revision.")
-	flag.StringVar(&vllmPDProtocol, "vllm-pd-protocol", "", "Mooncake P/D protocol; only rdma is supported.")
+	flag.StringVar(&vllmPDProtocol, "vllm-pd-protocol", "", "Mooncake P/D transport: rdma or tcp.")
 	flag.IntVar(&vllmPDBootstrapPort, "vllm-pd-bootstrap-port", 0, "Mooncake bootstrap port.")
 	flag.IntVar(&vllmPDAbortRequestTimeoutSeconds, "vllm-pd-abort-request-timeout-seconds", 0, "Mooncake abort request timeout in seconds.")
-	flag.StringVar(&vllmPDRDMADeviceName, "vllm-pd-rdma-device-name", "", "Platform-verified Mooncake RDMA HCA name.")
-	flag.StringVar(&vllmPDRDMAResourceName, "vllm-pd-rdma-resource-name", "", "Kubernetes extended resource that injects Mooncake RDMA devices.")
-	flag.IntVar(&vllmPDRDMAResourceCount, "vllm-pd-rdma-resource-count", 0, "Mooncake RDMA extended resources requested by each P/D Pod.")
+	flag.StringVar(&vllmPDRDMADeviceName, "vllm-pd-rdma-device-name", "", "Optional comma-separated HCA filter; empty lets Mooncake select allocated devices by topology.")
+	flag.StringVar(&rdmaResourceName, "rdma-resource-name", "", "Kubernetes extended resource that injects runtime RDMA devices.")
+	flag.IntVar(&rdmaResourceCount, "rdma-resource-count", 0, "RDMA device-plugin allocation units requested by each distributed runtime Pod.")
 	flag.StringVar(&vllmMooncakeStoreProfileName, "vllm-mooncake-store-profile-name", "", "Opaque platform-owned Mooncake Store profile name; empty disables external Store.")
 	flag.StringVar(&vllmMooncakeStoreProfileRevision, "vllm-mooncake-store-profile-revision", "", "Opaque platform-owned Mooncake Store profile revision.")
 	flag.StringVar(&vllmMooncakeStoreConfigMapName, "vllm-mooncake-store-config-map-name", "", "Mooncake Store ConfigMap name.")
@@ -174,6 +175,7 @@ func main() {
 		os.Exit(1)
 	}
 	if err := (runtimeconfig.Profiles{
+		RDMA: runtimeconfig.RDMAProfile{ResourceName: rdmaResourceName, ResourceCount: rdmaResourceCount},
 		EC: runtimeconfig.ECProfile{
 			Name: vllmECProfileName, Revision: vllmECProfileRevision,
 			Connector:          vllmECConnector,
@@ -187,8 +189,6 @@ func main() {
 			BootstrapPort:              vllmPDBootstrapPort,
 			AbortRequestTimeoutSeconds: vllmPDAbortRequestTimeoutSeconds,
 			RDMADeviceName:             vllmPDRDMADeviceName,
-			RDMAResourceName:           vllmPDRDMAResourceName,
-			RDMAResourceCount:          vllmPDRDMAResourceCount,
 		},
 		MooncakeStore: runtimeconfig.MooncakeStoreProfile{
 			Name:           vllmMooncakeStoreProfileName,
@@ -200,6 +200,10 @@ func main() {
 	}).Validate(); err != nil {
 		ctrl.Log.Error(err, "invalid vLLM runtime profile")
 		os.Exit(1)
+	}
+	var rdma *inferencev1alpha1.RDMAAllocation
+	if rdmaResourceName != "" {
+		rdma = &inferencev1alpha1.RDMAAllocation{ResourceName: rdmaResourceName, ResourceCount: int32(rdmaResourceCount)}
 	}
 	var mooncakePD *resolver.MooncakePDProfile
 	var ec *resolver.ECProfile
@@ -223,8 +227,6 @@ func main() {
 			BootstrapPort:              int32(vllmPDBootstrapPort),
 			AbortRequestTimeoutSeconds: int32(vllmPDAbortRequestTimeoutSeconds),
 			RDMADeviceName:             vllmPDRDMADeviceName,
-			RDMAResourceName:           vllmPDRDMAResourceName,
-			RDMAResourceCount:          int32(vllmPDRDMAResourceCount),
 		}
 	}
 
@@ -234,6 +236,7 @@ func main() {
 	utilruntime.Must(inferencev1alpha1.AddToScheme(scheme))
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 	utilruntime.Must(gatewayv1.Install(scheme))
+	utilruntime.Must(lwsv1.AddToScheme(scheme))
 
 	restConfig := ctrl.GetConfigOrDie()
 	if frontendEnabled && frontendMode == frontendModeGateway {
@@ -357,14 +360,15 @@ func main() {
 	if err := (&controllers.ModelPoolReconciler{
 		Client: manager.GetClient(),
 		TemplateResolver: resolver.StaticModelPoolResolver{RuntimeProfile: resolver.RuntimeProfile{
-			Revision:           inferenceEngineProfileRevision,
 			Image:              inferenceEngineImage,
+			NsightImage:        nsightImage,
 			ModelServerPort:    int32(modelServerPort),
 			DeviceResourceName: gpuResourceName,
 			RuntimeClassName:   runtimeClassName,
 			NodeSelectorKey:    gpuNodeSelectorKey,
 			NodeSelectorValue:  gpuNodeSelectorValue,
 			MooncakePD:         mooncakePD,
+			RDMA:               rdma,
 			EC:                 ec,
 			MooncakeStore:      mooncakeStore,
 		}},

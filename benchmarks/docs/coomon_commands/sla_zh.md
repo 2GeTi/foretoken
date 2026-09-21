@@ -2,7 +2,7 @@
 
 [English](sla.md) | 简体中文 · [常用命令](../examples_zh.md)
 
-完成[准备步骤](../examples_zh.md#准备)后，可在延迟或吞吐约束下搜索仍满足 SLA 的最大并发。搜索与 `--sla-params` 解析复用 EvalScope；Foretoken 负责结果发布。仅调闭式 `--parallel`，不调到达率。
+完成[准备步骤](../examples_zh.md#准备)后，可在延迟或吞吐约束下搜索仍满足 SLA 的最大工作负载并发。Foretoken 负责请求预算、搜索和结果发布；生成式单轮负载复用 EvalScope 的 HTTP 执行引擎。搜索过程保留所选工作负载的调度语义。
 
 ```bash
 foretoken bench examples/quickstart \
@@ -15,7 +15,7 @@ foretoken bench examples/quickstart \
   --output local,wandb
 ```
 
-`--parallel` 是搜索起点。传入 `--sla-params` 即启用搜索。每个探测点的请求数为 `number = round(parallel * 倍数)`（默认倍数 2），因此 SLA 搜索期间普通的 `--number` 不是探测预算。`--num-runs` 表示每个并发探测点平均的运行次数。请省略 `--rate` 或保持 `--rate -1`。
+`--parallel` 是并发起点。传入 `--sla-params` 即启用搜索。每个探测点都使用相同的 HTTP 请求预算 `--number`，请求数不会随并发增加。`--num-runs` 会用同一请求预算重复每个探测点并汇总指标。多轮数据集按所有轮次的 HTTP 请求计数；轨迹回放保持选中的轨迹事件和时间戳不变。
 
 ## 约束写法
 
@@ -66,8 +66,8 @@ foretoken bench examples/quickstart \
 - TPOT：`avg_tpot`、`p50_tpot`、`p90_tpot`、`p95_tpot`、`p99_tpot`
 - 吞吐：`rps`、`tps`
 
-SLA 不能与 `--trace`、`--sweep`、`--parallel -1`、正的 `--rate` 或多 `--dataset` 组合。
+SLA 支持生成式负载、多轮数据集、多数据集和时间戳轨迹回放。生成式负载搜索闭式 `--parallel`；轨迹回放搜索在途并发上限，同时保留原始到达时间。SLA 不能与 `--sweep` 或正的 `--rate` 组合。
 
-结果目录含 `sla_results.json`，以及带 `sla` 字段的 `metrics.json`。
+结果目录含 `sla_results.json`。每个探测点保存在独立目录中；W&B 探测 run 共享同一个 group，名称包含条件组、并发值和重复序号。
 
 使用完后，执行 `foretoken delete examples/quickstart` 删除服务。

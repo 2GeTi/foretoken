@@ -85,7 +85,6 @@ type HuggingFaceAccess struct {
 // NormalizedPoolTemplate is the normalized configuration produced from ModelService intent.
 // Platform runtime and accelerator resolution may further constrain it before Groups are created.
 // +kubebuilder:validation:XValidation:rule="self.memberCount == self.nodeCount",message="memberCount must equal nodeCount in v1alpha1"
-// +kubebuilder:validation:XValidation:rule="self.nodeCount * self.resources.requests.gpu.count == self.parallelism.pp * self.parallelism.tp * self.parallelism.pcp * self.parallelism.dp",message="accelerator capacity must equal the compiled worker rank count"
 type NormalizedPoolTemplate struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=1024
@@ -122,16 +121,12 @@ type NormalizedPoolTemplate struct {
 	Role ModelRole `json:"role"`
 
 	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=1
 	NodeCount int32 `json:"nodeCount"`
 
 	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=1
 	MemberCount int32 `json:"memberCount"`
 
 	Resources ModelResources `json:"resources"`
-
-	Parallelism CompiledParallelism `json:"parallelism"`
 
 	// MaxInputTokens is the immutable prompt admission limit for this Pool.
 	// +optional
@@ -163,11 +158,17 @@ type NormalizedPoolTemplate struct {
 	// +optional
 	ECProfile string `json:"ecProfile,omitempty"`
 
-	// ExtraArgs are inference-engine flags that the concrete adapter must validate before Group creation.
+	// EncoderCacheGeneration isolates encoder outputs across service configuration updates.
 	// +optional
-	// +listType=atomic
-	// +kubebuilder:validation:MaxItems=256
-	ExtraArgs []BackendArg `json:"extraArgs,omitempty"`
+	EncoderCacheGeneration int64 `json:"encoderCacheGeneration,omitempty"`
+
+	// EngineArgs contains the native backend options selected for this Pool.
+	// +optional
+	EngineArgs EngineArguments `json:"engineArgs,omitempty"`
+
+	// Profiling is the service-selected instrumentation for this Pool's processes.
+	// +optional
+	Profiling *ProfilingConfig `json:"profiling,omitempty"`
 }
 
 // ModelPoolSpec is the controller-owned desired state compiled from ModelService.

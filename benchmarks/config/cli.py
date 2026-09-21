@@ -11,10 +11,13 @@ from collections.abc import Sequence
 from dataclasses import MISSING, fields
 from typing import Any
 
+from foretoken.arguments import add_profile_arguments, validate_profile_arguments
+
 from benchmarks.config.benchmark import (
     ArrivalTraceSchedule,
     BenchmarkConfig,
     BenchmarkOutputConfig,
+    BenchmarkProfileConfig,
     ChatCompletionsGeneration,
     ChatRequestDataset,
     HttpLoadSchedule,
@@ -50,18 +53,134 @@ def _dataset_selectors(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
-def _add_benchmark_arguments(parser: argparse.ArgumentParser) -> None:
-    # Service source
+def _add_benchmark_arguments(
+    parser: argparse.ArgumentParser, *, video: bool = False
+) -> None:
+    """Register the shared benchmark surface and mode-specific options once."""
+    # Every HTTP benchmark consumes these service, load, dataset, and output options.
+    parser.add_argument(
+        "--url",
+        required=video,
+        default=None if video else _default(ModelServiceSource, "url"),
+        help="Model service request endpoint URL",
+    )
+    parser.add_argument(
+        "--health-url",
+        default=_default(ModelServiceSource, "health_url"),
+        help=(
+            "Health endpoint; derived from --url when omitted"
+            if video
+            else "Optional service health endpoint checked before the benchmark"
+        ),
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float if video else int,
+        default=_default(ModelServiceSource, "timeout_seconds"),
+        help="Request timeout seconds",
+    )
+    parser.add_argument(
+        "--parallel",
+        type=int,
+        default=_default(HttpLoadSchedule, "max_concurrency"),
+        help=(
+            "Maximum concurrent video requests"
+            if video
+            else "Maximum concurrent requests; -1 means no concurrency limit"
+        ),
+    )
+    parser.add_argument(
+        "--number",
+        type=int,
+        default=_default(HttpLoadSchedule, "request_count"),
+        help=(
+            "Number of video requests; zero uses all selected rows"
+            if video
+            else "HTTP request budget per run; shared across multiple datasets"
+        ),
+    )
+    parser.add_argument(
+        "--dataset",
+        type=None if video else _dataset_selectors,
+        required=video,
+        default=None if video else _default(ChatRequestDataset, "dataset_selectors"),
+        help=(
+            "Native video JSONL path or an auto-downloaded selector such as "
+            "VideoArgusBench/TI2V (FORETOKEN_DATA_ROOT owns local data and "
+            "the download cache when set)"
+            if video
+            else "Comma-separated dataset selectors: random, JSONL path, Hugging Face "
+            "org/name[:split], or hf://datasets/...; --number is shared"
+        ),
+    )
+    parser.add_argument(
+        "--dataset-offset",
+        type=int,
+        default=_default(ChatRequestDataset, "row_offset"),
+        help=(
+            "Number of dataset rows to skip"
+            if video
+            else "Skip first N samples (JSONL/HF) or token-sequence offset (random)"
+        ),
+    )
+    parser.add_argument(
+        "--output",
+        type=_output_destinations,
+        default=_default(BenchmarkOutputConfig, "destinations"),
+        help="Comma-separated outputs: local, wandb, and quiet",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default=_default(BenchmarkOutputConfig, "output_dir"),
+        help="Directory for benchmark results and artifacts",
+    )
+    parser.add_argument(
+        "--wandb-project",
+        default=_default(WandbRunConfig, "project"),
+        help="W&B project",
+    )
+    parser.add_argument(
+        "--wandb-entity",
+        default=_default(WandbRunConfig, "entity"),
+        help="W&B entity",
+    )
+    parser.add_argument(
+        "--wandb-run-name",
+        default=_default(WandbRunConfig, "run_name"),
+        help=(
+            "W&B run name"
+            if video
+            else "W&B run-name prefix; child runs append their label. "
+            "Default: {model}_{YYYYMMDD_HHMMSS}"
+        ),
+    )
+    parser.add_argument(
+        "--wandb-group",
+        default=_default(WandbRunConfig, "group"),
+        help=(
+            "W&B run group"
+            if video
+            else (
+                "Group related runs; automatically assigned for sweeps "
+                "and multiple datasets"
+            )
+        ),
+    )
+    if video:
+        parser.set_defaults(
+            timeout=3600.0,
+            number=0,
+            output=("local",),
+            output_dir="results/video",
+        )
+        return
+
+    # Chat Completions service and orchestration options.
     parser.add_argument(
         "kustomize_path",
         nargs="?",
         metavar="PATH",
         help="Kustomize directory to deploy or reuse",
-    )
-    parser.add_argument(
-        "--url",
-        default=_default(ModelServiceSource, "url"),
-        help="Model service URL, including /v1/chat/completions",
     )
     parser.add_argument(
         "--model",
@@ -74,12 +193,6 @@ def _add_benchmark_arguments(parser: argparse.ArgumentParser) -> None:
         help="API key",
     )
     parser.add_argument(
-        "--timeout",
-        type=int,
-        default=_default(ModelServiceSource, "timeout_seconds"),
-        help="Request timeout seconds",
-    )
-    parser.add_argument(
         "--max-retries",
         type=int,
         default=_default(ModelServiceSource, "max_retries"),
@@ -88,26 +201,17 @@ def _add_benchmark_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--wait-timeout",
         default=_default(ModelServiceSource, "wait_timeout"),
-        help="Timeout for each deployment readiness stage",
+        help="Timeout for each deployment readiness or profile startup/completion stage",
     )
 
-    # HTTP workload
+    add_profile_arguments(parser)
+
+    # Chat Completions workload scheduling.
     parser.add_argument(
-        "--parallel",
+        "--warmup-requests",
         type=int,
-        default=_default(HttpLoadSchedule, "max_concurrency"),
-        help=(
-            "Maximum concurrent conversations; a fixed or random prompt is one "
-            "turn; -1 means no concurrency limit"
-        ),
-    )
-    parser.add_argument(
-        "--number",
-        type=int,
-        default=_default(HttpLoadSchedule, "request_count"),
-        help=(
-            "Conversations per run; total across multiple datasets"
-        ),
+        default=_default(HttpLoadSchedule, "warmup_requests"),
+        help="Conversations to finish before each generated run; excluded from measured results",
     )
     parser.add_argument(
         "--rate",
@@ -201,15 +305,6 @@ def _add_benchmark_arguments(parser: argparse.ArgumentParser) -> None:
 
     # Independent request content and arrival traces
     parser.add_argument(
-        "--dataset",
-        type=_dataset_selectors,
-        default=_default(ChatRequestDataset, "dataset_selectors"),
-        help=(
-            "Comma-separated dataset selectors: random, JSONL path, Hugging Face "
-            "org/name[:split], or hf://datasets/...; --number is shared"
-        ),
-    )
-    parser.add_argument(
         "--max-turns",
         type=int,
         default=_default(ChatRequestDataset, "max_turns"),
@@ -258,12 +353,6 @@ def _add_benchmark_arguments(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument(
-        "--dataset-offset",
-        type=int,
-        default=_default(ChatRequestDataset, "row_offset"),
-        help="Skip first N samples (JSONL/HF) or token-sequence offset (random)",
-    )
-    parser.add_argument(
         "--tokenizer-path",
         default=_default(ChatRequestDataset, "tokenizer"),
         help="Tokenizer path (required for --dataset random)",
@@ -304,45 +393,7 @@ def _add_benchmark_arguments(parser: argparse.ArgumentParser) -> None:
         help="Fixed prompt text; overrides dataset",
     )
 
-    # Benchmark results
-    parser.add_argument(
-        "--output",
-        type=_output_destinations,
-        default=_default(BenchmarkOutputConfig, "destinations"),
-        help="Comma-separated outputs: local, wandb, and quiet",
-    )
-    parser.add_argument(
-        "--output-dir",
-        default=_default(BenchmarkOutputConfig, "output_dir"),
-        help="Directory for JSON and W&B artifacts",
-    )
-
-    # W&B destinations
-    parser.add_argument(
-        "--wandb-project",
-        default=_default(WandbRunConfig, "project"),
-        help="W&B project",
-    )
-    parser.add_argument(
-        "--wandb-entity",
-        default=_default(WandbRunConfig, "entity"),
-        help="W&B entity",
-    )
-    parser.add_argument(
-        "--wandb-group",
-        default=_default(WandbRunConfig, "group"),
-        help="Group related runs; automatically assigned for sweeps and multiple datasets",
-    )
-    parser.add_argument(
-        "--wandb-run-name",
-        default=_default(WandbRunConfig, "run_name"),
-        help=(
-            "W&B run-name prefix; child runs append their label. "
-            "Default: {model}_{YYYYMMDD_HHMMSS}"
-        ),
-    )
-
-    # Parameter sweep
+    # Chat Completions-only parameter sweeps.
     parser.add_argument(
         "--sweep",
         metavar="PATH",
@@ -355,10 +406,7 @@ def _add_benchmark_arguments(parser: argparse.ArgumentParser) -> None:
         "--num-runs",
         type=int,
         default=_default(ParameterSweepConfig, "num_runs"),
-        help=(
-            "Runs per sweep parameter combination, or averaged runs at each "
-            "SLA concurrency probe"
-        ),
+        help="Runs per sweep combination or repeated SLA probe",
     )
     parser.add_argument(
         "--experiment-name",
@@ -371,30 +419,21 @@ def _add_benchmark_arguments(parser: argparse.ArgumentParser) -> None:
         type=json.loads,
         default=_default(SlaTuneConfig, "params"),
         help=(
-            "JSON SLA constraints that enable concurrency search; "
-            "list of groups, AND within a group, independent search per group"
+            "JSON SLA constraints that enable search; metrics in one object are ANDed, "
+            "objects are searched independently"
         ),
     )
     parser.add_argument(
         "--sla-upper-bound",
         type=int,
         default=_default(SlaTuneConfig, "upper_bound"),
-        help="Upper bound of the concurrency search range",
+        help="Upper bound of the SLA search variable",
     )
     parser.add_argument(
         "--sla-lower-bound",
         type=int,
         default=_default(SlaTuneConfig, "lower_bound"),
-        help="Lower bound of the concurrency search range",
-    )
-    parser.add_argument(
-        "--sla-number-multiplier",
-        type=float,
-        default=_default(SlaTuneConfig, "number_multiplier"),
-        help=(
-            "Request count multiplier for each probe: "
-            "number = round(parallel * multiplier); default 2"
-        ),
+        help="Lower bound of the SLA search variable",
     )
 
 
@@ -403,6 +442,7 @@ def _benchmark_config(namespace: argparse.Namespace) -> BenchmarkConfig:
         service=ModelServiceSource(
             kustomize_path=namespace.kustomize_path or "",
             url=namespace.url,
+            health_url=namespace.health_url,
             model=namespace.model,
             api_key=namespace.api_key,
             timeout_seconds=namespace.timeout,
@@ -413,6 +453,7 @@ def _benchmark_config(namespace: argparse.Namespace) -> BenchmarkConfig:
             max_concurrency=namespace.parallel,
             request_count=namespace.number,
             arrival_rate=namespace.rate,
+            warmup_requests=namespace.warmup_requests,
         ),
         generation=ChatCompletionsGeneration(
             max_tokens=namespace.max_tokens,
@@ -467,7 +508,10 @@ def _benchmark_config(namespace: argparse.Namespace) -> BenchmarkConfig:
             num_runs=namespace.num_runs,
             upper_bound=namespace.sla_upper_bound,
             lower_bound=namespace.sla_lower_bound,
-            number_multiplier=namespace.sla_number_multiplier,
+        ),
+        profile=(
+            BenchmarkProfileConfig(namespace.profile_engine, namespace.profile_duration)
+            if namespace.profile else None
         ),
     )
 
@@ -487,4 +531,5 @@ def parse_benchmark_arguments(
     _add_benchmark_arguments(parser)
 
     parsed_args = parser.parse_args(argv)
+    validate_profile_arguments(parser, parsed_args)
     return _benchmark_config(parsed_args)

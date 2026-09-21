@@ -14,7 +14,7 @@ export MODEL_SERVICE_URL="${MODEL_SERVICE_BASE_URL%/}/v1/chat/completions"
 export MODEL_ID=Qwen/Qwen3-0.6B
 ```
 
-Use the actual Chat Completions URL and model ID for other services. In Gateway mode, use the Kustomize path so Foretoken supplies routing headers. Parameter sweeps require the Kustomize form.
+Use the actual Chat Completions URL and model ID for other services. In Gateway mode, pass the deployment configuration directory so Foretoken supplies routing headers. Parameter sweeps also require that directory and do not support `--url`.
 
 ## Commands
 
@@ -30,7 +30,7 @@ Use the actual Chat Completions URL and model ID for other services. In Gateway 
 - [StudyChat replay](coomon_commands/studychat.md)
 - [Mooncake trace replay](coomon_commands/mooncake-trace.md)
 - [Parameter sweeps](coomon_commands/sweep.md)
-- [SLA auto-tune](coomon_commands/sla.md)
+- [Video generation](coomon_commands/video.md)
 - [W&B output](coomon_commands/wandb.md)
 
 Metric definitions are in [Result metrics](../metrics.md). All options are listed by `foretoken bench --help`.

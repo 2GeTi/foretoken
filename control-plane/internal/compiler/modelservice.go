@@ -52,10 +52,6 @@ func CompileModelService(spec inferencev1alpha1.ModelServiceSpec) ([]ModelPool, 
 	if err != nil {
 		return nil, err
 	}
-	if err := validateAutoscalingConfig(spec.Autoscaling); err != nil {
-		return nil, err
-	}
-
 	internalGenerateRequestBodyLimitBytes := valueOrDefaultInt64(spec.InternalGenerateRequestBodyLimitBytes, inferencev1alpha1.DefaultInternalGenerateRequestBodyLimitBytes)
 	if internalGenerateRequestBodyLimitBytes < inferencev1alpha1.MinInternalGenerateRequestBodyLimitBytes || internalGenerateRequestBodyLimitBytes > inferencev1alpha1.MaxInternalGenerateRequestBodyLimitBytes {
 		return nil, fmt.Errorf("internalGenerateRequestBodyLimitBytes must be between %d and %d", inferencev1alpha1.MinInternalGenerateRequestBodyLimitBytes, inferencev1alpha1.MaxInternalGenerateRequestBodyLimitBytes)
@@ -63,7 +59,7 @@ func CompileModelService(spec inferencev1alpha1.ModelServiceSpec) ([]ModelPool, 
 	if len(spec.ModelPools) == 0 {
 		replicas := valueOrDefault(spec.Replicas, 1)
 		nodes := valueOrDefault(spec.Nodes, 1)
-		pool, err := compilePool(spec, source, artifactRevision, defaultPoolName, inferencev1alpha1.ModelRoleAggregate, replicas, nodes, "", "", *spec.Resources, *spec.Parallelism, spec.MaxInputTokens, internalGenerateRequestBodyLimitBytes, spec.KVCache, spec.Features, timeouts)
+		pool, err := compilePool(spec, source, artifactRevision, defaultPoolName, inferencev1alpha1.ModelRoleAggregate, replicas, nodes, "", "", *spec.Resources, spec.EngineArgs, spec.MaxInputTokens, internalGenerateRequestBodyLimitBytes, spec.KVCache, spec.Features, timeouts)
 		if err != nil {
 			return nil, err
 		}
@@ -87,7 +83,11 @@ func CompileModelService(spec inferencev1alpha1.ModelServiceSpec) ([]ModelPool, 
 		}
 		replicas := valueOrDefault(entry.Replicas, 1)
 		nodes := valueOrDefault(entry.Nodes, 1)
-		pool, err := compilePool(spec, source, artifactRevision, entry.Name, role, replicas, nodes, entry.Network, ecProfileForRole(spec.ECProfile, role), entry.Resources, entry.Parallelism, entry.MaxInputTokens, internalGenerateRequestBodyLimitBytes, entry.KVCache, entry.Features, timeouts)
+		engineArgs := spec.EngineArgs
+		if entry.EngineArgs != nil {
+			engineArgs = *entry.EngineArgs
+		}
+		pool, err := compilePool(spec, source, artifactRevision, entry.Name, role, replicas, nodes, entry.Network, ecProfileForRole(spec.ECProfile, role), entry.Resources, engineArgs, entry.MaxInputTokens, internalGenerateRequestBodyLimitBytes, entry.KVCache, entry.Features, timeouts)
 		if err != nil {
 			return nil, fmt.Errorf("modelPools %q: %w", entry.Name, err)
 		}
@@ -99,18 +99,16 @@ func CompileModelService(spec inferencev1alpha1.ModelServiceSpec) ([]ModelPool, 
 }
 
 // Validate service-wide topology across Pools: aggregate and split roles are exclusive,
-// P/D must be paired, and E/P/D requires one equally sized Pool for every stage.
+// and split topologies contain the stages required by their role.
 func validateModelPoolRoles(pools []inferencev1alpha1.ModelPoolTemplate) error {
 	var aggregate bool
 	roleCounts := make(map[inferencev1alpha1.ModelRole]int, 3)
-	roleReplicas := make(map[inferencev1alpha1.ModelRole]int32, 3)
 	for _, pool := range pools {
 		switch pool.Role {
 		case "", inferencev1alpha1.ModelRoleAggregate:
 			aggregate = true
 		case inferencev1alpha1.ModelRoleEncoder, inferencev1alpha1.ModelRolePrefill, inferencev1alpha1.ModelRoleDecode:
 			roleCounts[pool.Role]++
-			roleReplicas[pool.Role] += valueOrDefault(pool.Replicas, 1)
 		}
 	}
 	hasEncoder := roleCounts[inferencev1alpha1.ModelRoleEncoder] > 0
@@ -123,15 +121,6 @@ func validateModelPoolRoles(pools []inferencev1alpha1.ModelPoolTemplate) error {
 		if !hasPrefill || !hasDecode {
 			return fmt.Errorf("E/P/D modelPools must contain encoder, prefill, and decode roles")
 		}
-		for _, role := range []inferencev1alpha1.ModelRole{inferencev1alpha1.ModelRoleEncoder, inferencev1alpha1.ModelRolePrefill, inferencev1alpha1.ModelRoleDecode} {
-			if roleCounts[role] != 1 {
-				return fmt.Errorf("E/P/D modelPools must contain exactly one %s Pool", role)
-			}
-		}
-		encoderReplicas := roleReplicas[inferencev1alpha1.ModelRoleEncoder]
-		if encoderReplicas != roleReplicas[inferencev1alpha1.ModelRolePrefill] || encoderReplicas != roleReplicas[inferencev1alpha1.ModelRoleDecode] {
-			return fmt.Errorf("E/P/D modelPools must have equal encoder, prefill, and decode replica counts")
-		}
 		return nil
 	}
 	if hasPrefill != hasDecode {
@@ -140,28 +129,19 @@ func validateModelPoolRoles(pools []inferencev1alpha1.ModelPoolTemplate) error {
 	return nil
 }
 
-func compilePool(spec inferencev1alpha1.ModelServiceSpec, source inferencev1alpha1.ModelSource, artifactRevision, name string, role inferencev1alpha1.ModelRole, replicas, nodes int32, network, ecProfile string, resources inferencev1alpha1.ModelResources, parallelism inferencev1alpha1.Parallelism, maxInputTokens *int32, internalGenerateRequestBodyLimitBytes int64, kvCache *inferencev1alpha1.KVCache, features *inferencev1alpha1.ModelFeatures, timeouts inferencev1alpha1.ModelTimeouts) (ModelPool, error) {
-	if nodes != 1 {
-		return ModelPool{}, fmt.Errorf("only single-node model groups are currently supported")
+func compilePool(spec inferencev1alpha1.ModelServiceSpec, source inferencev1alpha1.ModelSource, artifactRevision, name string, role inferencev1alpha1.ModelRole, replicas, nodes int32, network, ecProfile string, resources inferencev1alpha1.ModelResources, engineArgs inferencev1alpha1.EngineArguments, maxInputTokens *int32, internalGenerateRequestBodyLimitBytes int64, kvCache *inferencev1alpha1.KVCache, features *inferencev1alpha1.ModelFeatures, timeouts inferencev1alpha1.ModelTimeouts) (ModelPool, error) {
+	if nodes < 1 {
+		return ModelPool{}, fmt.Errorf("nodes must be positive")
 	}
 	normalizedResources, err := normalizeResources(resources)
 	if err != nil {
 		return ModelPool{}, err
-	}
-	compiledParallelism := compileParallelism(parallelism)
-	if role != inferencev1alpha1.ModelRoleAggregate && (compiledParallelism.TP != 1 || compiledParallelism.PP != 1 || compiledParallelism.DP != 1 || compiledParallelism.PCP != 1 || compiledParallelism.DCP != 1 || compiledParallelism.EP != nil) {
-		return ModelPool{}, fmt.Errorf("split serving currently requires TP=PP=DP=PCP=DCP=1 without expert parallelism")
 	}
 	normalizedKVCache, err := normalizeKVCache(kvCache)
 	if err != nil {
 		return ModelPool{}, err
 	}
 
-	capacity := int64(nodes) * int64(normalizedResources.Requests.GPU.Count)
-	ranks := int64(compiledParallelism.PP) * int64(compiledParallelism.TP) * int64(compiledParallelism.PCP) * int64(compiledParallelism.DP)
-	if capacity != ranks {
-		return ModelPool{}, fmt.Errorf("nodes * resources.requests.gpu.count must equal the compiled worker rank count")
-	}
 	normalizedFeatures, err := normalizeModelFeatures(features)
 	if err != nil {
 		return ModelPool{}, err
@@ -169,6 +149,10 @@ func compilePool(spec inferencev1alpha1.ModelServiceSpec, source inferencev1alph
 	tokenizer := spec.Tokenizer
 	if tokenizer == "" {
 		tokenizer = spec.Model
+	}
+	// Match the API's omitted representation after resolving an explicit empty Pool override.
+	if len(engineArgs) == 0 {
+		engineArgs = nil
 	}
 	return ModelPool{
 		Name:          name,
@@ -184,7 +168,6 @@ func compilePool(spec inferencev1alpha1.ModelServiceSpec, source inferencev1alph
 			NodeCount:                             nodes,
 			MemberCount:                           nodes,
 			Resources:                             normalizedResources,
-			Parallelism:                           compiledParallelism,
 			MaxInputTokens:                        copyInt32(maxInputTokens),
 			InternalGenerateRequestBodyLimitBytes: internalGenerateRequestBodyLimitBytes,
 			Network:                               network,
@@ -192,36 +175,21 @@ func compilePool(spec inferencev1alpha1.ModelServiceSpec, source inferencev1alph
 			Timeouts:                              timeouts,
 			KVCache:                               normalizedKVCache,
 			Features:                              normalizedFeatures,
-			ExtraArgs:                             append([]inferencev1alpha1.BackendArg(nil), spec.ExtraArgs...),
+			EngineArgs:                            engineArgs.DeepCopy(),
+			Profiling:                             normalizeProfiling(spec.Profiling),
 		},
 	}, nil
 }
 
-// The remaining compiler helpers normalize user shorthand into stable Pool template fields.
-// Runtime-incompatible resources, storage, timeouts, and features fail before reconciliation.
-func compileParallelism(input inferencev1alpha1.Parallelism) inferencev1alpha1.CompiledParallelism {
-	tp := defaultOne(input.TP)
-	pcp := defaultOne(input.PCP)
-	dp := int32(1)
-	var ep *inferencev1alpha1.ExpertParallelism
-	if input.EP != nil {
-		dp = int32(int64(input.EP.Size) / (int64(tp) * int64(pcp)))
-		copied := *input.EP
-		ep = &copied
-	} else if input.DP != nil {
-		dp = *input.DP
+func normalizeProfiling(input *inferencev1alpha1.ProfilingConfig) *inferencev1alpha1.ProfilingConfig {
+	if input == nil || input.Engine == "pytorch" {
+		return nil
 	}
-
-	return inferencev1alpha1.CompiledParallelism{
-		TP:  tp,
-		PP:  defaultOne(input.PP),
-		DP:  dp,
-		PCP: pcp,
-		DCP: defaultOne(input.DCP),
-		EP:  ep,
-	}
+	return input.DeepCopy()
 }
 
+// The remaining compiler helpers normalize user shorthand into stable Pool template fields.
+// Runtime-incompatible resources, storage, timeouts, and features fail before reconciliation.
 func normalizeResources(input inferencev1alpha1.ModelResources) (inferencev1alpha1.ModelResources, error) {
 	cpu, err := normalizeQuantity("resources.requests.cpu", input.Requests.CPU)
 	if err != nil {
@@ -306,75 +274,6 @@ func normalizeKVCache(input *inferencev1alpha1.KVCache) (*inferencev1alpha1.Norm
 	return &output, nil
 }
 
-func validateAutoscalingConfig(config *inferencev1alpha1.ModelAutoscalingConfig) error {
-	if config == nil {
-		return nil
-	}
-	if config.MinReplicas < 1 || config.MaxReplicas < config.MinReplicas {
-		return fmt.Errorf("autoscaling group bounds are invalid")
-	}
-	decision := config.Decision
-	switch decision.Algorithm {
-	case inferencev1alpha1.AutoscalingDecisionAlgorithmQueue:
-		if decision.Queue == nil || decision.QueueThreshold != nil || valueOrDefaultInt64(decision.Queue.TargetAverageQueuedRequests, 1) <= 0 {
-			return fmt.Errorf("autoscaling queue decision configuration is invalid")
-		}
-	case inferencev1alpha1.AutoscalingDecisionAlgorithmQueueThreshold:
-		if decision.QueueThreshold == nil || decision.Queue != nil {
-			return fmt.Errorf("autoscaling queue_threshold decision configuration is invalid")
-		}
-		scaleUp := valueOrDefaultInt64(decision.QueueThreshold.ScaleUpQueuedRequests, 1)
-		scaleDown := valueOrDefaultInt64(decision.QueueThreshold.ScaleDownQueuedRequests, 0)
-		if scaleDown < 0 || scaleUp < 0 || scaleDown > scaleUp {
-			return fmt.Errorf("autoscaling decision queue thresholds are invalid")
-		}
-	default:
-		return fmt.Errorf("autoscaling decision algorithm is required")
-	}
-	if adjustment := config.Adjustment; adjustment != nil && adjustment.Algorithm == inferencev1alpha1.AutoscalingAdjustmentAlgorithmDirect && (adjustment.ScaleUp != nil || adjustment.ScaleDown != nil) {
-		return fmt.Errorf("autoscaling direct adjustment does not accept scaleUp or scaleDown configuration")
-	}
-	if duration, err := time.ParseDuration(string(triggerInterval(config.Trigger))); err != nil || duration <= 0 {
-		return fmt.Errorf("autoscaling trigger.interval must be a positive duration")
-	}
-	for field, value := range map[string]inferencev1alpha1.NonNegativeDuration{
-		"autoscaling.adjustment.scaleUp.stabilizationWindow":   scaleUpWindow(config.Adjustment),
-		"autoscaling.adjustment.scaleDown.stabilizationWindow": scaleDownWindow(config.Adjustment),
-	} {
-		if duration, err := time.ParseDuration(string(value)); err != nil || duration < 0 {
-			return fmt.Errorf("%s must be a non-negative duration", field)
-		}
-	}
-	return nil
-}
-
-func triggerInterval(trigger *inferencev1alpha1.ModelAutoscalingTriggerConfig) inferencev1alpha1.Duration {
-	if trigger == nil {
-		return "5s"
-	}
-	return valueOrDefaultDuration(trigger.Interval, "5s")
-}
-
-func scaleUpWindow(adjustment *inferencev1alpha1.ModelAutoscalingAdjustmentConfig) inferencev1alpha1.NonNegativeDuration {
-	if adjustment == nil || adjustment.ScaleUp == nil {
-		return "0s"
-	}
-	if adjustment.ScaleUp.StabilizationWindow == "" {
-		return "0s"
-	}
-	return adjustment.ScaleUp.StabilizationWindow
-}
-
-func scaleDownWindow(adjustment *inferencev1alpha1.ModelAutoscalingAdjustmentConfig) inferencev1alpha1.NonNegativeDuration {
-	if adjustment == nil || adjustment.ScaleDown == nil {
-		return "300s"
-	}
-	if adjustment.ScaleDown.StabilizationWindow == "" {
-		return "300s"
-	}
-	return adjustment.ScaleDown.StabilizationWindow
-}
-
 func normalizeTimeouts(input inferencev1alpha1.ModelTimeouts) (inferencev1alpha1.ModelTimeouts, error) {
 	startup, err := normalizeDuration("timeouts.startup", input.Startup)
 	if err != nil {
@@ -452,13 +351,6 @@ func copyInt32(value *int32) *int32 {
 	}
 	copied := *value
 	return &copied
-}
-
-func defaultOne(value int32) int32 {
-	if value == 0 {
-		return 1
-	}
-	return value
 }
 
 func ecProfileForRole(profile *inferencev1alpha1.ECProfileReference, role inferencev1alpha1.ModelRole) string {
