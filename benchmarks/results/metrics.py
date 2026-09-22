@@ -74,7 +74,7 @@ def normalized_generation_throughput(
 ) -> dict[str, float | None]:
     """Normalize output throughput per user and per GPU.
 
-    A finite ``--parallel`` value represents the configured user count. With
+    A finite ``--max-concurrency`` value represents the configured user count. With
     unlimited concurrency, use the measured time-weighted average active
     requests instead. Return None when throughput or a denominator is missing.
     """

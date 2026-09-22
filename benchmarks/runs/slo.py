@@ -23,6 +23,7 @@ from benchmarks.results.output import (
     write_json,
 )
 from benchmarks.runs.conversation import ConversationBudgetBenchmark
+from benchmarks.runs.arrival import GeneratedArrivalBenchmark
 from benchmarks.runs.http import GeneratedLoadBenchmark, run_http_dataset
 from benchmarks.runs.trace import TraceReplayBenchmark
 
@@ -145,6 +146,18 @@ class SloAutoTuneBenchmark:
                 trace=replace(probe_config.trace, max_concurrency=value),
             )
             return TraceReplayBenchmark(
+                probe_benchmark,
+                self.service,
+                label=label,
+                output_dir=probe_dir,
+                wandb_group=wandb_group,
+            ).run()
+        if probe_config.load.arrival_pattern in {"constant", "gamma"}:
+            probe_benchmark = replace(
+                probe_config,
+                load=replace(probe_config.load, max_concurrency=value),
+            )
+            return GeneratedArrivalBenchmark(
                 probe_benchmark,
                 self.service,
                 label=label,

@@ -21,7 +21,7 @@ wandb login
 
 ```bash
 foretoken install
-foretoken bench examples/quickstart --number 10 --output local,wandb
+foretoken bench examples/quickstart --num-prompts 10 --output local,wandb
 ```
 
 默认发送 `Hello`。已部署的服务直接复用；临时部署的资源会在评测后清理。单模型部署自动选择模型，多模型时添加 `--model`。
@@ -33,18 +33,18 @@ foretoken bench examples/quickstart --number 10 --output local,wandb
 ```bash
 foretoken bench examples/quickstart \
   --prompt "用一句话解释什么是 token。" \
-  --parallel 8 --number 100 \
+  --max-concurrency 8 --num-prompts 100 \
   --max-tokens 128 \
   --output local,wandb
 ```
 
 添加 `--warmup-requests 16` 可在每次测量前完成 16 段预热对话，不计入正式指标。
 
-`--parallel` 控制并发数，`--rate` 控制每秒请求到达率，各自设为 `-1` 表示不限。默认不限速、并发为 1。例如按平均每秒 5 个请求发送且不限并发：
+`--max-concurrency` 控制在途请求数，`--request-rate` 控制每秒请求到达率。`--arrival-pattern` 可选 `constant`、`poisson` 或 `gamma`；`--burstiness` 控制 Gamma 到达的突发程度。需要按时间戳回放时单独传入 `--trace`。`--request-rate -1` 表示取消速率限制，`--max-concurrency -1` 表示取消并发上限。默认不限速、并发为 1。例如按平均每秒 5 个请求发送且不限并发：
 
 ```bash
 foretoken bench examples/quickstart \
-  --rate 5 --parallel -1 --number 100 \
+  --request-rate 5 --max-concurrency -1 --num-prompts 100 \
   --output local,wandb
 ```
 
@@ -55,7 +55,7 @@ foretoken bench examples/quickstart \
   --dataset random --tokenizer-path Qwen/Qwen3-0.6B \
   --min-prompt-length 128 --max-prompt-length 512 \
   --min-output-length 64 --max-output-length 256 \
-  --parallel 8 --number 100 \
+  --max-concurrency 8 --num-prompts 100 \
   --output local,wandb
 ```
 
@@ -66,18 +66,18 @@ foretoken bench examples/quickstart \
 ```bash
 foretoken bench examples/quickstart \
   --dataset r0b0tlab/qwen3.8-max-distillation-50k:train \
-  --parallel 4 --number 20 \
+  --max-concurrency 4 --num-prompts 20 \
   --output local,wandb
 ```
 
-`--dataset` 也接受本地 JSONL 文件。每行是一段对话，默认运行全部轮次，并使用模型的真实回答继续。`--number` 表示 HTTP 请求预算；`--max-turns 1` 可将每段对话限制为首轮。多轮要求 `--rate -1`。
+`--dataset` 也接受本地 JSONL 文件。每行是一段对话，默认运行全部轮次，并使用模型的真实回答继续。`--num-prompts` 表示 HTTP 请求预算；`--max-turns 1` 可将每段对话限制为首轮。多轮要求 `--request-rate -1`。
 
 ### 在评测时采集 Profile
 
 ```bash
 foretoken bench examples/quickstart \
   --profile --profile-engine pytorch --profile-duration 15s \
-  --number 2 --max-tokens 128 --output local
+  --num-prompts 2 --max-tokens 128 --output local
 ```
 
 环境配置和结果查看见[性能剖析](../observability/profiling_zh.md)。
@@ -113,7 +113,7 @@ foretoken bench examples/quickstart \
 foretoken bench examples/quickstart \
   --dataset random --tokenizer-path Qwen/Qwen3-0.6B \
   --min-prompt-length 128 --max-prompt-length 256 \
-  --parallel 2 \
+  --max-concurrency 2 \
   --slo-params '[{"p99_latency":"<=2"}]' \
   --slo-upper-bound 32 --output local,wandb
 ```
@@ -128,7 +128,7 @@ foretoken bench examples/quickstart \
 MODEL_SERVICE_URL="$(foretoken endpoint examples/quickstart)/v1/chat/completions"
 foretoken bench \
   --url "$MODEL_SERVICE_URL" --model Qwen/Qwen3-0.6B \
-  --prompt "你好" --number 20 \
+  --prompt "你好" --num-prompts 20 \
   --output local,wandb
 ```
 

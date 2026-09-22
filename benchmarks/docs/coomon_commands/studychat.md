@@ -14,7 +14,7 @@ foretoken bench examples/quickstart \
 
 `--trace` supplies arrival times; `--dataset` supplies content. Selecting the same source uses each record's own messages. The start offset is measured from the earliest timestamp in the dataset; gaps between records can be long. The command selects a 60-second window, not a wait of 18 million seconds before replay. Concurrency waits are included in replay-delay metrics.
 
-Each record is independent. Request count and timing come from the selected window, so omit `--number`, `--rate`, `--parallel`, and positive `--max-turns`. Control in-flight requests with `--trace-max-concurrency`.
+Each record is independent. Request count and timing come from the selected window, so omit `--num-prompts`, `--request-rate`, `--max-concurrency`, and positive `--max-turns`. Control in-flight requests with `--trace-max-concurrency`.
 
 ## Example output
 

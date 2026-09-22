@@ -8,7 +8,7 @@ After [setup](../examples.md#setup), choose the project, group, and run name:
 wandb login
 
 foretoken bench examples/quickstart \
-  --number 20 --output local,wandb \
+  --num-prompts 20 --output local,wandb \
   --wandb-project foretoken-bench \
   --wandb-group qwen-comparison \
   --wandb-run-name quickstart

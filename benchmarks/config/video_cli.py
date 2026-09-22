@@ -74,7 +74,7 @@ def parse_video_arguments(
             audio_flow_shift=parsed.audio_flow_shift,
             seed=parsed.seed,
         ),
-        number=parsed.number,
+        number=parsed.num_prompts,
         offset=parsed.dataset_offset,
     )
     endpoint_url = parsed.url.rstrip("/")
@@ -99,7 +99,7 @@ def parse_video_arguments(
             run_name=parsed.wandb_run_name,
         ),
         dataset_offset=parsed.dataset_offset,
-        concurrency=parsed.parallel,
+        concurrency=parsed.max_concurrency,
     )
     config.validate()
     return VideoBenchCommand(config=config, dry_run=parsed.dry_run)

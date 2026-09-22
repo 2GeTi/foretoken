@@ -6,7 +6,7 @@
 
 ```bash
 foretoken bench examples/quickstart \
-  --dataset benchmarks/examples/tools.jsonl --number 1 \
+  --dataset benchmarks/examples/tools.jsonl --num-prompts 1 \
   --output local,wandb
 ```
 

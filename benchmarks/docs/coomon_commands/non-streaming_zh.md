@@ -7,7 +7,7 @@
 ```bash
 foretoken bench examples/quickstart \
   --prompt "说出一颗行星。" --no-stream \
-  --number 20 --max-tokens 32 \
+  --num-prompts 20 --max-tokens 32 \
   --output local,wandb
 ```
 

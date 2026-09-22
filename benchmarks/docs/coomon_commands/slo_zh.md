@@ -8,14 +8,14 @@
 foretoken bench examples/quickstart \
   --dataset random --tokenizer-path Qwen/Qwen3-0.6B \
   --min-prompt-length 128 --max-prompt-length 512 \
-  --number 100 --parallel 2 \
+  --num-prompts 100 --max-concurrency 2 \
   --slo-params '[{"p99_latency":"<=2"}]' \
   --slo-upper-bound 32 \
   --num-runs 1 \
   --output local,wandb
 ```
 
-`--parallel` 是并发起点。传入 `--slo-params` 即启用搜索。每个探测点都使用相同的 HTTP 请求预算 `--number`，请求数不会随并发增加。`--num-runs` 会用同一请求预算重复每个探测点并汇总指标。多轮数据集按所有轮次的 HTTP 请求计数；轨迹回放保持选中的轨迹事件和时间戳不变。
+`--max-concurrency` 是并发起点。传入 `--slo-params` 即启用搜索。每个探测点都使用相同的 HTTP 请求预算 `--num-prompts`，请求数不会随并发增加。`--num-runs` 会用同一请求预算重复每个探测点并汇总指标。多轮数据集按所有轮次的 HTTP 请求计数；轨迹回放保持选中的轨迹事件和时间戳不变。
 
 ## 约束写法
 
@@ -66,7 +66,7 @@ foretoken bench examples/quickstart \
 - TPOT：`avg_tpot`、`p50_tpot`、`p95_tpot`、`p99_tpot`
 - 吞吐：`rps`、`tps`
 
-SLO 支持生成式负载、多轮数据集、多数据集和时间戳轨迹回放。生成式负载搜索闭式 `--parallel`；轨迹回放搜索在途并发上限，同时保留原始到达时间。SLO 不能与 `--sweep` 或正的 `--rate` 组合。
+SLO 支持生成式负载、多轮数据集、多数据集和时间戳轨迹回放。生成式负载搜索闭式 `--max-concurrency`；轨迹回放搜索在途并发上限，同时保留原始到达时间。SLO 不能与 `--sweep` 或正的 `--request-rate` 组合。
 
 结果目录含 `slo_results.json`。每个探测点保存在独立目录中；W&B 探测 run 共享同一个 group，名称包含条件组、并发值和重复序号。
 

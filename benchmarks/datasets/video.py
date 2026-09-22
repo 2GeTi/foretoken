@@ -421,7 +421,7 @@ def load_video_dataset(
 ) -> tuple[str, tuple[VideoGenerationRequest, ...]]:
     """Load native video JSONL or a VideoArgusBench manifest."""
     if number < 0:
-        raise ValueError("video --number must be zero or positive")
+        raise ValueError("video --num-prompts must be zero or positive")
     if offset < 0:
         raise ValueError("video --dataset-offset must be zero or positive")
     dataset_path = Path(resolve_video_dataset(path))

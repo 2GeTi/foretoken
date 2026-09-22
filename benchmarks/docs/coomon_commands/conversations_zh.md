@@ -7,17 +7,17 @@
 ```bash
 foretoken bench examples/quickstart \
   --dataset benchmarks/examples/conversations.jsonl \
-  --number 2 --parallel 2 --output local,wandb
+  --num-prompts 2 --max-concurrency 2 --output local,wandb
 ```
 
-文件包含一个单轮对话和一个多轮对话。默认运行全部用户轮次，用模型真实回答继续，而不是参考答案。`--number` 是这些对话共享的 HTTP 请求预算。多轮要求 `--rate -1`，结果会分别报告请求数和对话数。
+文件包含一个单轮对话和一个多轮对话。默认运行全部用户轮次，用模型真实回答继续，而不是参考答案。`--num-prompts` 是这些对话共享的 HTTP 请求预算。多轮要求 `--request-rate -1`，结果会分别报告请求数和对话数。
 
 只运行首个用户轮次：
 
 ```bash
 foretoken bench examples/quickstart \
   --dataset benchmarks/examples/conversations.jsonl \
-  --max-turns 1 --number 2 --output local,wandb
+  --max-turns 1 --num-prompts 2 --output local,wandb
 ```
 
 自己的数据每行放一个 JSON 对象，可使用 `messages`、`prompt`，或 `user` 与可选的 `system` 字段。其他格式见 [ShareGPT](sharegpt_zh.md) 和[工具数据](tools_zh.md)。

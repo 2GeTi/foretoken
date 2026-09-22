@@ -7,7 +7,7 @@
 ```bash
 foretoken bench examples/quickstart \
   --prompt "用一句话解释什么是 token。" \
-  --parallel 4 --number 20 --max-tokens 64 \
+  --max-concurrency 4 --num-prompts 20 --max-tokens 64 \
   --output local,wandb
 ```
 

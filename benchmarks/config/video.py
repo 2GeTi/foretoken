@@ -136,7 +136,7 @@ class VideoBenchmarkConfig:
         if self.dataset_offset < 0:
             raise ValueError("video dataset offset must be zero or positive")
         if self.concurrency <= 0:
-            raise ValueError("video --parallel must be positive")
+            raise ValueError("video --max-concurrency must be positive")
         endpoint = urlsplit(self.endpoint.url)
         health = urlsplit(self.endpoint.health_url)
         if endpoint.scheme not in {"http", "https"} or not endpoint.netloc:

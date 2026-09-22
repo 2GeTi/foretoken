@@ -80,7 +80,7 @@ def _add_benchmark_arguments(
         help="Request timeout seconds",
     )
     parser.add_argument(
-        "--parallel",
+        "--max-concurrency",
         type=int,
         default=_default(HttpLoadSchedule, "max_concurrency"),
         help=(
@@ -90,13 +90,13 @@ def _add_benchmark_arguments(
         ),
     )
     parser.add_argument(
-        "--number",
+        "--num-prompts",
         type=int,
         default=_default(HttpLoadSchedule, "request_count"),
         help=(
             "Number of video requests; zero uses all selected rows"
             if video
-            else "HTTP request budget per run; shared across multiple datasets"
+            else "Prompt/work-item budget per run"
         ),
     )
     parser.add_argument(
@@ -110,7 +110,7 @@ def _add_benchmark_arguments(
             "the download cache when set)"
             if video
             else "Comma-separated dataset selectors: random, JSONL path, Hugging Face "
-            "org/name[:split], or hf://datasets/...; --number is shared"
+            "org/name[:split], or hf://datasets/...; --num-prompts is shared"
         ),
     )
     parser.add_argument(
@@ -169,7 +169,7 @@ def _add_benchmark_arguments(
     if video:
         parser.set_defaults(
             timeout=3600.0,
-            number=0,
+            num_prompts=0,
             output=("local",),
             output_dir="results/video",
         )
@@ -214,13 +214,22 @@ def _add_benchmark_arguments(
         help="Conversations to finish before each generated run; excluded from measured results",
     )
     parser.add_argument(
-        "--rate",
+        "--request-rate",
         type=float,
         default=_default(HttpLoadSchedule, "arrival_rate"),
-        help=(
-            "Arrival rate (req/s): -1 sends as fast as possible; "
-            ">0 uses Poisson arrivals"
-        ),
+        help="Target request arrival rate in req/s; -1 sends as fast as possible",
+    )
+    parser.add_argument(
+        "--arrival-pattern",
+        choices=("constant", "poisson", "gamma"),
+        default=_default(HttpLoadSchedule, "arrival_pattern"),
+        help="Arrival process for generated requests or timestamp trace replay",
+    )
+    parser.add_argument(
+        "--burstiness",
+        type=float,
+        default=_default(HttpLoadSchedule, "burstiness"),
+        help="Gamma arrival shape; 1 is Poisson, lower values are more bursty",
     )
 
     # Chat Completions generation parameters
@@ -450,9 +459,11 @@ def _benchmark_config(namespace: argparse.Namespace) -> BenchmarkConfig:
             wait_timeout=namespace.wait_timeout,
         ),
         load=HttpLoadSchedule(
-            max_concurrency=namespace.parallel,
-            request_count=namespace.number,
-            arrival_rate=namespace.rate,
+            max_concurrency=namespace.max_concurrency,
+            request_count=namespace.num_prompts,
+            arrival_rate=namespace.request_rate,
+            arrival_pattern=namespace.arrival_pattern,
+            burstiness=namespace.burstiness,
             warmup_requests=namespace.warmup_requests,
         ),
         generation=ChatCompletionsGeneration(

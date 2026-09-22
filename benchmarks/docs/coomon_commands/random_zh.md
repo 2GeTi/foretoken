@@ -10,7 +10,7 @@ foretoken bench examples/quickstart \
   --min-prompt-length 128 --max-prompt-length 512 \
   --min-output-length 64 --max-output-length 256 \
   --prefix-length 64 --random-seed 0 \
-  --parallel 4 --number 20 --output local,wandb
+  --max-concurrency 4 --num-prompts 20 --output local,wandb
 ```
 
 输入长度默认只计算正文。`--apply-chat-template` 计入所选 tokenizer 的模板开销，服务端可能使用不同模板。`--prefix-length` 增加共享前缀。tokenizer 也可以使用本地目录。
