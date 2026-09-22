@@ -18,6 +18,18 @@ foretoken bench examples/quickstart \
 
 每行 JSONL 定义负载、生成或数据集设置。`max_concurrency`、`num_prompts`、`request_rate`、`arrival_pattern`、`burstiness`、`duration`、`warmup_requests` 等规范字段的列表会展开成笛卡尔组合。扫描行可以包含 SLO 条件，每个点分别执行自己的 SLO 搜索，也可以使用时间戳轨迹回放。新配置使用 `max_concurrency`，不再使用 `parallel`。
 
+视频生成也复用同一套扫描生命周期和结果目录结构，但只展开视频自己的字段，不伪造 HTTP 指标：
+
+```bash
+foretoken bench video \
+  --url http://127.0.0.1:8091/v1/videos/sync \
+  --dataset VideoArgusBench/TI2V \
+  --sweep benchmarks/examples/video-sweep.jsonl \
+  --num-runs 2 --output local,wandb
+```
+
+视频扫描点可以改变 `width`、`height`、`num_frames`、`fps`、`num_inference_steps`、`aspect_ratio`、`flow_shift`、`audio_flow_shift`、`seed`、`max_concurrency`、`duration` 和 `warmup_requests`。每个点保留视频请求产物和视频指标，不增加 HTTP 延迟/吞吐字段或 HTTP Pareto 图。
+
 ## 查看结果
 
 打开命令打印的结果目录，通过 `sweep_summary.csv` 比较重复运行。每次运行的明细保存在各自目录；文件内容、统计含义和单位见[结果指标](../../metrics_zh.md#实验记录)。可用 `--experiment-name` 指定一个未使用的目录名，省略时自动命名。

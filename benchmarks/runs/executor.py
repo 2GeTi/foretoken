@@ -9,8 +9,10 @@ import asyncio
 import itertools
 import random
 import time
+from contextlib import nullcontext
 from dataclasses import replace
-from typing import Any, Iterable
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Iterable
 
 from benchmarks.config.benchmark import BenchmarkConfig
 from benchmarks.datasets.conversations import (
@@ -19,7 +21,10 @@ from benchmarks.datasets.conversations import (
     load_request_tasks,
     split_chat_conversation,
 )
-from benchmarks.datasets.synthetic import generate_trace_random_requests
+from benchmarks.datasets.synthetic import (
+    generate_trace_random_requests,
+    iter_duration_random_requests,
+)
 from benchmarks.integrations.openai import ChatCompletionsLoadClient
 from benchmarks.model_service import ModelService
 from benchmarks.results.metrics import RequestMeasurement, summarize_measurements
@@ -29,6 +34,9 @@ from benchmarks.results.output import (
     build_benchmark_run_record,
     resolved_load_record,
 )
+
+if TYPE_CHECKING:
+    from benchmarks.profiling.capture import BenchmarkProfile
 
 
 class TaskLoadBenchmark:
@@ -55,17 +63,19 @@ class TaskLoadBenchmark:
         self._conversation_attempted = 0
         self._conversation_completed = 0
 
-    def _load_tasks(self) -> list[Task]:
+    def _load_tasks(self) -> Iterable[Task]:
         if self.tasks is not None:
             return self.tasks
         workload = self.benchmark.resolved_workload
         if workload.dataset_selectors == ["random"]:
             count = self.benchmark.load.request_count
             if count is None:
-                raise ValueError("--dataset random requires --num-prompts when --duration is set")
+                return iter_duration_random_requests(self.benchmark, self.service)
             return generate_trace_random_requests(self.benchmark, self.service, request_count=count)
         if workload.fixed_prompt and not workload.dataset_selectors:
-            count = self.benchmark.load.request_count or 1
+            count = self.benchmark.load.request_count
+            if count is None:
+                return itertools.repeat(load_request_tasks(self.benchmark, request_count=1)[0])
             return load_request_tasks(self.benchmark, request_count=count)
         if self.dataset_tasks is not None:
             return [task for tasks in self.dataset_tasks.values() for task in tasks]
@@ -76,11 +86,12 @@ class TaskLoadBenchmark:
             return load_request_tasks(self.benchmark, request_count=None)
         return load_request_tasks(self.benchmark, request_count=count)
 
-    def _task_stream(self, tasks: list[Task]):
+    def _task_stream(self, tasks: Iterable[Task]):
         budget = self.benchmark.load.request_count
+        stream = iter(tasks)
         if budget is None:
-            return itertools.cycle(tasks)
-        return iter(tasks[:budget])
+            return stream if hasattr(tasks, "__next__") else itertools.cycle(tasks)
+        return itertools.islice(stream, budget)
 
     def _next_interval(self, generator: random.Random) -> float:
         load = self.benchmark.load
@@ -91,13 +102,17 @@ class TaskLoadBenchmark:
         shape = load.burstiness
         return generator.gammavariate(shape, 1.0 / (load.arrival_rate * shape))
 
-    async def _run_requests(self, *, warmup: bool = False) -> tuple[list[RequestMeasurement], float]:
+    async def _run_requests(
+        self,
+        *,
+        warmup: bool = False,
+        profile: BenchmarkProfile | None = None,
+    ) -> tuple[list[RequestMeasurement], float]:
         tasks = self._load_tasks()
         if not tasks:
             return [], 0.0
         load = self.benchmark.load
         deadline = load.duration_seconds
-        started = time.perf_counter()
         budget = load.request_count
         if warmup and budget is None:
             budget = load.warmup_requests
@@ -122,6 +137,10 @@ class TaskLoadBenchmark:
             self.service,
             max_connections=load.max_concurrency if load.max_concurrency > 0 else None,
         ) as client:
+            if profile is not None:
+                await profile.before_request()
+            started = time.perf_counter()
+
             async def run_task(task: Task, scheduled_at: float) -> None:
                 nonlocal remaining_requests, completed_conversations
                 if deadline is not None:
@@ -162,6 +181,8 @@ class TaskLoadBenchmark:
                                 if remaining_requests <= 0:
                                     break
                                 remaining_requests -= 1
+                        if profile is not None:
+                            await profile.before_request()
                         response = await client.send_messages(
                             context + turn,
                             task.metadata,
@@ -169,6 +190,8 @@ class TaskLoadBenchmark:
                         if self.benchmark.is_multi_turn and turn_index < len(turns) - 1 and response.get("tool_calls"):
                             response["success"] = False
                             response["error"] = "Model requested tool execution before the next turn; a harness is required"
+                        if profile is not None:
+                            profile.response_received(bool(response["success"]))
                         item = RequestMeasurement(
                             started_at=float(response["started_at"]) - started,
                             ttft=response["ttft"],
@@ -259,7 +282,31 @@ class TaskLoadBenchmark:
             self.benchmark, self.service, record, label=self.label,
             output_dir=self.output_dir, wandb_group=self.wandb_group,
         ) as outputs:
-            measurements, elapsed = asyncio.run(self._run_requests())
+            profile_options = self.benchmark.profile
+            profile = None
+            if profile_options is not None:
+                from foretoken.arguments import ProfileCommand
+                from foretoken.profiling import ProfileRun
+
+                from benchmarks.profiling.capture import BenchmarkProfile
+
+                command = ProfileCommand(
+                    kustomize_path=self.benchmark.service.kustomize_path,
+                    model=self.service.model,
+                    profile_engine=profile_options.engine,
+                    profile_duration=profile_options.duration,
+                    timeout=self.benchmark.service.wait_timeout,
+                )
+                profile = BenchmarkProfile(
+                    ProfileRun(command, deployment=self.service.deployment),
+                    outputs.execution_dir,
+                )
+            with (profile if profile is not None else nullcontext()):
+                measurements, elapsed = asyncio.run(self._run_requests(profile=profile))
+            if profile is not None:
+                artifacts = {"profile": Path(outputs.execution_dir) / "profile.json"}
+            else:
+                artifacts = {}
             metrics = summarize_measurements(
                 measurements,
                 total_time=elapsed,
@@ -299,7 +346,13 @@ class TaskLoadBenchmark:
                         self._conversation_attempted / elapsed if elapsed > 0 else 0.0
                     ),
                 }
-            run = BenchmarkRun(record=record, metrics=metrics, measurements=measurements, artifacts={}, time_origin=time.perf_counter() - elapsed)
+            run = BenchmarkRun(
+                record=record,
+                metrics=metrics,
+                measurements=measurements,
+                artifacts=artifacts,
+                time_origin=time.perf_counter() - elapsed,
+            )
             outputs.publish(run)
         return run
 

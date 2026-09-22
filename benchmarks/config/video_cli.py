@@ -15,6 +15,7 @@ from benchmarks.config.video import (
     VideoBenchmarkConfig,
     VideoDatasetDefaults,
     VideoEndpointConfig,
+    VideoParameterSweepConfig,
     video_health_url,
 )
 from benchmarks.datasets.video import (
@@ -64,6 +65,23 @@ def parse_video_arguments(
         help="Stop admitting video requests after this many seconds",
     )
     parser.add_argument(
+        "--sweep",
+        metavar="PATH",
+        default="",
+        help="JSONL video parameter combinations to expand and run",
+    )
+    parser.add_argument(
+        "--num-runs",
+        type=int,
+        default=1,
+        help="Runs per video sweep combination",
+    )
+    parser.add_argument(
+        "--experiment-name",
+        default="",
+        help="Sweep directory name under --output-dir",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Validate and print the workload without sending requests",
@@ -110,6 +128,11 @@ def parse_video_arguments(
         concurrency=parsed.max_concurrency,
         warmup_requests=parsed.warmup_requests,
         duration_s=parsed.duration,
+        sweep=VideoParameterSweepConfig(
+            path=parsed.sweep,
+            num_runs=parsed.num_runs,
+            experiment_name=parsed.experiment_name,
+        ),
     )
     config.validate()
     return VideoBenchCommand(config=config, dry_run=parsed.dry_run)

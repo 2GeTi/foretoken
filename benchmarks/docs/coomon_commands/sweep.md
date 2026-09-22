@@ -18,6 +18,18 @@ This runs 384 requests at concurrency 1, 2 and 4, requesting 256 output tokens e
 
 Each JSONL row defines load, generation, or dataset settings. Lists of canonical fields such as `max_concurrency`, `num_prompts`, `request_rate`, `arrival_pattern`, `burstiness`, `duration`, and `warmup_requests` expand as Cartesian combinations. SLO criteria may be included with a sweep; each point then runs its own SLO search. Use `max_concurrency`, not `parallel`, in new sweep files.
 
+Video generation uses the same sweep lifecycle and result directory layout, with video-owned fields instead of HTTP metrics:
+
+```bash
+foretoken bench video \
+  --url http://127.0.0.1:8091/v1/videos/sync \
+  --dataset VideoArgusBench/TI2V \
+  --sweep benchmarks/examples/video-sweep.jsonl \
+  --num-runs 2 --output local,wandb
+```
+
+Video sweep points may vary `width`, `height`, `num_frames`, `fps`, `num_inference_steps`, `aspect_ratio`, `flow_shift`, `audio_flow_shift`, `seed`, `max_concurrency`, `duration`, and `warmup_requests`. Each point keeps video-specific request artifacts and metrics; HTTP latency/throughput fields and HTTP Pareto plots are not added.
+
 ## Read results
 
 Open `sweep_summary.csv` in the printed result directory to compare repetitions. Individual results remain in each run's directory; [Result metrics](../../metrics.md#experiment-records) explains the saved files, statistics and units. Use `--experiment-name` to choose a fresh directory name, or omit it for an automatic name.

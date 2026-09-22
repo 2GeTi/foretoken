@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -107,6 +107,15 @@ class VideoGenerationRequest:
 
 
 @dataclass(frozen=True)
+class VideoParameterSweepConfig:
+    """Store JSONL sweep settings for video generation points."""
+
+    path: str = ""
+    num_runs: int = 1
+    experiment_name: str = ""
+
+
+@dataclass(frozen=True)
 class VideoEndpointConfig:
     """Describe the synchronous endpoint used by a video request client."""
 
@@ -130,6 +139,7 @@ class VideoBenchmarkConfig:
     concurrency: int = 1
     warmup_requests: int = 0
     duration_s: float | None = None
+    sweep: VideoParameterSweepConfig = field(default_factory=VideoParameterSweepConfig)
 
     def validate(self) -> None:
         """Validate the complete benchmark before sending any request."""
@@ -145,6 +155,8 @@ class VideoBenchmarkConfig:
             raise ValueError("video --warmup-requests cannot exceed selected requests")
         if self.duration_s is not None and self.duration_s <= 0:
             raise ValueError("video --duration must be positive")
+        if self.sweep.num_runs < 1:
+            raise ValueError("video --num-runs must be positive")
         endpoint = urlsplit(self.endpoint.url)
         health = urlsplit(self.endpoint.health_url)
         if endpoint.scheme not in {"http", "https"} or not endpoint.netloc:
@@ -190,6 +202,11 @@ class VideoBenchmarkConfig:
                 "entity": self.wandb.entity,
                 "group": self.wandb.group,
                 "run_name": self.wandb.run_name,
+            },
+            "sweep": {
+                "path": self.sweep.path,
+                "num_runs": self.sweep.num_runs,
+                "experiment_name": self.sweep.experiment_name,
             },
         }
 

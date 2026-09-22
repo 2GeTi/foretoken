@@ -10,9 +10,9 @@ foretoken bench examples/quickstart \
   --max-concurrency 4 --num-prompts 20 --output local,wandb
 ```
 
-Datasets run in order and produce one combined result. `--num-prompts` is divided as evenly as possible, with any remainder assigned to the earlier datasets. Local JSONL paths can replace the remote selectors. Random inputs cannot be mixed with other datasets, and multi-dataset runs cannot use `--sweep`.
+Datasets share one arrival clock, concurrency limit, and request budget, and the result retains each request's dataset identity. `--num-prompts` is divided as evenly as possible, with any remainder assigned to the earlier datasets. Local JSONL paths can replace the remote selectors. Random inputs cannot be mixed with other datasets.
 
-Each dataset gets its own W&B run in the same group. Conversation percentiles remain per dataset rather than being averaged.
+Multi-dataset workloads can be included in HTTP sweeps and SLO searches. Dataset-level summaries remain separate; conversation percentiles are not averaged across datasets.
 
 ## Example output
 

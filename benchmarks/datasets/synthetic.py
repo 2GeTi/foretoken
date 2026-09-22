@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import random
+from collections.abc import Iterator
 from functools import lru_cache
 from itertools import islice
 from typing import Any
@@ -71,6 +72,28 @@ def _random_task(message: Any, index: int) -> Task:
         "EvalScope random dataset returned unsupported message type "
         f"{type(message).__name__}"
     )
+
+
+def iter_duration_random_requests(
+    benchmark: BenchmarkConfig,
+    service: ModelService,
+) -> Iterator[Task]:
+    """Yield deterministic random tasks on demand for a duration-bounded workload."""
+    workload = benchmark.resolved_workload
+    plugin = create_trace_random_dataset_plugin(benchmark, service, request_count=1)
+    generator = random.Random(workload.random_seed)
+    minimum, maximum = plugin._resolve_prompt_length_bounds()
+    token_count = len(plugin.allowed_tokens)
+    index = 0
+    while True:
+        input_length = generator.randrange(minimum, maximum)
+        offset = generator.randrange(token_count)
+        message = plugin.generate_token_sequence(input_length, offset, index)[0]
+        task = _random_task(message, index)
+        del message
+        yield task
+        del task
+        index += 1
 
 
 def generate_trace_random_requests(

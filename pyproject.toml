@@ -49,6 +49,7 @@ packages = [
     "benchmarks.config",
     "benchmarks.datasets",
     "benchmarks.runs",
+    "benchmarks.sweeps",
     "benchmarks.integrations",
     "benchmarks.scoring",
     "benchmarks.profiling",

@@ -44,10 +44,6 @@ def measurement_runner(
             output_dir=output_dir,
             wandb_group=wandb_group,
         )
-    if benchmark.profile is not None:
-        return GeneratedLoadBenchmark(
-            benchmark, service, label=label, output_dir=output_dir, wandb_group=wandb_group
-        )
     if (
         benchmark.is_multi_turn
         or benchmark.load.arrival_pattern != "poisson"

@@ -61,7 +61,7 @@ foretoken bench examples/quickstart \
   --output local,wandb
 ```
 
-输出长度控制需要服务支持 `min_tokens` 和 `ignore_eos`，未达到抽样长度的请求记为失败。不传输出上下界时，使用普通的 `--max-tokens` 上限，默认 4096。
+输出长度控制需要服务支持 `min_tokens` 和 `ignore_eos`，未达到抽样长度的请求记为失败。不传输出上下界时，使用普通的 `--max-tokens` 上限，默认 4096。随机负载可以不传 `--num-prompts` 而只用 `--duration`，请求体会按需生成直到截止时间；两者同时传入时先达到的限制生效。
 
 ### 数据集与多轮对话
 
@@ -82,7 +82,7 @@ foretoken bench examples/quickstart \
   --num-prompts 2 --max-tokens 128 --output local
 ```
 
-环境配置和结果查看见[性能剖析](../observability/profiling_zh.md)。
+Profile 会复用普通评测的负载控制；`--duration`、`--request-rate`、`--arrival-pattern` 和 `--max-concurrency` 仍然生效，采集在预热完成后开始，并在已准入请求排空后关闭。环境配置和结果查看见[性能剖析](../observability/profiling_zh.md)。
 
 ### 轨迹回放
 
