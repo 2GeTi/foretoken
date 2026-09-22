@@ -403,12 +403,12 @@ class BenchmarkConfig:
             raise ValueError("output length control requires --dataset random")
         if self.load.warmup_requests and self.is_multi_turn:
             raise ValueError("--warmup-requests requires a generated workload")
-        if self.is_multi_turn and self.load.arrival_rate != -1:
+        if (
+            self.load.arrival_pattern == "poisson"
+            and self.is_multi_turn
+            and self.load.arrival_rate != -1
+        ):
             raise ValueError("multi-turn workloads require --request-rate -1")
-        if self.load.arrival_pattern != "poisson" and self.is_multi_turn:
-            raise ValueError(
-                "generated constant and gamma arrivals currently require single-turn workloads"
-            )
         if self.load.arrival_pattern in {"constant", "gamma"} and self.load.warmup_requests:
             raise ValueError(
                 "generated constant and gamma arrivals do not support --warmup-requests; run a separate warmup"

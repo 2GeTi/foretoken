@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 
 from benchmarks.config.benchmark import ArrivalTraceSchedule, BenchmarkConfig
-from benchmarks.datasets.conversations import load_request_tasks
+from benchmarks.datasets.conversations import load_request_tasks, split_chat_conversation
 from benchmarks.datasets.synthetic import generate_trace_random_requests
 from benchmarks.model_service import ModelService
 from benchmarks.results.output import BenchmarkRun, result_directory_path
@@ -26,19 +26,32 @@ class GeneratedArrivalBenchmark:
         self,
         benchmark: BenchmarkConfig,
         service: ModelService,
+        *,
+        label: str = "",
+        output_dir: str | None = None,
+        wandb_group: str | None = None,
     ) -> None:
         self.benchmark = benchmark
         self.service = service
+        self.label = label
+        self.output_dir = output_dir
+        self.wandb_group = wandb_group
 
     def _tasks(self):
         workload = self.benchmark.resolved_workload
         if workload.dataset_selectors == ["random"]:
-            return generate_trace_random_requests(
+            tasks = generate_trace_random_requests(
                 self.benchmark,
                 self.service,
                 request_count=self.benchmark.load.request_count,
             )
-        return load_request_tasks(self.benchmark)
+        else:
+            tasks = load_request_tasks(self.benchmark)
+        if any(len(split_chat_conversation(task.messages())) != 1 for task in tasks):
+            raise ValueError(
+                "generated constant and gamma arrivals require single-turn workloads"
+            )
+        return tasks
 
     def _write_trace(self, path: Path) -> None:
         rate = self.benchmark.load.arrival_rate
@@ -74,10 +87,11 @@ class GeneratedArrivalBenchmark:
         local_output = self.benchmark.outputs.includes("local")
         temporary_dir: str | None = None
         if local_output:
-            output_dir = result_directory_path(self.benchmark)
+            output_dir = self.output_dir or result_directory_path(self.benchmark)
         else:
             temporary_dir = tempfile.mkdtemp(prefix="foretoken-arrival-")
             output_dir = temporary_dir
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
         trace_path = Path(output_dir) / "arrival_trace.jsonl"
         self._write_trace(trace_path)
         replay = BenchmarkConfig(
@@ -103,7 +117,9 @@ class GeneratedArrivalBenchmark:
             return TraceReplayBenchmark(
                 replay,
                 self.service,
+                label=self.label,
                 output_dir=output_dir,
+                wandb_group=self.wandb_group,
             ).run()
         finally:
             if temporary_dir is not None:

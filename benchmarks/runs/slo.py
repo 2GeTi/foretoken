@@ -153,9 +153,16 @@ class SloAutoTuneBenchmark:
                 wandb_group=wandb_group,
             ).run()
         if probe_config.load.arrival_pattern in {"constant", "gamma"}:
-            return GeneratedArrivalBenchmark(
+            probe_benchmark = replace(
                 probe_config,
+                load=replace(probe_config.load, max_concurrency=value),
+            )
+            return GeneratedArrivalBenchmark(
+                probe_benchmark,
                 self.service,
+                label=label,
+                output_dir=probe_dir,
+                wandb_group=wandb_group,
             ).run()
         if probe_config.resolved_workload.has_multiple_datasets:
             probe_benchmark = replace(
