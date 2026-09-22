@@ -17,10 +17,10 @@ Run from the repository root:
 pip install -e '.[bench]'
 foretoken bench examples/quickstart \
   --profile --profile-engine pytorch --profile-duration 15s \
-  --number 2 --max-tokens 128 --output local
+  --num-prompts 2 --max-tokens 128 --output local
 ```
 
-This mode supports a single generated workload from a Kustomize deployment with the default `--rate -1`.
+This mode supports a single generated workload from a Kustomize deployment with the default `--request-rate -1`.
 
 ## Deploy and capture external traffic
 
@@ -79,7 +79,7 @@ The [Nsight example](../examples/profile/nsight/README.md) selects the tool and 
 pip install -e '.[bench]'
 foretoken bench examples/profile/nsight \
   --profile --profile-engine nsight --profile-duration 15s \
-  --number 2 --max-tokens 128 --output local
+  --num-prompts 2 --max-tokens 128 --output local
 ```
 
 For external traffic, use `foretoken deploy examples/profile/nsight --profile --profile-engine nsight --profile-duration 15s --timeout 20m` instead. This leaves the service running after capture; repeat the command to capture another window.

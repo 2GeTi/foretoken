@@ -10,7 +10,7 @@ foretoken bench examples/quickstart \
   --num-prompts 2 --max-concurrency 2 --output local,wandb
 ```
 
-文件包含一个单轮对话和一个多轮对话。默认运行全部用户轮次，用模型真实回答继续，而不是参考答案。`--num-prompts` 是这些对话共享的 HTTP 请求预算。多轮要求 `--request-rate -1`，结果会分别报告请求数和对话数。
+文件包含一个单轮对话和一个多轮对话。默认运行全部用户轮次，用模型真实回答继续，而不是参考答案。`--num-prompts` 是这些对话共享的 HTTP 请求预算。多轮对话使用所选到达过程启动，并在每次响应后继续依赖轮次，结果会分别报告请求数和对话数。
 
 只运行首个用户轮次：
 

@@ -283,7 +283,7 @@ class TraceReplayBenchmark:
             start_offset_seconds=trace.start_offset_seconds,
             duration_seconds=trace.duration_seconds,
         )
-        if self.benchmark.slo.params:
+        if self.benchmark.slo.params and self.benchmark.load.request_count is not None:
             events = events[: self.benchmark.load.request_count]
         trace_format = reader.trace_format
         if trace_format is None:
@@ -305,11 +305,11 @@ class TraceReplayBenchmark:
             -1 if max_concurrency is None else max_concurrency
         )
         reporting_load = {
-            "parallel": reported_concurrency,
-            "number": request_count,
-            "rate": -1.0,
+            "max_concurrency": reported_concurrency,
+            "num_prompts": request_count,
+            "request_rate": -1.0,
+            "duration": trace.duration_seconds,
             "open_loop": False,
-            "resolved_parallel": reported_concurrency,
         }
         record = build_benchmark_run_record(
             self.benchmark,
@@ -343,6 +343,15 @@ class TraceReplayBenchmark:
                 self.service,
                 max_connections=active_connection_limit,
             ) as client:
+                if self.benchmark.load.warmup_requests:
+                    warmup_events = events[: self.benchmark.load.warmup_requests]
+                    if warmup_events:
+                        await self._replay_events(
+                            client,
+                            warmup_events,
+                            max_concurrency=max_concurrency,
+                            trace_window_start=trace_window_start,
+                        )
                 records, total_time, time_origin = await self._replay_events(
                     client,
                     events,

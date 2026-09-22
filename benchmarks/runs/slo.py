@@ -13,7 +13,6 @@ from dataclasses import replace
 from typing import Any, Callable
 
 from benchmarks.config.benchmark import BenchmarkConfig
-from benchmarks.datasets.multi_dataset import MultiDatasetBenchmark
 from benchmarks.model_service import ModelService
 from benchmarks.results.console import log_slo_results
 from benchmarks.results.output import (
@@ -22,10 +21,7 @@ from benchmarks.results.output import (
     wandb_group_name,
     write_json,
 )
-from benchmarks.runs.conversation import ConversationBudgetBenchmark
-from benchmarks.runs.arrival import GeneratedArrivalBenchmark
-from benchmarks.runs.http import GeneratedLoadBenchmark, run_http_dataset
-from benchmarks.runs.trace import TraceReplayBenchmark
+from benchmarks.runs.dispatch import run_benchmark_point
 
 
 _SLO_ALIASES = {
@@ -105,7 +101,7 @@ def _average_values_pass(
 
 
 class SloAutoTuneBenchmark:
-    """Probe a fixed request budget and publish one W&B run per search point."""
+    """Search client concurrency under the configured arrival process and publish each probe."""
 
     def __init__(
         self,
@@ -133,76 +129,27 @@ class SloAutoTuneBenchmark:
             self.benchmark,
             slo=replace(self.benchmark.slo, params=[criteria]),
         )
-        label = f"slo-group-{group_index}-parallel-{value}-run-{run_index + 1}"
+        label = f"slo-group-{group_index}-concurrency-{value}-run-{run_index + 1}"
         probe_dir = os.path.join(
             base_dir,
             f"group-{group_index}",
-            f"parallel-{value}",
+            f"max-concurrency-{value}",
             f"run-{run_index + 1}",
         )
-        if probe_config.trace.trace_selector:
-            probe_benchmark = replace(
-                probe_config,
-                trace=replace(probe_config.trace, max_concurrency=value),
-            )
-            return TraceReplayBenchmark(
-                probe_benchmark,
-                self.service,
-                label=label,
-                output_dir=probe_dir,
-                wandb_group=wandb_group,
-            ).run()
-        if probe_config.load.arrival_pattern in {"constant", "gamma"}:
-            probe_benchmark = replace(
-                probe_config,
-                load=replace(probe_config.load, max_concurrency=value),
-            )
-            return GeneratedArrivalBenchmark(
-                probe_benchmark,
-                self.service,
-                label=label,
-                output_dir=probe_dir,
-                wandb_group=wandb_group,
-            ).run()
-        if probe_config.resolved_workload.has_multiple_datasets:
-            probe_benchmark = replace(
-                probe_config,
-                load=replace(probe_config.load, max_concurrency=value),
-            )
-            return MultiDatasetBenchmark(
-                probe_benchmark,
-                self.service,
-                run_http_dataset,
-                output_dir=probe_dir,
-                wandb_group=wandb_group,
-                label=label,
-            ).run()
-        if probe_config.is_multi_turn:
-            probe_benchmark = replace(
-                probe_config,
-                load=replace(probe_config.load, max_concurrency=value),
-            )
-            return ConversationBudgetBenchmark(
-                probe_benchmark,
-                self.service,
-                label=label,
-                output_dir=probe_dir,
-                wandb_group=wandb_group,
-            ).run()
         probe_benchmark = replace(
             probe_config,
             load=replace(probe_config.load, max_concurrency=value),
         )
-        return GeneratedLoadBenchmark(
+        return run_benchmark_point(
             probe_benchmark,
             self.service,
             label=label,
             output_dir=probe_dir,
             wandb_group=wandb_group,
-        ).run()
+        )
 
     def run(self) -> BenchmarkRun:
-        """Binary-search each criterion group while keeping the request budget fixed."""
+        """Binary-search the configured client-concurrency variable for each criterion group."""
         if not self.benchmark.slo.params:
             raise ValueError("--slo-params is required for SLO auto-tune")
         base_dir = result_directory_path(
@@ -250,7 +197,9 @@ class SloAutoTuneBenchmark:
                 summaries.append(
                     {
                         "group": group_index,
-                        "parallel": value,
+                        "search_variable": "max_concurrency",
+                        "max_concurrency": value,
+                        "request_rate": self.benchmark.load.arrival_rate,
                         "request_budget": self.benchmark.load.request_count,
                         "criteria": criteria,
                         "average_values": average_values,

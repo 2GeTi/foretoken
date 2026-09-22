@@ -151,6 +151,7 @@ class BenchmarkArtifactSink:
                         else [],
                         "conversation_id": item.conversation_id,
                         "turn": item.turn,
+                        "dataset": item.dataset,
                     }
                     for index, item in enumerate(run.measurements)
                 ],
@@ -287,11 +288,11 @@ def resolved_load_record(benchmark: BenchmarkConfig) -> dict[str, Any]:
     load = benchmark.load
     max_concurrency = int(load.max_concurrency)
     return {
-        "parallel": max_concurrency,
-        "number": int(load.request_count),
-        "rate": float(load.arrival_rate),
+        "max_concurrency": max_concurrency,
+        "num_prompts": load.request_count,
+        "request_rate": float(load.arrival_rate),
+        "duration": load.duration_seconds,
         "open_loop": max_concurrency == -1,
-        "resolved_parallel": max_concurrency,
     }
 
 
@@ -307,15 +308,16 @@ def build_benchmark_run_record(
         "mode": mode,
         "model": service.model,
         "url": service.chat_completions_url,
-        "parallel": load_record["parallel"],
-        "number": load_record["number"],
-        "rate": load_record["rate"],
+        "max_concurrency": load_record["max_concurrency"],
+        "num_prompts": load_record["num_prompts"],
+        "request_rate": load_record["request_rate"],
+        "duration": load_record.get("duration"),
         "open_loop": load_record["open_loop"],
         "stream": benchmark.generation.stream,
         "resolved": {
-            "parallel": load_record["resolved_parallel"],
-            "number": load_record["number"],
-            "rate": load_record["rate"],
+            "max_concurrency": load_record["max_concurrency"],
+            "num_prompts": load_record["num_prompts"],
+            "request_rate": load_record["request_rate"],
         },
     }
     if benchmark.is_multi_turn:

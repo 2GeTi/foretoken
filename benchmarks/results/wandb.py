@@ -81,8 +81,8 @@ def wandb_metric_fields(metrics: dict[str, Any]) -> dict[str, Any]:
     throughput = metrics["throughput"]
     message = {
         _TIME_TAKEN: round(float(metrics["benchmark_time"]), 4),
-        _CONCURRENCY: int(metrics["parallel"]),
-        _REQUEST_RATE: float(metrics["rate"]),
+        _CONCURRENCY: int(metrics["max_concurrency"]),
+        _REQUEST_RATE: float(metrics["request_rate"]),
         _TOTAL_REQUESTS: int(metrics["request_num"]),
         _SUCCEED_REQUESTS: int(metrics["success_num"]),
         _FAILED_REQUESTS: int(metrics["failed_num"]),
@@ -143,7 +143,7 @@ def wandb_metric_fields(metrics: dict[str, Any]) -> dict[str, Any]:
                 )
     conversation = metrics.get("conversation")
     if isinstance(conversation, dict):
-        message[_CONCURRENT_CONVERSATIONS] = int(metrics["parallel"])
+        message[_CONCURRENT_CONVERSATIONS] = int(metrics["max_concurrency"])
         message[_CONVERSATIONS] = int(conversation["attempted_num"])
         message[_CONVERSATIONS_PER_SECOND] = round(
             float(conversation["attempted_conversations_per_second"]), 4

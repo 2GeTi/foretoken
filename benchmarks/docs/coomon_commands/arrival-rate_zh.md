@@ -10,7 +10,7 @@ foretoken bench examples/quickstart \
   --output local,wandb
 ```
 
-`--request-rate` 控制目标请求速率，`--max-concurrency` 限制在途请求数。默认 `--arrival-pattern poisson` 使用泊松到达；`constant` 使用固定间隔，`gamma` 配合 `--burstiness` 表达突发程度；需要按时间戳回放时单独使用 `--trace`。`--request-rate -1` 表示尽快发送，`--max-concurrency -1` 表示取消并发上限。默认不限速、并发为 1。生成式 constant 和 Gamma 到达目前要求单一数据集和单轮请求。
+`--request-rate` 控制目标请求速率，`--max-concurrency` 限制在途请求数。默认 `--arrival-pattern poisson` 使用泊松到达；`constant` 使用固定间隔，`gamma` 配合 `--burstiness` 表达突发程度；需要按时间戳回放时单独使用 `--trace`。`--request-rate -1` 表示尽快发送，`--max-concurrency -1` 表示取消并发上限。默认不限速、并发为 1。生成式到达、多轮对话和多个数据集使用相同的请求速率、并发、预热和时长控制。
 
 去掉并发上限：
 
@@ -20,7 +20,7 @@ foretoken bench examples/quickstart \
   --output local,wandb
 ```
 
-`--request-rate -1 --max-concurrency -1` 会尽快启动请求预算内的请求。多轮数据要求 `--request-rate -1`；`--num-prompts` 仍表示 HTTP 请求预算，`--max-concurrency` 限制同时执行的对话数。
+`--request-rate -1 --max-concurrency -1` 会尽快启动请求预算内的请求。添加 `--duration SECONDS` 可按墙上时钟停止新的请求准入；省略 `--num-prompts` 时使用时长作为工作负载边界。多轮数据共享 HTTP 请求预算，`--max-concurrency` 限制同时执行的对话数。
 
 使用固定间隔或 Gamma 到达：
 

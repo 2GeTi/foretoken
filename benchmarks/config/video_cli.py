@@ -56,6 +56,14 @@ def parse_video_arguments(
         help="Base seed for public benchmark rows; row index is added",
     )
     parser.add_argument(
+        "--warmup-requests", type=int, default=0,
+        help="Video requests completed before measurement; excluded from metrics",
+    )
+    parser.add_argument(
+        "--duration", type=float, default=None,
+        help="Stop admitting video requests after this many seconds",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Validate and print the workload without sending requests",
@@ -100,6 +108,8 @@ def parse_video_arguments(
         ),
         dataset_offset=parsed.dataset_offset,
         concurrency=parsed.max_concurrency,
+        warmup_requests=parsed.warmup_requests,
+        duration_s=parsed.duration,
     )
     config.validate()
     return VideoBenchCommand(config=config, dry_run=parsed.dry_run)

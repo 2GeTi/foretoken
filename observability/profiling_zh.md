@@ -17,10 +17,10 @@ SPDX-FileCopyrightText: Copyright contributors to the Foretoken project
 pip install -e '.[bench]'
 foretoken bench examples/quickstart \
   --profile --profile-engine pytorch --profile-duration 15s \
-  --number 2 --max-tokens 128 --output local
+  --num-prompts 2 --max-tokens 128 --output local
 ```
 
-此模式支持 Kustomize 部署中的单个生成式负载，使用默认的 `--rate -1`。
+此模式支持 Kustomize 部署中的单个生成式负载，使用默认的 `--request-rate -1`。
 
 ## 部署并采集外部流量
 
@@ -79,7 +79,7 @@ runtime:
 pip install -e '.[bench]'
 foretoken bench examples/profile/nsight \
   --profile --profile-engine nsight --profile-duration 15s \
-  --number 2 --max-tokens 128 --output local
+  --num-prompts 2 --max-tokens 128 --output local
 ```
 
 如需采集外部流量，改用 `foretoken deploy examples/profile/nsight --profile --profile-engine nsight --profile-duration 15s --timeout 20m`。该命令在采集后保留运行中的服务，再次执行即可采集下一段。

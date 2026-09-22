@@ -57,18 +57,13 @@ class GeneratedLoadBenchmark:
             output_dir=self.output_dir,
             wandb_group=self.wandb_group,
         ) as outputs:
-            # Drain a separate run before opening a capture or measuring traffic.
-            # EvalScope's built-in warmup can overlap measured requests to keep
-            # the server busy; capture requires a completed warmup phase instead.
-            # Reuse the same executor and result lifecycle, with warmup disabled
-            # in the child so its records cannot mix with the measured run.
-            warmup_count = self.benchmark.load.warmup_requests
-            if warmup_count:
+            profile_options = self.benchmark.profile
+            if profile_options is not None and self.benchmark.load.warmup_requests:
                 warmup = replace(
                     self.benchmark,
                     load=replace(
                         self.benchmark.load,
-                        request_count=warmup_count,
+                        request_count=self.benchmark.load.warmup_requests,
                         warmup_requests=0,
                     ),
                     profile=None,
@@ -85,7 +80,6 @@ class GeneratedLoadBenchmark:
                 ).run(phase_label="Warmup")
                 if warmed.metrics["failed_num"] or not warmed.metrics["success_num"]:
                     raise ValueError("Warmup requests failed; measurement was not started")
-            profile_options = self.benchmark.profile
             profile = None
             if profile_options is not None:
                 command = ProfileCommand(
@@ -119,26 +113,3 @@ class GeneratedLoadBenchmark:
             )
             outputs.publish(run)
         return run
-
-
-def run_http_dataset(
-    benchmark: BenchmarkConfig,
-    service: ModelService,
-    label: str,
-    output_dir: str,
-    wandb_group: str | None,
-) -> BenchmarkRun:
-    """Run one dataset with the output location and group selected by its composition."""
-    if benchmark.is_multi_turn:
-        from benchmarks.runs.conversation import ConversationBudgetBenchmark
-
-        return ConversationBudgetBenchmark(
-            benchmark,
-            service,
-            label=label,
-            output_dir=output_dir,
-            wandb_group=wandb_group,
-        ).run()
-    return GeneratedLoadBenchmark(
-        benchmark, service, label=label, output_dir=output_dir, wandb_group=wandb_group
-    ).run()

@@ -18,7 +18,7 @@ Local output includes:
 
 In sweep summaries, `runs` counts repetitions and `samples` counts available values. Missing timings are omitted; zero throughput and failure counts remain. `stddev` is unavailable for fewer than two samples. Timing metrics ending in `_seconds` use seconds. Summaries of run p95 values are not pooled request percentiles.
 
-Warmup reuses the workload's starting rows and seed and must succeed before measurement begins. Trace replay requires separate warmup.
+Warmup reuses the workload's starting rows and seed and must succeed before measurement begins. Trace replay warms selected leading events, then replays the measured trace from its original clock.
 
 ## Request metrics
 

@@ -137,8 +137,8 @@ def video_run_record(config: VideoBenchmarkConfig) -> dict[str, Any]:
     return {
         "mode": "video_generation",
         "dataset": config.dataset_source,
-        "parallel": config.concurrency,
-        "number": len(config.requests),
+        "max_concurrency": config.concurrency,
+        "num_prompts": len(config.requests),
     }
 
 

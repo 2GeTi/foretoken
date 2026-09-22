@@ -15,7 +15,7 @@ Run a short workload and capture it:
 pip install -e '.[bench]'
 foretoken bench examples/profile/nsight \
   --profile --profile-engine nsight --profile-duration 15s \
-  --number 2 --max-tokens 128 --output local
+  --num-prompts 2 --max-tokens 128 --output local
 foretoken profile view
 ```
 

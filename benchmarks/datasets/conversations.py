@@ -293,7 +293,7 @@ def split_chat_conversation(
 
 def _load_dataset_tasks(
     dataset_selector: str,
-    requested_count: int,
+    requested_count: int | None,
     row_offset: int,
     normalize: Callable[[Any, Path, int, int], Task],
     kind: str,
@@ -306,9 +306,9 @@ def _load_dataset_tasks(
         if row_index < row_offset:
             continue
         tasks.append(normalize(row, dataset_path, line_number, row_index))
-        if len(tasks) >= requested_count:
+        if requested_count is not None and len(tasks) >= requested_count:
             break
-    if len(tasks) < requested_count:
+    if requested_count is not None and len(tasks) < requested_count:
         raise ValueError(
             f"Loaded {len(tasks)} {kind} from {dataset_selector!r} "
             f"(offset={row_offset}), need {requested_count}"
@@ -322,12 +322,13 @@ def load_conversation_tasks(benchmark: BenchmarkConfig) -> list[Task]:
     request_budget = benchmark.load.request_count
     row_offset = int(workload.row_offset)
     if workload.fixed_prompt and not workload.dataset_selectors:
+        count = request_budget if request_budget is not None else 1
         return [
             Task(
                 id=f"prompt:{index}",
                 turns=(Turn(role="user", content=workload.fixed_prompt),),
             )
-            for index in range(request_budget)
+            for index in range(count)
         ]
 
     if not workload.dataset_selectors:
@@ -349,8 +350,10 @@ def load_conversation_tasks(benchmark: BenchmarkConfig) -> list[Task]:
             if workload.max_turns is not None and workload.max_turns > 0:
                 turn_count = min(turn_count, workload.max_turns)
             request_count += turn_count
-            if request_count >= request_budget:
+            if request_budget is not None and request_count >= request_budget:
                 return tasks
+    if request_budget is None:
+        return tasks
     raise ValueError(
         f"Loaded {request_count} conversation requests, need {request_budget}"
     )
@@ -403,12 +406,13 @@ def load_request_tasks(
     row_offset = int(workload.row_offset)
 
     if workload.fixed_prompt and dataset_selector is None:
+        prompt_count = count if count is not None else 1
         return [
             Task(
                 id=f"prompt:{index}",
                 turns=(Turn(role="user", content=workload.fixed_prompt),),
             )
-            for index in range(count)
+            for index in range(prompt_count)
         ]
 
     if dataset_selector is None:
