@@ -82,7 +82,7 @@ foretoken bench examples/quickstart \
   --num-prompts 2 --max-tokens 128 --output local
 ```
 
-Profile runs use the same workload controls as ordinary benchmarks. `--duration`, `--request-rate`, `--arrival-pattern`, and `--max-concurrency` remain effective; profiling starts after warmup and closes after admitted requests drain. See [Profiling](../observability/profiling.md) for setup and trace viewing.
+Profile runs use the same workload controls as ordinary benchmarks. `--duration`, `--request-rate`, `--arrival-pattern`, and `--max-concurrency` remain effective; profiling starts after warmup and closes after admitted requests drain. The same profile can accompany trace replay, multi-turn and multi-dataset workloads, SLO probes, and HTTP sweep points; each sweep point and repetition writes its own `profile.json`. Profiling remains available only for Foretoken Kustomize deployments, not video benchmarks. See [Profiling](../observability/profiling.md) for setup and trace viewing.
 
 ### Trace replay
 

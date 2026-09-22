@@ -373,6 +373,32 @@ class ResultOutputs:
             raise RuntimeError("result outputs are not active")
         return self._execution_dir
 
+    def create_profile(self) -> Any | None:
+        """Create the optional HTTP capture observer owned by this point's output directory."""
+        if self._execution_dir is None:
+            raise RuntimeError("result outputs are not active")
+        if not isinstance(self.benchmark, BenchmarkConfig):
+            raise TypeError("profiling is only supported for HTTP benchmark outputs")
+        profile_options = self.benchmark.profile
+        if profile_options is None:
+            return None
+        # Keep the capture adapter's import local to avoid a results/capture cycle.
+        from foretoken.arguments import ProfileCommand
+        from foretoken.profiling import ProfileRun
+        from benchmarks.profiling.capture import BenchmarkProfile
+
+        command = ProfileCommand(
+            kustomize_path=self.benchmark.service.kustomize_path,
+            model=self.service.model if self.service is not None else self.benchmark.service.model,
+            profile_engine=profile_options.engine,
+            profile_duration=profile_options.duration,
+            timeout=self.benchmark.service.wait_timeout,
+        )
+        return BenchmarkProfile(
+            ProfileRun(command, deployment=self.service.deployment if self.service is not None else None),
+            self.execution_dir,
+        )
+
     def __enter__(self) -> ResultOutputs:
         """Acquire the execution directory and open every selected sink."""
         if self._execution_dir is not None:

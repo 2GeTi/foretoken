@@ -82,7 +82,7 @@ foretoken bench examples/quickstart \
   --num-prompts 2 --max-tokens 128 --output local
 ```
 
-Profile 会复用普通评测的负载控制；`--duration`、`--request-rate`、`--arrival-pattern` 和 `--max-concurrency` 仍然生效，采集在预热完成后开始，并在已准入请求排空后关闭。环境配置和结果查看见[性能剖析](../observability/profiling_zh.md)。
+Profile 会复用普通评测的负载控制；`--duration`、`--request-rate`、`--arrival-pattern` 和 `--max-concurrency` 仍然生效，采集在预热完成后开始，并在已准入请求排空后关闭。轨迹回放、多轮、多数据集、SLO 探测和 HTTP 参数扫描点都可使用同一个 Profile；扫描的每个参数点和重复运行都会在自己的目录写入 `profile.json`。Profile 仍只支持 Foretoken Kustomize 部署，不用于视频评测。环境配置和结果查看见[性能剖析](../observability/profiling_zh.md)。
 
 ### 轨迹回放
 

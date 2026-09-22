@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from contextlib import nullcontext
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -37,6 +38,7 @@ from benchmarks.datasets.synthetic import (
 from benchmarks.datasets.traces import ArrivalTraceEvent, ArrivalTraceReader
 
 from benchmarks.datasets.huggingface import same_dataset_source
+from benchmarks.profiling.capture import BenchmarkProfile
 
 logger = logging.getLogger(__name__)
 
@@ -159,11 +161,14 @@ class TraceReplayBenchmark:
         *,
         scheduled_at: float,
         trace_offset_seconds: float,
+        profile: BenchmarkProfile | None = None,
     ) -> tuple[int, dict[str, Any]]:
         actual_send_at = time.perf_counter()
         if event.request is None:
             raise RuntimeError("trace event has no bound chat request")
         record = await client.send(event.request)
+        if profile is not None:
+            profile.response_received(bool(record["success"]))
         record["source_index"] = event.source_row_index
         record["conversation_id"] = event.conversation_id
         record["trace_timestamp_s"] = event.timestamp_seconds
@@ -207,6 +212,8 @@ class TraceReplayBenchmark:
         *,
         max_concurrency: int | None,
         trace_window_start: float,
+        trace_origin: float | None = None,
+        profile: BenchmarkProfile | None = None,
     ) -> tuple[list[dict[str, Any]], float, float]:
         """Schedule requests by absolute recorded offset and include concurrency waits in replay delay."""
         completed_tasks: asyncio.Queue[
@@ -230,6 +237,7 @@ class TraceReplayBenchmark:
                     return
 
         started_at = time.perf_counter()
+        trace_origin = trace_window_start if trace_origin is None else trace_origin
         request_count = 0
         try:
             for event in events:
@@ -256,8 +264,9 @@ class TraceReplayBenchmark:
                         request_count,
                         scheduled_at=scheduled_at,
                         trace_offset_seconds=(
-                            event.timestamp_seconds - trace_window_start
+                            event.timestamp_seconds - trace_origin
                         ),
+                        profile=profile,
                     )
                 )
                 pending_tasks.add(task)
@@ -293,7 +302,11 @@ class TraceReplayBenchmark:
             self.service,
             events,
         )
-        request_count = len(events)
+        warmup_count = min(self.benchmark.load.warmup_requests, len(events))
+        measured_events = events[warmup_count:]
+        if not measured_events:
+            raise ValueError("Trace warmup consumed every selected event")
+        request_count = len(measured_events)
 
         max_concurrency = trace.max_concurrency
         active_connection_limit = (
@@ -338,26 +351,33 @@ class TraceReplayBenchmark:
             output_dir=self.output_dir,
             wandb_group=self.wandb_group,
         ) as outputs:
-            async with ChatCompletionsLoadClient(
-                self.benchmark,
-                self.service,
-                max_connections=active_connection_limit,
-            ) as client:
-                if self.benchmark.load.warmup_requests:
-                    warmup_events = events[: self.benchmark.load.warmup_requests]
+            profile = outputs.create_profile()
+            warmup_events = events[:warmup_count]
+            measured_trace_start = measured_events[0].timestamp_seconds
+            with (profile if profile is not None else nullcontext()):
+                async with ChatCompletionsLoadClient(
+                    self.benchmark,
+                    self.service,
+                    max_connections=active_connection_limit,
+                ) as client:
                     if warmup_events:
                         await self._replay_events(
                             client,
                             warmup_events,
                             max_concurrency=max_concurrency,
-                            trace_window_start=trace_window_start,
+                            trace_window_start=warmup_events[0].timestamp_seconds,
+                            trace_origin=trace_window_start,
                         )
-                records, total_time, time_origin = await self._replay_events(
-                    client,
-                    events,
-                    max_concurrency=max_concurrency,
-                    trace_window_start=trace_window_start,
-                )
+                    if profile is not None:
+                        await profile.before_request()
+                    records, total_time, time_origin = await self._replay_events(
+                        client,
+                        measured_events,
+                        max_concurrency=max_concurrency,
+                        trace_window_start=measured_trace_start,
+                        trace_origin=trace_window_start,
+                        profile=profile,
+                    )
             measurements = [_request_measurement(item) for item in records]
             metrics = summarize_measurements(
                 measurements,
@@ -384,7 +404,14 @@ class TraceReplayBenchmark:
                 record=record,
                 metrics=metrics,
                 measurements=measurements,
-                artifacts={"raw_output": raw_output},
+                artifacts={
+                    "raw_output": raw_output,
+                    **(
+                        {"profile": Path(outputs.execution_dir) / "profile.json"}
+                        if profile is not None
+                        else {}
+                    ),
+                },
                 time_origin=time_origin,
             )
             outputs.publish(run)

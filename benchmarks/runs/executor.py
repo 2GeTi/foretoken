@@ -282,25 +282,7 @@ class TaskLoadBenchmark:
             self.benchmark, self.service, record, label=self.label,
             output_dir=self.output_dir, wandb_group=self.wandb_group,
         ) as outputs:
-            profile_options = self.benchmark.profile
-            profile = None
-            if profile_options is not None:
-                from foretoken.arguments import ProfileCommand
-                from foretoken.profiling import ProfileRun
-
-                from benchmarks.profiling.capture import BenchmarkProfile
-
-                command = ProfileCommand(
-                    kustomize_path=self.benchmark.service.kustomize_path,
-                    model=self.service.model,
-                    profile_engine=profile_options.engine,
-                    profile_duration=profile_options.duration,
-                    timeout=self.benchmark.service.wait_timeout,
-                )
-                profile = BenchmarkProfile(
-                    ProfileRun(command, deployment=self.service.deployment),
-                    outputs.execution_dir,
-                )
+            profile = outputs.create_profile()
             with (profile if profile is not None else nullcontext()):
                 measurements, elapsed = asyncio.run(self._run_requests(profile=profile))
             if profile is not None:
