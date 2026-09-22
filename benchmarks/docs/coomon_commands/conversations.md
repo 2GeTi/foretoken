@@ -10,7 +10,7 @@ foretoken bench examples/quickstart \
   --num-prompts 2 --max-concurrency 2 --output local,wandb
 ```
 
-The file contains one single-turn and one multi-turn conversation. All user turns run by default, using the model's actual answers rather than reference text. `--num-prompts` is the HTTP request budget shared by the selected conversations. Multi-turn conversations require `--request-rate -1`; the result reports both request and conversation counts.
+The file contains one single-turn and one multi-turn conversation. All user turns run by default, using the model's actual answers rather than reference text. `--num-prompts` is the HTTP request budget shared by the selected conversations. Multi-turn conversation starts use the selected arrival process and continue dependent turns after each response; the result reports both request and conversation counts.
 
 To run only the first user turn:
 

@@ -16,7 +16,6 @@ from foretoken.manifest import DeploymentError
 from benchmarks.config.benchmark import BenchmarkConfig
 from benchmarks.config.cli import parse_benchmark_arguments
 from benchmarks.config.video_cli import parse_video_arguments
-from benchmarks.datasets.multi_dataset import MultiDatasetBenchmark
 from benchmarks.model_service import (
     ModelService,
     require_health_endpoint,
@@ -27,42 +26,24 @@ from benchmarks.results.console import (
     format_benchmark_config,
     print_model_service,
 )
-from benchmarks.runs.http import GeneratedLoadBenchmark, run_http_dataset
-from benchmarks.runs.arrival import GeneratedArrivalBenchmark
-from benchmarks.runs.conversation import ConversationBudgetBenchmark
+from benchmarks.results.output import BenchmarkRun
+from benchmarks.runs.dispatch import measurement_runner
 from benchmarks.runs.slo import SloAutoTuneBenchmark
 from benchmarks.runs.sweep import ParameterSweepBenchmark
-from benchmarks.runs.trace import TraceReplayBenchmark
 
 logger = logging.getLogger(__name__)
 
 
-def select_benchmark(
+def run_benchmark(
     benchmark: BenchmarkConfig,
     service: ModelService,
-) -> (
-    TraceReplayBenchmark
-    | ParameterSweepBenchmark
-    | SloAutoTuneBenchmark
-    | ConversationBudgetBenchmark
-    | MultiDatasetBenchmark
-    | GeneratedLoadBenchmark
-    | GeneratedArrivalBenchmark
-):
-    """Choose the benchmark that owns the configured workload; its ``run()`` returns a ``BenchmarkRun``."""
-    if benchmark.slo.params:
-        return SloAutoTuneBenchmark(benchmark, service)
-    if benchmark.load.arrival_pattern in {"constant", "gamma"}:
-        return GeneratedArrivalBenchmark(benchmark, service)
-    if benchmark.trace.trace_selector:
-        return TraceReplayBenchmark(benchmark, service)
+) -> BenchmarkRun:
+    """Execute the configured sweep, SLO search, or measurement point."""
     if benchmark.sweep.path:
-        return ParameterSweepBenchmark(benchmark, service)
-    if benchmark.resolved_workload.has_multiple_datasets:
-        return MultiDatasetBenchmark(benchmark, service, run_http_dataset)
-    if benchmark.is_multi_turn:
-        return ConversationBudgetBenchmark(benchmark, service)
-    return GeneratedLoadBenchmark(benchmark, service)
+        return ParameterSweepBenchmark(benchmark, service).run()
+    if benchmark.slo.params:
+        return SloAutoTuneBenchmark(benchmark, service).run()
+    return measurement_runner(benchmark, service).run()
 
 
 def _run_video(arguments: Sequence[str], *, command_name: str) -> None:
@@ -101,7 +82,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 print_model_service(service)
 
             logger.info("%s", format_benchmark_config(benchmark, service))
-            run = select_benchmark(benchmark, service).run()
+            run = run_benchmark(benchmark, service)
             if run.metrics["success_num"] == 0:
                 raise SystemExit(1)
     except (DeploymentError, ValueError, wandb.errors.Error) as exc:

@@ -89,6 +89,7 @@ class ChatCompletionsLoadClient:
         output_tokens: int | None = None
         cached_input_tokens: int | None = None
         generated_parts: list[str] = []
+        tool_calls: list[dict[str, Any]] = []
         status_code: Optional[int] = None
         error_message: Optional[str] = None
         success = True
@@ -107,9 +108,12 @@ class ChatCompletionsLoadClient:
                     payload = chunk.model_dump(exclude_none=True)
                     timing.observe(payload, received_at)
                     if chunk.choices:
-                        content = chunk.choices[0].delta.content
+                        delta = chunk.choices[0].delta
+                        content = delta.content
                         if content:
                             generated_parts.append(content)
+                        if delta.tool_calls:
+                            tool_calls.extend(call.model_dump(exclude_none=True) for call in delta.tool_calls)
                     if chunk.usage is not None:
                         input_tokens = int(chunk.usage.prompt_tokens)
                         output_tokens = int(chunk.usage.completion_tokens)
@@ -118,8 +122,11 @@ class ChatCompletionsLoadClient:
                             cached_input_tokens = int(details.cached_tokens)
             else:
                 message = response.choices[0].message if response.choices else None
-                if message is not None and message.content:
-                    generated_parts.append(message.content)
+                if message is not None:
+                    if message.content:
+                        generated_parts.append(message.content)
+                    if message.tool_calls:
+                        tool_calls.extend(call.model_dump(exclude_none=True) for call in message.tool_calls)
                 if response.usage is not None:
                     input_tokens = int(response.usage.prompt_tokens)
                     output_tokens = int(response.usage.completion_tokens)
@@ -160,5 +167,6 @@ class ChatCompletionsLoadClient:
             "output_tokens": output_tokens,
             "cached_input_tokens": cached_input_tokens,
             "generated_text": "".join(generated_parts),
+            "tool_calls": tool_calls,
             "error": error_message,
         }

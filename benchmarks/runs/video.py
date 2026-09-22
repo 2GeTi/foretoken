@@ -9,6 +9,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -27,20 +28,34 @@ logger = logging.getLogger(__name__)
 
 
 async def _run_requests(
-    config: VideoBenchmarkConfig, run_dir: Path
+    config: VideoBenchmarkConfig, run_dir: Path, requests=None
 ) -> list[VideoSampleResult]:
-    """Send every dataset row with the configured concurrency limit."""
+    """Send selected dataset rows with the configured concurrency limit."""
     client = VideoGenerationClient(config)
+    selected = tuple(config.requests if requests is None else requests)
     semaphore = asyncio.Semaphore(config.concurrency)
+    started = time.perf_counter()
 
-    async def one(index: int) -> VideoSampleResult:
-        request = config.requests[index]
-        async with semaphore:
+    async def one(index: int) -> VideoSampleResult | None:
+        request = selected[index]
+        if config.duration_s is not None:
+            remaining = config.duration_s - (time.perf_counter() - started)
+            if remaining <= 0:
+                return None
+            try:
+                await asyncio.wait_for(semaphore.acquire(), remaining)
+            except asyncio.TimeoutError:
+                return None
+        else:
+            await semaphore.acquire()
+        try:
             safe_id = re.sub(r"[^A-Za-z0-9_.-]+", "-", request.sample_id).strip(
                 ".-"
             )
             output = run_dir / f"video_{index:04d}_{safe_id or 'sample'}.mp4"
             return await client.generate(request, index, output)
+        finally:
+            semaphore.release()
 
     try:
         ffprobe_warning = await client.prepare_video_validation()
@@ -49,9 +64,10 @@ async def _run_requests(
                 "Generated video metadata validation is disabled: %s",
                 ffprobe_warning,
             )
-        return await asyncio.gather(
-            *(one(index) for index in range(len(config.requests)))
+        results = await asyncio.gather(
+            *(one(index) for index in range(len(selected)))
         )
+        return [item for item in results if item is not None]
     finally:
         await client.close()
 
@@ -80,6 +96,12 @@ async def run_video_benchmark(
         sink_factory=partial(video_result_sinks, config),
     ) as outputs:
         run_dir = Path(outputs.execution_dir)
+        if config.warmup_requests:
+            warmup_dir = run_dir / "warmup"
+            warmup_dir.mkdir(parents=True, exist_ok=True)
+            warmup = await _run_requests(config, warmup_dir, config.requests[: config.warmup_requests])
+            if not warmup or any(not item.success for item in warmup):
+                raise ValueError("Warmup requests failed; measurement was not started")
         results = await _run_requests(config, run_dir)
         run = create_video_benchmark_run(record, results, run_dir)
         outputs.publish(run)

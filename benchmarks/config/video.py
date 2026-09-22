@@ -128,6 +128,8 @@ class VideoBenchmarkConfig:
     wandb: WandbRunConfig
     dataset_offset: int = 0
     concurrency: int = 1
+    warmup_requests: int = 0
+    duration_s: float | None = None
 
     def validate(self) -> None:
         """Validate the complete benchmark before sending any request."""
@@ -137,6 +139,12 @@ class VideoBenchmarkConfig:
             raise ValueError("video dataset offset must be zero or positive")
         if self.concurrency <= 0:
             raise ValueError("video --max-concurrency must be positive")
+        if self.warmup_requests < 0:
+            raise ValueError("video --warmup-requests must be zero or positive")
+        if self.warmup_requests > len(self.requests):
+            raise ValueError("video --warmup-requests cannot exceed selected requests")
+        if self.duration_s is not None and self.duration_s <= 0:
+            raise ValueError("video --duration must be positive")
         endpoint = urlsplit(self.endpoint.url)
         health = urlsplit(self.endpoint.health_url)
         if endpoint.scheme not in {"http", "https"} or not endpoint.netloc:
@@ -171,6 +179,8 @@ class VideoBenchmarkConfig:
                 "timeout_s": self.endpoint.timeout_s,
             },
             "concurrency": self.concurrency,
+            "warmup_requests": self.warmup_requests,
+            "duration_s": self.duration_s,
             "output": {
                 "destinations": list(self.outputs.destinations),
                 "output_dir": self.outputs.output_dir,

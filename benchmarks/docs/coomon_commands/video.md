@@ -36,7 +36,7 @@ foretoken bench video \
   --output-dir results/video/ti2v
 ```
 
-The benchmark prints an aggregate summary, saves the generated videos and run metadata locally, and records per-request metrics in W&B. See [W&B output](wandb.md) for shared output settings.
+The benchmark prints an aggregate summary, saves the generated videos and run metadata locally, and records per-request metrics in W&B. Add `--warmup-requests N` to complete the first N rows before measurement, or `--duration SECONDS` to stop admitting new rows at a deadline and drain requests already admitted. See [W&B output](wandb.md) for shared output settings.
 
 ![TI2V aggregate benchmark summary](../imgs/video-ti2v-benchmark-summary.png)
 

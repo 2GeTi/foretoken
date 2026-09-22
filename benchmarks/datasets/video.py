@@ -416,7 +416,7 @@ def load_video_dataset(
     path: str,
     *,
     defaults: VideoDatasetDefaults | None = None,
-    number: int = 0,
+    number: int | None = 0,
     offset: int = 0,
 ) -> tuple[str, tuple[VideoGenerationRequest, ...]]:
     """Load native video JSONL or a VideoArgusBench manifest."""

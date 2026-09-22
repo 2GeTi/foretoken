@@ -10,7 +10,7 @@ foretoken bench examples/quickstart \
   --output local,wandb
 ```
 
-`--request-rate` controls the target request rate and `--max-concurrency` limits in-flight requests. The default `--arrival-pattern poisson` uses Poisson arrivals; use `constant` for fixed intervals or `gamma` with `--burstiness` for bursty arrivals; use `--trace` separately for timestamp replay. `--request-rate -1` sends as fast as possible, and `--max-concurrency -1` removes the concurrency cap. Defaults are no rate limit and one concurrent request. Generated constant and Gamma arrivals currently use one dataset source and single-turn requests; run any warmup separately.
+`--request-rate` controls the target request rate and `--max-concurrency` limits in-flight requests. The default `--arrival-pattern poisson` uses Poisson arrivals; use `constant` for fixed intervals or `gamma` with `--burstiness` for bursty arrivals; use `--trace` separately for timestamp replay. `--request-rate -1` sends as fast as possible, and `--max-concurrency -1` removes the concurrency cap. Defaults are no rate limit and one concurrent request. Generated arrivals, multi-turn conversations, and multiple datasets use the same request-rate, concurrency, warmup, and duration controls.
 
 To remove the concurrency cap:
 
@@ -20,7 +20,7 @@ foretoken bench examples/quickstart \
   --output local,wandb
 ```
 
-With `--request-rate -1 --max-concurrency -1`, the entire request budget starts as fast as possible. Multi-turn data requires `--request-rate -1`; `--num-prompts` remains the HTTP request budget and `--max-concurrency` limits conversations in progress.
+With `--request-rate -1 --max-concurrency -1`, the entire request budget starts as fast as possible. Add `--duration SECONDS` to stop admissions at a wall-clock deadline; omit `--num-prompts` for a duration-bounded workload. Multi-turn data uses the same HTTP request budget and limits conversations in progress.
 
 To use fixed or Gamma arrivals:
 

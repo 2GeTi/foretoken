@@ -36,6 +36,7 @@ class RequestMeasurement:
     turn: int | None
     status_code: int | None = None
     error_message: str | None = None
+    dataset: str | None = None
 
 
 def percentile_summary(values: list[float]) -> dict[str, float | None]:
@@ -266,8 +267,8 @@ def summarize_measurements(
             else None
         ),
         "benchmark_time": total_time,
-        "rate": arrival_rate,
-        "number": request_count,
-        "parallel": reported_concurrency,
+        "request_rate": arrival_rate,
+        "num_prompts": request_count,
+        "max_concurrency": reported_concurrency,
         "slo": slo,
     }

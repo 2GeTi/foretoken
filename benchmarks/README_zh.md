@@ -40,13 +40,15 @@ foretoken bench examples/quickstart \
 
 添加 `--warmup-requests 16` 可在每次测量前完成 16 段预热对话，不计入正式指标。
 
-`--max-concurrency` 控制在途请求数，`--request-rate` 控制每秒请求到达率。`--arrival-pattern` 可选 `constant`、`poisson` 或 `gamma`；`--burstiness` 控制 Gamma 到达的突发程度。需要按时间戳回放时单独传入 `--trace`。`--request-rate -1` 表示取消速率限制，`--max-concurrency -1` 表示取消并发上限。默认不限速、并发为 1。例如按平均每秒 5 个请求发送且不限并发：
+`--max-concurrency` 控制在途请求数，`--request-rate` 控制每秒请求到达率。`--arrival-pattern` 可选 `constant`、`poisson` 或 `gamma`；`--burstiness` 控制 Gamma 到达的突发程度。`--duration` 到期后停止新的请求准入，并等待已经准入的请求完成；未显式传入 `--num-prompts` 时，评测时长就是请求预算，显式传入时两个条件同时生效。需要按时间戳回放时单独传入 `--trace`。预热请求使用当前负载控制，但不计入正式指标。`--request-rate -1` 表示取消速率限制，`--max-concurrency -1` 表示取消并发上限。默认不限速、并发为 1。例如按平均每秒 5 个请求发送且不限并发：
 
 ```bash
 foretoken bench examples/quickstart \
   --request-rate 5 --max-concurrency -1 --num-prompts 100 \
   --output local,wandb
 ```
+
+按时间限制运行时添加 `--duration 60`；达到 60 秒或请求预算后停止启动新请求。
 
 ### 随机负载
 
@@ -70,7 +72,7 @@ foretoken bench examples/quickstart \
   --output local,wandb
 ```
 
-`--dataset` 也接受本地 JSONL 文件。每行是一段对话，默认运行全部轮次，并使用模型的真实回答继续。`--num-prompts` 表示 HTTP 请求预算；`--max-turns 1` 可将每段对话限制为首轮。多轮要求 `--request-rate -1`。
+`--dataset` 也接受本地 JSONL 文件，以及逗号分隔的多个数据集。多个数据集共享同一个全局到达时钟和并发预算，结果保留数据集身份与分组指标。每行是一段对话，默认运行全部轮次，并使用模型的真实回答继续。`--num-prompts` 表示 HTTP 请求预算。多轮负载由 `--request-rate` 控制新对话的启动速率，依赖前序响应的后续轮次在响应完成后继续；`--max-concurrency` 限制同时进行的对话数。
 
 ### 在评测时采集 Profile
 
@@ -107,7 +109,7 @@ foretoken bench examples/quickstart \
 
 参数扫描需传入部署配置目录，例如 `examples/quickstart`，目前不支持 `--url`。自定义负载点与配置对比见[参数扫描](docs/coomon_commands/sweep_zh.md)。
 
-### SLO 容量搜索
+### SLO 并发搜索
 
 ```bash
 foretoken bench examples/quickstart \
@@ -118,7 +120,7 @@ foretoken bench examples/quickstart \
   --slo-upper-bound 32 --output local,wandb
 ```
 
-生成式单轮 SLO 评测复用 EvalScope；多轮、多数据集和轨迹回放保留各自的执行路径。指标名与限制见 [SLO 容量搜索](docs/coomon_commands/slo_zh.md)。
+SLO 探测点保留生成式、多轮、多数据集和轨迹负载各自的调度语义。指标名与限制见 [SLO 并发搜索](docs/coomon_commands/slo_zh.md)。
 
 ### 使用已有服务地址
 

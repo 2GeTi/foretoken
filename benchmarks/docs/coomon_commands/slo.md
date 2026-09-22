@@ -2,7 +2,7 @@
 
 English | [简体中文](slo_zh.md) · [Common commands](../examples.md)
 
-After the [setup steps](../examples.md#setup), find the largest workload concurrency that still meets latency or throughput constraints. Foretoken owns the request budget, search, and result publication; generated single-turn execution reuses EvalScope's HTTP engine. The search preserves the selected workload schedule.
+After the [setup steps](../examples.md#setup), search the largest client-concurrency setting that meets latency or throughput constraints under the selected arrival process. Foretoken owns the request budget, search, and result publication; the search preserves the selected workload schedule.
 
 ```bash
 foretoken bench examples/quickstart \
@@ -15,7 +15,7 @@ foretoken bench examples/quickstart \
   --output local,wandb
 ```
 
-`--max-concurrency` is the starting concurrency. `--num-prompts` is the fixed HTTP request budget for every probe; it does not grow with concurrency. `--num-runs` repeats each probe with the same request budget and averages its metrics. Conversation workloads count every turn request, while trace replay keeps the selected trace events and timestamps fixed.
+`--max-concurrency` is the starting concurrency. `--num-prompts` is the fixed HTTP request budget for every probe; it does not grow with concurrency. `--request-rate` remains the offered arrival process, so the result is a client-concurrency search rather than a maximum service capacity claim. `--num-runs` repeats each probe with the same request budget and averages its metrics. Conversation workloads count every turn request, while trace replay keeps the selected trace events and timestamps fixed.
 
 ## Constraints
 
@@ -62,7 +62,7 @@ Available metrics:
 - TPOT: `avg_tpot`, `p50_tpot`, `p95_tpot`, `p99_tpot`
 - Throughput: `rps`, `tps`
 
-SLO auto-tune supports generated workloads, conversation datasets, multiple datasets, and timestamp trace replay. Generated workloads search closed-loop `--max-concurrency`; trace replay searches its in-flight concurrency cap while preserving arrival timestamps. It cannot be combined with `--sweep` or a positive `--request-rate`.
+SLO auto-tune supports generated workloads, conversation datasets, multiple datasets, and timestamp trace replay. It searches the configured client `--max-concurrency` while preserving generated or recorded arrivals. A sweep can contain SLO criteria; each sweep point runs an independent search.
 
 Results include `slo_results.json`. Each probe is stored below the SLO result directory, and W&B runs share one group with names that identify the criterion group, concurrency, and repeat.
 

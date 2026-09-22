@@ -40,13 +40,15 @@ foretoken bench examples/quickstart \
 
 Add `--warmup-requests 16` to complete 16 warmup conversations before each measured run, excluding them from its metrics.
 
-`--max-concurrency` controls in-flight requests and `--request-rate` controls arrivals per second. `--arrival-pattern` selects `constant`, `poisson`, or `gamma`; `--burstiness` controls Gamma arrivals. Pass `--trace` separately for timestamp replay. `--request-rate -1` removes rate pacing, while `--max-concurrency -1` removes the concurrency cap. The defaults are no rate limit and one concurrent request. To send at an average of five requests per second without a concurrency cap:
+`--max-concurrency` controls in-flight requests and `--request-rate` controls arrivals per second. `--arrival-pattern` selects `constant`, `poisson`, or `gamma`; `--burstiness` controls Gamma arrivals. `--duration` stops new admissions at the deadline and drains requests already admitted. If `--num-prompts` is omitted, duration is the request budget; otherwise both limits apply. Pass `--trace` separately for timestamp replay. `--request-rate -1` removes rate pacing, while `--max-concurrency -1` removes the concurrency cap. Warmup requests use the configured workload controls and are excluded from measured results. The defaults are no rate limit and one concurrent request. To send at an average of five requests per second without a concurrency cap:
 
 ```bash
 foretoken bench examples/quickstart \
   --request-rate 5 --max-concurrency -1 --num-prompts 100 \
   --output local,wandb
 ```
+
+For a time-bounded run, add `--duration 60`; scheduling stops at 60 seconds or when the request budget is exhausted.
 
 ### Random workloads
 
@@ -70,7 +72,7 @@ foretoken bench examples/quickstart \
   --output local,wandb
 ```
 
-`--dataset` also accepts a local JSONL file. Each row is a conversation, and all turns run by default using the model's actual answers. `--num-prompts` is the HTTP request budget; use `--max-turns 1` to limit each conversation to its first turn. Multi-turn conversations require `--request-rate -1`.
+`--dataset` also accepts a local JSONL file and multiple selectors separated by commas. Multiple datasets share one global arrival clock and concurrency budget, with per-dataset identity retained in the result. Each row is a conversation, and all turns run by default using the model's actual answers. `--num-prompts` is the HTTP request budget. Multi-turn conversations schedule conversation starts with `--request-rate` and continue dependent turns after each response; `--max-concurrency` limits conversations in progress.
 
 ### Capture while benchmarking
 
@@ -107,7 +109,7 @@ foretoken bench examples/quickstart \
 
 For parameter sweeps, pass a deployment configuration directory such as `examples/quickstart`; `--url` is currently unsupported. See [Parameter sweeps](docs/coomon_commands/sweep.md) to customize points and compare configurations.
 
-### SLO capacity search
+### SLO concurrency search
 
 ```bash
 foretoken bench examples/quickstart \
@@ -118,7 +120,7 @@ foretoken bench examples/quickstart \
   --slo-upper-bound 32 --output local,wandb
 ```
 
-Generated single-turn SLO runs reuse EvalScope; conversation, multi-dataset, and trace runs keep their existing execution paths. See [SLO capacity search](docs/coomon_commands/slo.md) for metric names and limits.
+SLO probes preserve the scheduling semantics of generated, multi-turn, multi-dataset, and trace workloads. See [SLO concurrency search](docs/coomon_commands/slo.md) for metric names and limits.
 
 ### An existing service URL
 

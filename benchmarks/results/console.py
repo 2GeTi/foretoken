@@ -162,7 +162,7 @@ def _percentile_row(
 def log_benchmark_summary(run_record: dict[str, Any], metrics: dict[str, Any]) -> None:
     """Print a summary of workload settings, success rate, latency, and throughput."""
     resolved = run_record["resolved"]
-    parallel = metrics["parallel"]
+    parallel = metrics["max_concurrency"]
     throughput = metrics["throughput"]
     generation_tokens_per_second = throughput[
         "generation_tokens_per_second"
@@ -184,7 +184,7 @@ def log_benchmark_summary(run_record: dict[str, Any], metrics: dict[str, Any]) -
         )
         concurrency_value = str(parallel)
 
-    rate = resolved["rate"]
+    rate = resolved["request_rate"]
 
     lines = [
         "======== Foretoken Benchmark Result ========",
@@ -362,11 +362,11 @@ def log_sweep_results(results: list[dict[str, Any]]) -> None:
         header,
     ]
     for item in results:
-        parallel = item["parallel"]
+        parallel = item["max_concurrency"]
         parallel_label = (
             "unlimited" if int(parallel) < 0 else str(int(parallel))
         )
-        rate = float(item["rate"])
+        rate = float(item["request_rate"])
         rate_label = "no limit" if rate == -1 else f"{rate:g}"
         throughput = item["throughput"]
         generation_tokens_per_second = throughput[

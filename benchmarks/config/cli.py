@@ -92,7 +92,7 @@ def _add_benchmark_arguments(
     parser.add_argument(
         "--num-prompts",
         type=int,
-        default=_default(HttpLoadSchedule, "request_count"),
+        default=None,
         help=(
             "Number of video requests; zero uses all selected rows"
             if video
@@ -230,6 +230,12 @@ def _add_benchmark_arguments(
         type=float,
         default=_default(HttpLoadSchedule, "burstiness"),
         help="Gamma arrival shape; 1 is Poisson, lower values are more bursty",
+    )
+    parser.add_argument(
+        "--duration",
+        type=float,
+        default=_default(HttpLoadSchedule, "duration_seconds"),
+        help="Maximum measured workload duration in seconds",
     )
 
     # Chat Completions generation parameters
@@ -408,7 +414,7 @@ def _add_benchmark_arguments(
         metavar="PATH",
         default=_default(ParameterSweepConfig, "path"),
         help=(
-            "JSONL parameter combinations; parallel, number, and rate may be lists"
+            "JSONL parameter combinations; execution fields may be lists and expand cartesian"
         ),
     )
     parser.add_argument(
@@ -460,11 +466,16 @@ def _benchmark_config(namespace: argparse.Namespace) -> BenchmarkConfig:
         ),
         load=HttpLoadSchedule(
             max_concurrency=namespace.max_concurrency,
-            request_count=namespace.num_prompts,
+            request_count=(
+                namespace.num_prompts
+                if namespace.num_prompts is not None
+                else (None if namespace.duration is not None else _default(HttpLoadSchedule, "request_count"))
+            ),
             arrival_rate=namespace.request_rate,
             arrival_pattern=namespace.arrival_pattern,
             burstiness=namespace.burstiness,
             warmup_requests=namespace.warmup_requests,
+            duration_seconds=namespace.duration,
         ),
         generation=ChatCompletionsGeneration(
             max_tokens=namespace.max_tokens,
