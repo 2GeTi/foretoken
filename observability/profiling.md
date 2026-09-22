@@ -20,7 +20,7 @@ foretoken bench examples/quickstart \
   --num-prompts 2 --max-tokens 128 --output local
 ```
 
-This mode supports a single generated workload from a Kustomize deployment with the default `--request-rate -1`.
+Benchmark capture supports generated, trace-replay, multi-turn, and multi-dataset HTTP workloads, including SLO probes and HTTP parameter sweeps. Each sweep point and repetition stores its capture metadata in that point's `profile.json`. The benchmark still requires a Foretoken Kustomize deployment; video benchmarks use a separate profiling path.
 
 ## Deploy and capture external traffic
 

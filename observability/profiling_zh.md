@@ -20,7 +20,7 @@ foretoken bench examples/quickstart \
   --num-prompts 2 --max-tokens 128 --output local
 ```
 
-此模式支持 Kustomize 部署中的单个生成式负载，使用默认的 `--request-rate -1`。
+Benchmark 采集支持生成式、轨迹回放、多轮和多数据集 HTTP 负载，也支持 SLO 探测和 HTTP 参数扫描。每个扫描点和重复运行都会在该运行目录保存自己的 `profile.json`。Benchmark 仍要求使用 Foretoken Kustomize 部署；视频评测保持独立的性能剖析路径。
 
 ## 部署并采集外部流量
 
