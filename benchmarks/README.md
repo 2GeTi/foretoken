@@ -61,7 +61,7 @@ foretoken bench examples/quickstart \
   --output local,wandb
 ```
 
-Output-length control requires service support for `min_tokens` and `ignore_eos`. Requests that miss the sampled length count as failures. Without these output bounds, generation uses the ordinary `--max-tokens` limit, which defaults to 4096.
+Output-length control requires service support for `min_tokens` and `ignore_eos`. Requests that miss the sampled length count as failures. Without these output bounds, generation uses the ordinary `--max-tokens` limit, which defaults to 4096. A random workload can be time-bounded without `--num-prompts`; prompts are generated on demand until the duration deadline. When both are supplied, the run stops at the first limit.
 
 ### Datasets and conversations
 
@@ -82,7 +82,7 @@ foretoken bench examples/quickstart \
   --num-prompts 2 --max-tokens 128 --output local
 ```
 
-See [Profiling](../observability/profiling.md) for setup and trace viewing.
+Profile runs use the same workload controls as ordinary benchmarks. `--duration`, `--request-rate`, `--arrival-pattern`, and `--max-concurrency` remain effective; profiling starts after warmup and closes after admitted requests drain. See [Profiling](../observability/profiling.md) for setup and trace viewing.
 
 ### Trace replay
 

@@ -36,7 +36,7 @@ foretoken bench video \
   --output-dir results/video/ti2v
 ```
 
-评测会在终端打印汇总结果，在本地保存生成视频和运行元数据，并在 W&B 中记录逐请求指标。添加 `--warmup-requests N` 可在测量前完成前 N 条数据集请求；添加 `--duration SECONDS` 可在到达截止时间后停止新的请求准入，并等待已经准入的请求完成。通用输出设置见 [W&B 输出](wandb_zh.md)。
+评测会在终端打印汇总结果，在本地保存生成视频和运行元数据，并在 W&B 中记录逐请求指标。添加 `--warmup-requests N` 可在测量前完成前 N 条数据集请求；添加 `--duration SECONDS` 可在到达截止时间后停止新的请求准入，并等待已经准入的请求完成。使用 `--sweep benchmarks/examples/video-sweep.jsonl` 可比较视频生成参数和负载设置。通用输出设置见 [W&B 输出](wandb_zh.md)。
 
 ![TI2V 评测汇总结果](../imgs/video-ti2v-benchmark-summary.png)
 

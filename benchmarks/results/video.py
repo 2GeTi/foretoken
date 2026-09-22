@@ -139,6 +139,8 @@ def video_run_record(config: VideoBenchmarkConfig) -> dict[str, Any]:
         "dataset": config.dataset_source,
         "max_concurrency": config.concurrency,
         "num_prompts": len(config.requests),
+        "warmup_requests": config.warmup_requests,
+        "duration": config.duration_s,
     }
 
 

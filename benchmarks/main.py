@@ -29,7 +29,9 @@ from benchmarks.results.console import (
 from benchmarks.results.output import BenchmarkRun
 from benchmarks.runs.dispatch import measurement_runner
 from benchmarks.runs.slo import SloAutoTuneBenchmark
-from benchmarks.runs.sweep import ParameterSweepBenchmark
+from benchmarks.runs.video import run_video_benchmark
+from benchmarks.sweeps.http import ParameterSweepBenchmark
+from benchmarks.sweeps.video import run_video_sweep
 
 logger = logging.getLogger(__name__)
 
@@ -48,13 +50,12 @@ def run_benchmark(
 
 def _run_video(arguments: Sequence[str], *, command_name: str) -> None:
     """Parse and run one request-only video-generation benchmark."""
-    from benchmarks.runs.video import run_video_benchmark
-
     try:
         command = parse_video_arguments(arguments, command_name=command_name)
         config = command.config
         configure_logging(not config.outputs.includes("quiet"))
-        result = asyncio.run(run_video_benchmark(config, dry_run=command.dry_run))
+        runner = run_video_sweep if config.sweep.path else run_video_benchmark
+        result = asyncio.run(runner(config, dry_run=command.dry_run))
     except (ValueError, wandb.errors.Error) as exc:
         raise SystemExit(str(exc)) from exc
     if not result.get("dry_run") and result["metrics"]["success_num"] == 0:
