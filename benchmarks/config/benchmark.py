@@ -412,6 +412,26 @@ class BenchmarkConfig:
             raise ValueError("--trace cannot be combined with generated arrival patterns")
         self.slo.validate()
 
+        if self.slo.params:
+            if self.trace.trace_selector:
+                start = self.trace.max_concurrency
+                if start is None:
+                    raise ValueError(
+                        "--slo-params with --trace requires --trace-max-concurrency"
+                    )
+            else:
+                start = self.load.max_concurrency
+                if start == -1:
+                    raise ValueError(
+                        "--slo-params requires --max-concurrency >= 1"
+                    )
+            if start < self.slo.lower_bound or start > self.slo.upper_bound:
+                raise ValueError(
+                    "SLO search start must be within "
+                    f"[--slo-lower-bound, --slo-upper-bound]; got {start} not in "
+                    f"[{self.slo.lower_bound}, {self.slo.upper_bound}]"
+                )
+
         trace = self.trace
         has_trace = bool(trace.trace_selector)
         if not has_trace and self.load.request_count is None and self.load.duration_seconds is None:
