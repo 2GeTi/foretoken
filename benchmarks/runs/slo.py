@@ -163,14 +163,7 @@ class SloAutoTuneBenchmark:
         wandb_group = wandb_group_name(self.benchmark, self.service)
         summaries: list[dict[str, Any]] = []
         winning_run: BenchmarkRun | None = None
-        if self.benchmark.trace.trace_selector:
-            start = self.benchmark.trace.max_concurrency
-            if start is None:
-                raise ValueError(
-                    "--slo-params with --trace requires --trace-max-concurrency"
-                )
-        else:
-            start = self.benchmark.load.max_concurrency
+        start = self.benchmark.slo_search_start()
         for group_index, criteria in enumerate(self.benchmark.slo.params):
             cache: dict[int, tuple[BenchmarkRun, list[dict[str, Any]]]] = {}
 
@@ -222,6 +215,12 @@ class SloAutoTuneBenchmark:
 
             if evaluate(start):
                 low = start + 1
+                if high is None:
+                    probe_value = max(start * 2, start + 1)
+                    while evaluate(probe_value):
+                        low = probe_value + 1
+                        probe_value *= 2
+                    high = probe_value - 1
             else:
                 high = start - 1
             while low <= high:
